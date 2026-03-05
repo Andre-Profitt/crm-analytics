@@ -97,3 +97,11 @@ sf config set target-org myorg
 ```
 
 No `.env` files or hardcoded credentials — the builders call `sf org display` at runtime.
+
+## Developer Intelligence
+
+The [`docs/`](docs/) directory contains hard-won patterns and pitfalls from building these dashboards:
+
+- **[columnMap Reference](docs/columnmap-reference.md)** — The #1 crash source. Which chart types need explicit columnMap, which need null, which auto-detect.
+- **[Chart Styling Reference](docs/chart-styling-reference.md)** — Styling parameters, axis config, gauge bands, combo plotConfiguration, universal properties.
+- **[SAQL Patterns](docs/saql-patterns.md)** — Field quoting rules, window functions, timeseries forecasting, CASE expressions, coalesce filters.
