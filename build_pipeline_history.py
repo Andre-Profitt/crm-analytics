@@ -37,6 +37,7 @@ from crm_analytics_helpers import (
     create_dashboard_if_needed,
     coalesce_filter,
     pillbox,
+    set_security_predicate,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -593,6 +594,9 @@ def main():
     history_ok = create_history_dataset(inst, tok)
     if not history_ok:
         print("WARNING: Opp_History dataset failed")
+
+    if history_ok:
+        set_security_predicate(inst, tok, HISTORY_DS)
 
     # 4D: Build OpportunityFieldHistory dataset
     field_ok = create_field_history_dataset(inst, tok)

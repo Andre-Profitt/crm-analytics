@@ -53,6 +53,7 @@ from crm_analytics_helpers import (
     create_dataflow,
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
+    set_security_predicate,
 )
 
 DS = "Account_Intelligence"
@@ -2092,6 +2093,8 @@ def main():
     if not acct_ok:
         print("ERROR: Account dataset upload failed -- aborting")
         return
+
+    set_security_predicate(instance_url, token, DS)
 
     # Set record navigation links via XMD
     set_record_links_xmd(

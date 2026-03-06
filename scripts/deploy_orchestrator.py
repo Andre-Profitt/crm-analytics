@@ -34,6 +34,7 @@ DEPLOY_ORDER = [
     "build_forecasting.py",
     "build_revenue_motions.py",
     "build_pipeline_history.py",
+    "build_arr_bridge.py",
 ]
 
 

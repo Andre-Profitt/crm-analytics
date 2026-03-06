@@ -42,6 +42,7 @@ from crm_analytics_helpers import (
     _measure,
     upload_dataset,
     get_dataset_id,
+    set_security_predicate,
     sq,
     af,
     num,
@@ -1346,6 +1347,8 @@ def build_widgets():
     if "p2_tbl_rep" in w:
         add_table_action(w["p2_tbl_rep"])
 
+    add_selection_interaction(w["p1_f_unit"], "f_unit", "UnitGroup", ["s_forecast_bands"])
+
     return w
 
 
@@ -1582,6 +1585,8 @@ def main():
     if not ds_ok:
         print("ERROR: Forecast dataset failed — aborting")
         return
+
+    set_security_predicate(inst, tok, DS)
 
     # Get dataset ID for af() steps
     ds_id = get_dataset_id(inst, tok, DS)

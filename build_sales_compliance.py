@@ -2,9 +2,10 @@
 """Build the Sales Process Compliance (AP 1.4) dashboard.
 
 Reuses the existing Opp_Mgmt_KPIs dataset — no dataset upload needed.
-8 pages: Stage Bottlenecks, Stuck & Past-Due, Velocity by Type,
+9 pages: Stage Bottlenecks, Stuck & Past-Due, Velocity by Type,
          Close Date Hygiene, Win/Loss Analysis, Advanced Analytics,
-         Statistical Analysis, Forecast Integrity (ML-Forward).
+         Statistical Analysis, Forecast Integrity (ML-Forward),
+         Action Queue.
 
 Fields available in Opp_Mgmt_KPIs:
   dim:  Id, Name, OwnerName, AccountName, UnitGroup, SalesRegion,
@@ -914,6 +915,29 @@ def build_steps(ds_meta):
             + "q = order q by pastdue_arr desc;\n"
             + "q = limit q 20;"
         ),
+        # ══════════════════════════════════════════════════════════════════
+        #  PAGE 9: Action Queue
+        # ══════════════════════════════════════════════════════════════════
+        # Past-due + stuck deals sorted by ARR
+        "s_action_queue": sq(
+            L + UF + RF + TF + OPEN
+            + f'q = filter q by CloseDate < "{TODAY}" || DaysInStage > 30;\n'
+            + "q = foreach q generate Id, Name, AccountName, OwnerName, StageName, "
+            + "CloseDate, DaysInStage, ARR, ForecastCategory;\n"
+            + "q = order q by ARR desc;\n"
+            + "q = limit q 100;"
+        ),
+        # Action Queue KPIs
+        "s_action_kpi": sq(
+            L + UF + RF + TF + OPEN
+            + f'q = filter q by CloseDate < "{TODAY}" || DaysInStage > 30;\n'
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "count() as action_count, "
+            + "sum(ARR) as at_risk_arr, "
+            + f'sum(case when CloseDate < "{TODAY}" then 1 else 0 end) as past_due_count, '
+            + "sum(case when DaysInStage > 30 then 1 else 0 end) as stuck_count;"
+        ),
     }
 
 
@@ -1488,6 +1512,12 @@ def build_widgets():
     # Add nav7 (Statistics) to pages 1-6
     for px in range(1, 7):
         w[f"p{px}_nav7"] = nav_link("compstats", "Statistics")
+    # Add nav8 (Integrity) to pages 1-7
+    for px in range(1, 8):
+        w[f"p{px}_nav8"] = nav_link("integrity", "Integrity")
+    # Add nav9 (Action Queue) to pages 1-8
+    for px in range(1, 9):
+        w[f"p{px}_nav9"] = nav_link("actionqueue", "Action Queue")
 
     # ═══ V3 VIZ UPGRADE ═══
     # Dynamic KPI tiles on Page 1
@@ -1538,6 +1568,14 @@ def build_widgets():
     )
 
     # ═══ PAGE 8: Forecast Integrity (ML-Forward) ═══
+    w["p8_nav1"] = nav_link("bottlenecks", "Bottlenecks")
+    w["p8_nav2"] = nav_link("stuck", "Stuck & Past-Due")
+    w["p8_nav3"] = nav_link("velocity", "Velocity")
+    w["p8_nav4"] = nav_link("closedates", "Close Dates")
+    w["p8_nav5"] = nav_link("winloss", "Win/Loss")
+    w["p8_nav6"] = nav_link("advanalytics", "Advanced")
+    w["p8_nav7"] = nav_link("compstats", "Statistics")
+    w["p8_nav8"] = nav_link("integrity", "Integrity", active=True)
     w["p8_hdr"] = hdr(
         "Forecast Integrity & Hygiene",
         "ForecastCategory vs WinScore alignment — identify misclassified deals",
@@ -1576,6 +1614,40 @@ def build_widgets():
         axis_title="Past-Due ARR (EUR)",
     )
 
+    # ══════════════════════════════════════════════════════════════════
+    #  PAGE 9: Action Queue
+    # ══════════════════════════════════════════════════════════════════
+    w["p9_nav1"] = nav_link("bottlenecks", "Bottlenecks")
+    w["p9_nav2"] = nav_link("stuck", "Stuck & Past-Due")
+    w["p9_nav3"] = nav_link("velocity", "Velocity")
+    w["p9_nav4"] = nav_link("closedates", "Close Dates")
+    w["p9_nav5"] = nav_link("winloss", "Win/Loss")
+    w["p9_nav6"] = nav_link("advanalytics", "Advanced")
+    w["p9_nav7"] = nav_link("compstats", "Statistics")
+    w["p9_nav8"] = nav_link("integrity", "Integrity")
+    w["p9_nav9"] = nav_link("actionqueue", "Action Queue", active=True)
+    w["p9_hdr"] = hdr("Compliance Action Queue")
+    w["p9_kpi_count"] = num("s_action_kpi", "action_count", "Actions Required",
+                            "#D4504C")
+    w["p9_kpi_arr"] = num_dynamic_color(
+        "s_action_kpi", "at_risk_arr", "ARR at Risk",
+        [(0, "#4CAF50"), (500000, "#FF9800"), (2000000, "#F44336")],
+        compact=True,
+    )
+    w["p9_kpi_pastdue"] = num("s_action_kpi", "past_due_count", "Past Due",
+                              "#FF9800")
+    w["p9_kpi_stuck"] = num("s_action_kpi", "stuck_count", "Stuck > 30 Days",
+                            "#D4504C")
+    w["p9_sec_queue"] = section_label("Actionable Deals — Past Due or Stuck")
+    w["p9_tbl_queue"] = rich_chart(
+        "s_action_queue",
+        "table",
+        "Action Queue",
+        ["Name", "AccountName", "OwnerName", "StageName", "CloseDate"],
+        ["DaysInStage", "ARR"],
+    )
+    add_table_action(w["p9_tbl_queue"])
+
     return w
 
 
@@ -1586,7 +1658,7 @@ def build_widgets():
 
 def build_layout():
     # ── Page 1: Stage Bottlenecks ─────────────────────────────────────────
-    p1 = nav_row("p1", 7) + [
+    p1 = nav_row("p1", 9) + [
         {"name": "p1_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p1_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1627,7 +1699,7 @@ def build_layout():
     ]
 
     # ── Page 2: Stuck & Past-Due ──────────────────────────────────────────
-    p2 = nav_row("p2", 7) + [
+    p2 = nav_row("p2", 9) + [
         {"name": "p2_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p2_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1673,7 +1745,7 @@ def build_layout():
     ]
 
     # ── Page 3: Velocity by Type ──────────────────────────────────────────
-    p3 = nav_row("p3", 7) + [
+    p3 = nav_row("p3", 9) + [
         {"name": "p3_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p3_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1711,7 +1783,7 @@ def build_layout():
     ]
 
     # ── Page 4: Close Date Hygiene ────────────────────────────────────────
-    p4 = nav_row("p4", 7) + [
+    p4 = nav_row("p4", 9) + [
         {"name": "p4_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p4_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1751,7 +1823,7 @@ def build_layout():
     ]
 
     # ── Page 5: Win/Loss Reason Analysis (Additive CRO #3) ────────────────
-    p5 = nav_row("p5", 7) + [
+    p5 = nav_row("p5", 9) + [
         {"name": "p5_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p5_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1783,7 +1855,7 @@ def build_layout():
         },
     ]
 
-    p6 = nav_row("p6", 7) + [
+    p6 = nav_row("p6", 9) + [
         {"name": "p6_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p6_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
         {"name": "p6_f_region", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
@@ -1818,7 +1890,7 @@ def build_layout():
         {"name": "p6_ch_treemap", "row": 50, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
-    p7 = nav_row("p7", 7) + [
+    p7 = nav_row("p7", 9) + [
         {"name": "p7_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p7_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
         {"name": "p7_f_region", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
@@ -1844,7 +1916,7 @@ def build_layout():
         {"name": "p7_tbl_pctiles", "row": 30, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
-    p8 = nav_row("p8", 8) + [
+    p8 = nav_row("p8", 9) + [
         {"name": "p8_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p8_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
         {"name": "p8_f_region", "row": 3, "column": 6, "colspan": 6, "rowspan": 2},
@@ -1856,6 +1928,17 @@ def build_layout():
         {"name": "p8_tbl_detail", "row": 21, "column": 0, "colspan": 12, "rowspan": 8},
         {"name": "p8_sec_pastdue", "row": 29, "column": 0, "colspan": 12, "rowspan": 1},
         {"name": "p8_tbl_pastdue", "row": 30, "column": 0, "colspan": 12, "rowspan": 8},
+    ]
+
+    # ── Page 9: Action Queue ─────────────────────────────────────────
+    p9 = nav_row("p9", 9) + [
+        {"name": "p9_hdr", "row": 2, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_kpi_count", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
+        {"name": "p9_kpi_arr", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
+        {"name": "p9_kpi_pastdue", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
+        {"name": "p9_kpi_stuck", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
+        {"name": "p9_sec_queue", "row": 5, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_tbl_queue", "row": 6, "column": 0, "colspan": 12, "rowspan": 16},
     ]
 
     return {
@@ -1870,6 +1953,7 @@ def build_layout():
             pg("advanalytics", "Advanced Analytics", p6),
             pg("compstats", "Statistical Analysis", p7),
             pg("integrity", "Forecast Integrity", p8),
+            pg("actionqueue", "Action Queue", p9),
         ],
     }
 

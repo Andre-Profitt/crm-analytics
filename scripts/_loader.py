@@ -41,6 +41,7 @@ def core_files():
         "build_contract_operations.py",
         "build_forecasting.py",
         "build_pipeline_history.py",
+        "build_arr_bridge.py",
     ]
     return [ROOT / n for n in names]
 

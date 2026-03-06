@@ -11,7 +11,8 @@ CORE_FILES := \
 	$(ROOT)/build_lead_management.py \
 	$(ROOT)/build_contract_operations.py \
 	$(ROOT)/build_forecasting.py \
-	$(ROOT)/build_pipeline_history.py
+	$(ROOT)/build_pipeline_history.py \
+	$(ROOT)/build_arr_bridge.py
 SCRIPT_FILES := \
 	$(ROOT)/scripts/_loader.py \
 	$(ROOT)/scripts/contract_lint.py \

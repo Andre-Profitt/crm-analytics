@@ -64,11 +64,14 @@ from crm_analytics_helpers import (
     deploy_dashboard,
     create_dashboard_if_needed,
     set_record_links_xmd,  # noqa: F401
+    set_security_predicate,
     add_selection_interaction,
     add_table_action,
     # ML-Forward additions
     compute_churn_probability,
     compute_expansion_probability,
+    arr_bridge_waterfall_step,
+    growth_cube_step,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -97,6 +100,7 @@ PAGE_IDS = [
     "engagement",
     "advanalytics",
     "retention",
+    "arrbridge",
 ]
 PAGE_LABELS = [
     "Portfolio",
@@ -108,6 +112,7 @@ PAGE_LABELS = [
     "Engagement",
     "Advanced",
     "Retention",
+    "ARR Bridge",
 ]
 NUM_PAGES = len(PAGE_IDS)
 
@@ -1911,6 +1916,11 @@ def build_steps(ds_id):
             + "q = order q by expected_churn desc;\n"
             + "q = limit q 10;"
         ),
+        # ══════════════════════════════════════════════════════════════
+        #  PAGE 10: ARR Bridge (cross-dataset)
+        # ══════════════════════════════════════════════════════════════
+        "s_ci_arr_bridge": arr_bridge_waterfall_step("Customer_ARR_Bridge"),
+        "s_ci_growth": growth_cube_step("Customer_ARR_Bridge", "ProductFamily", "Segment"),
     }
 
 
@@ -2773,6 +2783,26 @@ def build_widgets():
         "s_churn_by_product", "Avg Churn Probability by Product Combo"
     )
 
+    # ══════════════════════════════════════════════════════════════
+    #  PAGE 10: ARR Bridge
+    # ══════════════════════════════════════════════════════════════
+    w["p10_hdr"] = hdr("ARR Bridge & Growth")
+    w["p10_sec_bridge"] = section_label("Net ARR Movement Waterfall")
+    w["p10_ch_bridge"] = waterfall_chart(
+        "s_ci_arr_bridge",
+        title="Customer ARR Bridge",
+    )
+    w["p10_sec_growth"] = section_label("Growth Rate: Product × Segment")
+    w["p10_ch_growth"] = heatmap_chart(
+        "s_ci_growth",
+        title="Growth Rate by Product × Segment",
+        x_field="Segment",
+        y_field="ProductFamily",
+        color_field="growth_rate_pct",
+    )
+
+    add_selection_interaction(w["p1_f_segment"], "f_segment", "Segment", ["s_ci_growth"])
+
     return w
 
 
@@ -3392,6 +3422,19 @@ def build_layout():
         ]
     )
 
+    # ── PAGE 10: ARR Bridge ──
+    p10 = (
+        nav_row("p10", NUM_PAGES)
+        + _std_header("p10")
+        + [
+            {"name": "p10_hdr", "row": 2, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p10_sec_bridge", "row": 3, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p10_ch_bridge", "row": 4, "column": 0, "colspan": 12, "rowspan": 8},
+            {"name": "p10_sec_growth", "row": 12, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p10_ch_growth", "row": 13, "column": 0, "colspan": 12, "rowspan": 8},
+        ]
+    )
+
     return {
         "name": "Default",
         "numColumns": 12,
@@ -3405,6 +3448,7 @@ def build_layout():
             pg(PAGE_IDS[6], PAGE_LABELS[6], p7),
             pg(PAGE_IDS[7], PAGE_LABELS[7], p8),
             pg(PAGE_IDS[8], PAGE_LABELS[8], p9),
+            pg(PAGE_IDS[9], PAGE_LABELS[9], p10),
         ],
     }
 
@@ -3422,6 +3466,8 @@ def main():
     if not ds_ok:
         print("ERROR: Customer Intelligence dataset failed — aborting")
         return
+
+    set_security_predicate(inst, tok, DS)
 
     # Set record navigation links via XMD
     set_record_links_xmd(

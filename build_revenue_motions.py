@@ -68,7 +68,9 @@ from crm_analytics_helpers import (
     create_dataflow,
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
+    set_security_predicate,
     add_table_action,
+    add_selection_interaction,
     arr_bridge_waterfall_step,
     growth_cube_step,
 )
@@ -2374,6 +2376,8 @@ def build_widgets():
         axis_title="At-Risk ARR (EUR)",
     )
 
+    add_selection_interaction(w["p1_f_unit"], "f_unit", "UnitGroup", ["s_arr_bridge"])
+
     return w
 
 
@@ -2885,6 +2889,8 @@ def main():
     if not ds_ok:
         print("ERROR: Dataset upload failed - aborting")
         return
+
+    set_security_predicate(instance_url, token, DS)
 
     # Set record navigation links via XMD
     set_record_links_xmd(

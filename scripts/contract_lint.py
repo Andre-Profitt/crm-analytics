@@ -31,11 +31,12 @@ def lint_file(path: Path) -> list[str]:
     except SyntaxError as e:
         return [f"{path.name}: SyntaxError at line {e.lineno}: {e.msg}"]
 
-    # Check for DS constant
+    # Check for DS constant (DS or *_DS like HISTORY_DS)
     has_ds = any(
         isinstance(node, ast.Assign)
         and any(
-            isinstance(t, ast.Name) and t.id == "DS" for t in node.targets
+            isinstance(t, ast.Name) and (t.id == "DS" or t.id.endswith("_DS"))
+            for t in node.targets
         )
         for node in ast.walk(tree)
     )

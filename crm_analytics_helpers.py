@@ -1241,6 +1241,38 @@ def set_record_links_xmd(inst, tok, dataset_name, link_configs):
         print(f"  XMD WARNING ({dataset_name}): {e}")
 
 
+def set_security_predicate(inst, tok, dataset_name,
+                           predicate="'OwnerId' == \"$User.Id\""):
+    """Set a row-level security predicate on a CRM Analytics dataset.
+
+    Args:
+        inst: Salesforce instance URL
+        tok: Access token
+        dataset_name: API name of the dataset
+        predicate: SAQL security predicate expression
+    """
+    ds_list = _sf_api(
+        inst, tok, "GET",
+        f"/services/data/v66.0/wave/datasets?q={dataset_name}",
+    )
+    ds = None
+    for d in ds_list.get("datasets", []):
+        if d.get("name") == dataset_name:
+            ds = d
+            break
+    if not ds:
+        print(f"  RLS: dataset '{dataset_name}' not found — skipping predicate")
+        return
+    ds_id = ds["id"]
+    try:
+        _sf_api(inst, tok, "PATCH",
+                f"/services/data/v66.0/wave/datasets/{ds_id}",
+                {"securityPredicate": predicate})
+        print(f"  RLS: security predicate set on {dataset_name}")
+    except RuntimeError as e:
+        print(f"  RLS WARNING ({dataset_name}): {e}")
+
+
 def pg(name, lbl, widgets):
     """Build a page dict for the grid layout."""
     return {"name": name, "label": lbl, "widgets": widgets}
@@ -1248,7 +1280,9 @@ def pg(name, lbl, widgets):
 
 def nav_row(prefix, count):
     """Generate nav bar layout positions across row 0 for `count` pages."""
-    if count == 8:
+    if count == 9:
+        widths = [2, 1, 1, 1, 1, 1, 1, 2, 2]
+    elif count == 8:
         widths = [2, 2, 1, 1, 2, 1, 1, 2]
     elif count == 7:
         widths = [2, 2, 2, 2, 1, 1, 2]

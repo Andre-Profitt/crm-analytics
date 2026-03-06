@@ -79,6 +79,7 @@ from crm_analytics_helpers import (
     scatter_chart,
     growth_cube_step,
     get_dataset_id,
+    set_security_predicate,
 )
 
 DASHBOARD_LABEL = "Opp Management"
@@ -1847,6 +1848,17 @@ def build_steps(ds_meta):
             + "avg(WinScore) as avg_win_score, "
             + "sum(case when IsClosed == \"false\" && WinScore < 40 then ARR else 0 end) as at_risk_arr;"
         ),
+        # Growth matrix (product × region)
+        "s_growth_cube": sq(
+            L + UF + RF
+            + 'q = filter q by IsClosed == "true";\n'
+            + "q = group q by (ProductFamily, SalesRegion);\n"
+            + "q = foreach q generate ProductFamily, SalesRegion, "
+            + "sum(case when IsWon == \"true\" then ARR else 0 end) as won_arr, "
+            + "sum(case when IsWon == \"true\" then 1 else 0 end) * 100 / count() as growth_pct, "
+            + "count() as deal_count;\n"
+            + "q = order q by ProductFamily asc, SalesRegion asc;"
+        ),
     }
 
 
@@ -2822,6 +2834,14 @@ def build_widgets():
     )
     add_table_action(w["p9_tbl_atrisk"])
 
+    # Growth matrix (product × region)
+    w["p9_sec_growth_matrix"] = section_label("Product × Region Growth Matrix")
+    w["p9_ch_growth_matrix"] = heatmap_chart(
+        "s_growth_cube", "Win Rate by Product × Region"
+    )
+
+    add_selection_interaction(w["p1_f_unit"], "f_unit", "UnitGroup", ["s_growth_cube"])
+
     return w
 
 
@@ -3262,6 +3282,9 @@ def build_layout():
         # At-risk deals table
         {"name": "p9_sec_atrisk", "row": 40, "column": 0, "colspan": 12, "rowspan": 1},
         {"name": "p9_tbl_atrisk", "row": 41, "column": 0, "colspan": 12, "rowspan": 10},
+        # Growth matrix
+        {"name": "p9_sec_growth_matrix", "row": 51, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_ch_growth_matrix", "row": 52, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
     return {
@@ -3391,6 +3414,9 @@ def main():
     if not ds_result:
         print("ERROR: Main dataset rebuild failed — aborting")
         return
+
+    # Apply row-level security predicate
+    set_security_predicate(instance_url, token, DS)
 
     # Look up dataset ID dynamically
     ds_id = get_dataset_id(instance_url, token, DS)
