@@ -1846,6 +1846,7 @@ def main():
         DS,
         [
             {"field": "Name", "sobject": "Lead", "id_field": "Id"},
+            {"field": "Id", "sobject": "Lead", "id_field": "Id", "label": "Lead ID"},
         ],
     )
 

@@ -40,6 +40,7 @@ from crm_analytics_helpers import (
     deploy_dashboard,
     gauge,
     get_auth,
+    get_dataset_id,
     hdr,
     nav_link,
     nav_row,
@@ -73,8 +74,6 @@ from crm_analytics_helpers import (
 # ═══════════════════════════════════════════════════════════════════════════
 
 DS = "Opp_Mgmt_KPIs"
-DS_ID = "0FbTb0000019llVKAQ"
-DS_META = [{"id": DS_ID, "name": DS}]
 DASHBOARD_LABEL = "Sales Process Compliance KPIs"
 
 # Today's date for past-due comparisons (SAQL string comparison on yyyy-MM-dd)
@@ -107,13 +106,13 @@ _PRIOR_FY = "q = filter q by FiscalYear == 2025;\n"
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def build_steps():
+def build_steps(ds_meta):
     return {
         # ── Filter steps (aggregateflex) ──────────────────────────────────
-        "f_unit": af("UnitGroup", DS_META),
-        "f_region": af("SalesRegion", DS_META),
-        "f_type": af("Type", DS_META),
-        "f_stage": af("StageName", DS_META),
+        "f_unit": af("UnitGroup", ds_meta),
+        "f_region": af("SalesRegion", ds_meta),
+        "f_type": af("Type", ds_meta),
+        "f_stage": af("StageName", ds_meta),
         # ══════════════════════════════════════════════════════════════════
         #  PAGE 1: Stage Bottlenecks
         # ══════════════════════════════════════════════════════════════════
@@ -1894,14 +1893,16 @@ def main():
     instance_url, token = get_auth()
     print(f"  Authenticated to {instance_url}")
 
-    # 2. No dataset upload — reuses Opp_Mgmt_KPIs
-    print(f"  Using existing dataset: {DS} ({DS_ID})")
+    # 2. No dataset upload — reuses Opp_Mgmt_KPIs; look up ID dynamically
+    ds_id = get_dataset_id(instance_url, token, DS)
+    ds_meta = [{"id": ds_id, "name": DS}] if ds_id else [{"name": DS}]
+    print(f"  Using existing dataset: {DS} ({ds_id})")
 
     # 3. Create or find dashboard
     dashboard_id = create_dashboard_if_needed(instance_url, token, DASHBOARD_LABEL)
 
     # 4. Build state
-    steps = build_steps()
+    steps = build_steps(ds_meta)
     widgets = build_widgets()
     layout = build_layout()
     state = build_dashboard_state(steps, widgets, layout)

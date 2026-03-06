@@ -1698,7 +1698,9 @@ def main():
         DS,
         [
             {"field": "ContractNumber", "sobject": "Contract", "id_field": "Id"},
+            {"field": "Id", "sobject": "Contract", "id_field": "Id", "label": "Contract ID"},
             {"field": "AccountName", "sobject": "Account", "id_field": "AccountId"},
+            {"field": "AccountId", "sobject": "Account", "id_field": "AccountId", "label": "Account ID"},
         ],
     )
 

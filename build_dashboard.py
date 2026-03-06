@@ -78,17 +78,15 @@ from crm_analytics_helpers import (
     # ML-Forward additions
     scatter_chart,
     growth_cube_step,
+    get_dataset_id,
 )
 
 DASHBOARD_LABEL = "Opp Management"
 DS = "Opp_Mgmt_KPIs"
-DS_ID = "0FbTb0000019llVKAQ"
 DS_LABEL = "Opportunity Management KPIs"
 
 GEO_DS = "Opp_Geo_Map"
 GEO_DS_LABEL = "Opportunity Geographic Map"
-
-DS_META = [{"id": DS_ID, "name": DS}]
 
 
 def create_main_dataset(inst, tok):
@@ -583,7 +581,7 @@ RF = coalesce_filter("f_region", "SalesRegion")
 TF = coalesce_filter("f_type", "Type")
 
 
-def build_steps():
+def build_steps(ds_meta):
     L = f'q = load "{DS}";\n'
     # ARR is already in EUR (converted at dataset-build time via convertCurrency())
     FY = "q = filter q by FiscalYear == 2026;\n"
@@ -593,10 +591,10 @@ def build_steps():
 
     return {
         # ═══ FILTER STEPS (aggregateflex — powers listselector widgets) ═══
-        "f_unit": af("UnitGroup", DS_META),
-        "f_type": af("Type", DS_META),
-        "f_fy": af("FYLabel", DS_META),
-        "f_region": af("SalesRegion", DS_META),
+        "f_unit": af("UnitGroup", ds_meta),
+        "f_type": af("Type", ds_meta),
+        "f_fy": af("FYLabel", ds_meta),
+        "f_region": af("SalesRegion", ds_meta),
         # Quarter filter needs SAQL since Quarter is computed
         "f_qtr": sq(
             L
@@ -3394,6 +3392,10 @@ def main():
         print("ERROR: Main dataset rebuild failed — aborting")
         return
 
+    # Look up dataset ID dynamically
+    ds_id = get_dataset_id(instance_url, token, DS)
+    ds_meta = [{"id": ds_id, "name": DS}] if ds_id else [{"name": DS}]
+
     # Set record navigation links via XMD
     set_record_links_xmd(
         instance_url,
@@ -3401,7 +3403,9 @@ def main():
         DS,
         [
             {"field": "Name", "id_field": "Id"},
+            {"field": "Id", "id_field": "Id", "label": "Opportunity ID"},
             {"field": "AccountName", "id_field": "AccountId"},
+            {"field": "AccountId", "id_field": "AccountId", "label": "Account ID"},
         ],
     )
 
@@ -3413,7 +3417,7 @@ def main():
         _set_geo_xmd(instance_url, token)
 
     dashboard_id = create_dashboard_if_needed(instance_url, token, DASHBOARD_LABEL)
-    state = build_dashboard_state(build_steps(), build_widgets(), build_layout())
+    state = build_dashboard_state(build_steps(ds_meta), build_widgets(), build_layout())
     deploy_dashboard(instance_url, token, dashboard_id, state)
 
 

@@ -3430,6 +3430,7 @@ def main():
         DS,
         [
             {"field": "AccountName", "sobject": "Account", "id_field": "Id"},
+            {"field": "Id", "sobject": "Account", "id_field": "Id", "label": "Account ID"},
         ],
     )
 

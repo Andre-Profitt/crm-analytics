@@ -12,3 +12,6 @@ openpyxl>=3.1.0
 
 # PowerPoint Generation
 python-pptx>=0.6.21
+
+# Machine Learning (win probability, churn/expansion scoring)
+scikit-learn>=1.3.0

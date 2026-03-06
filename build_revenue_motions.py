@@ -2893,7 +2893,9 @@ def main():
         DS,
         [
             {"field": "Name", "sobject": "Opportunity", "id_field": "Id"},
+            {"field": "Id", "sobject": "Opportunity", "id_field": "Id", "label": "Opportunity ID"},
             {"field": "AccountName", "sobject": "Account", "id_field": "AccountId"},
+            {"field": "AccountId", "sobject": "Account", "id_field": "AccountId", "label": "Account ID"},
         ],
     )
 
