@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Revenue Motions KPI dashboard — RW 1.8, 1.9, 1.10, 1.14.
+"""Build the Revenue Motions KPI dashboard — RW 1.8, 1.9, 1.10, 1.14 — ML-Forward upgrade with ARR bridge.
 
 Pages:
   1. Pipeline by Motion — Land/Expand/Renewal funnels, waterfall, combo, gauges
@@ -10,6 +10,7 @@ Pages:
   6. Competitive Intelligence — competitor frequency, win rate, reason analysis
   7. Advanced Analytics — Sankey, treemap, heatmap, bubble, area
   8. Statistical Analysis — bullet charts, percentiles, distributions
+  9. ARR Bridge & Growth (ML-Forward) — ARR bridge waterfall, growth rate analytics, expected churn computation
 
 Dataset: Revenue_Motions (Opportunity + Account fields)
 
@@ -68,6 +69,8 @@ from crm_analytics_helpers import (
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
     add_table_action,
+    arr_bridge_waterfall_step,
+    growth_cube_step,
 )
 
 DS = "Revenue_Motions"
@@ -1463,6 +1466,58 @@ def build_steps(ds_id):
             + 'case when sum(case when IsRenewal == "true" then ARR else 0 end) > 0 then '
             + 'sum(case when IsRenewal == "true" then ARR else 0 end) else 1 end) as churn_rate;'
         ),
+        # ═══ PAGE 9: ARR Bridge & Growth (ML-Forward) ═══
+        # ARR bridge waterfall: motion-based decomposition
+        "s_arr_bridge": sq(
+            L
+            + UF
+            + RF
+            + "q = filter q by FiscalYear == 2026;\n"
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "sum(case when IsRenewal == \"true\" && IsWon == \"true\" then ARR else 0 end) as renewed_arr, "
+            + "sum(case when IsExpand == \"true\" && IsWon == \"true\" then ARR else 0 end) as expanded_arr, "
+            + "sum(case when IsLand == \"true\" && IsWon == \"true\" then ARR else 0 end) as new_arr, "
+            + "sum(case when IsClosed == \"true\" && IsWon == \"false\" && IsRenewal == \"true\" then ARR else 0 end) as churned_arr, "
+            + "sum(case when IsWon == \"true\" then ARR else 0 end) as total_won;"
+        ),
+        # Growth rate by product × region
+        "s_growth_prod_region": sq(
+            L
+            + UF
+            + "q = filter q by IsClosed == \"true\";\n"
+            + "q = group q by (ProductFamily, SalesRegion);\n"
+            + "q = foreach q generate ProductFamily, SalesRegion, "
+            + "sum(case when IsWon == \"true\" then ARR else 0 end) as won_arr, "
+            + "(sum(case when IsWon == \"true\" then 1 else 0 end) * 100 / count()) as win_rate, "
+            + "count() as deal_count;\n"
+            + "q = order q by ProductFamily asc, SalesRegion asc;"
+        ),
+        # Expected churn: at-risk renewal pipeline
+        "s_expected_churn": sq(
+            L
+            + UF
+            + RF
+            + "q = filter q by IsAtRisk == \"true\" || RiskOfTermination != \"\";\n"
+            + "q = group q by SalesRegion;\n"
+            + "q = foreach q generate SalesRegion, "
+            + "sum(ARR) as at_risk_arr, "
+            + "count() as at_risk_count;\n"
+            + "q = order q by at_risk_arr desc;"
+        ),
+        # Net ARR bridge KPIs
+        "s_arr_bridge_kpi": sq(
+            L
+            + UF
+            + RF
+            + "q = filter q by FiscalYear == 2026;\n"
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "sum(case when IsWon == \"true\" then ARR else 0 end) as total_won, "
+            + "sum(case when IsLand == \"true\" && IsWon == \"true\" then ARR else 0 end) as new_arr, "
+            + "sum(case when IsExpand == \"true\" && IsWon == \"true\" then ARR else 0 end) as expand_arr, "
+            + "sum(case when IsClosed == \"true\" && IsWon == \"false\" && IsRenewal == \"true\" then ARR else 0 end) as churn_arr;"
+        ),
     }
 
 
@@ -2288,6 +2343,37 @@ def build_widgets():
         size=28,
     )
 
+    # ═══ PAGE 9: ARR Bridge & Growth (ML-Forward) ═══
+    w["p9_hdr"] = hdr(
+        "ARR Bridge & Growth Analytics",
+        "Motion-based ARR decomposition, product × region growth, expected churn",
+    )
+    w["p9_f_unit"] = pillbox("f_unit", "Unit Group")
+    w["p9_f_region"] = pillbox("f_region", "Region")
+    # ARR bridge KPIs
+    w["p9_kpi_new"] = num("s_arr_bridge_kpi", "new_arr", "New ARR", "#04844B", compact=True)
+    w["p9_kpi_expand"] = num("s_arr_bridge_kpi", "expand_arr", "Expansion ARR", "#0070D2", compact=True)
+    w["p9_kpi_churn"] = num("s_arr_bridge_kpi", "churn_arr", "Churned ARR", "#D4504C", compact=True)
+    # ARR bridge waterfall
+    w["p9_sec_bridge"] = section_label("ARR Bridge: Land + Expand − Churn = Net")
+    w["p9_ch_bridge"] = waterfall_chart(
+        "s_arr_bridge", "FY2026 ARR Bridge by Motion",
+        "Component", "arr", axis_label="ARR (EUR)",
+    )
+    # Growth heatmap
+    w["p9_sec_growth"] = section_label("Won ARR by Product × Region")
+    w["p9_ch_growth"] = heatmap_chart(
+        "s_growth_prod_region", "Won ARR: Product Family × Sales Region"
+    )
+    # Expected churn by region
+    w["p9_sec_churn"] = section_label("Expected Churn by Region")
+    w["p9_ch_churn"] = rich_chart(
+        "s_expected_churn", "hbar",
+        "At-Risk ARR by Region",
+        ["SalesRegion"], ["at_risk_arr"],
+        axis_title="At-Risk ARR (EUR)",
+    )
+
     return w
 
 
@@ -2298,7 +2384,7 @@ def build_widgets():
 
 def build_layout():
     # ── Page 1: Pipeline by Motion ──
-    p1 = nav_row("p1", 8) + [
+    p1 = nav_row("p1", 9) + [
         {"name": "p1_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p1_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -2334,7 +2420,7 @@ def build_layout():
     ]
 
     # ── Page 2: Renewals (RW 1.8) ──
-    p2 = nav_row("p2", 8) + [
+    p2 = nav_row("p2", 9) + [
         {"name": "p2_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p2_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -2363,7 +2449,7 @@ def build_layout():
     ]
 
     # ── Page 3: Conversion / ILF / ALF (RW 1.9) ──
-    p3 = nav_row("p3", 8) + [
+    p3 = nav_row("p3", 9) + [
         {"name": "p3_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p3_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -2412,7 +2498,7 @@ def build_layout():
     ]
 
     # ── Page 4: Cancellation & Churn (RW 1.10) ──
-    p4 = nav_row("p4", 8) + [
+    p4 = nav_row("p4", 9) + [
         {"name": "p4_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p4_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -2441,7 +2527,7 @@ def build_layout():
     ]
 
     # ── Page 5: Product/Pricing (RW 1.14) ──
-    p5 = nav_row("p5", 8) + [
+    p5 = nav_row("p5", 9) + [
         {"name": "p5_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p5_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -2470,7 +2556,7 @@ def build_layout():
     ]
 
     # ── Page 6: Competitive Intelligence ──
-    p6 = nav_row("p6", 8) + [
+    p6 = nav_row("p6", 9) + [
         {"name": "p6_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p6_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -2553,7 +2639,7 @@ def build_layout():
         {"name": "p6_ch_comp_heat", "row": 71, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
-    p7 = nav_row("p7", 8) + [
+    p7 = nav_row("p7", 9) + [
         {"name": "p7_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p7_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
         {"name": "p7_f_type", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
@@ -2582,7 +2668,7 @@ def build_layout():
         {"name": "p7_ch_motion_flow", "row": 70, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
-    p8 = nav_row("p8", 8) + [
+    p8 = nav_row("p8", 9) + [
         {"name": "p8_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p8_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -2652,6 +2738,21 @@ def build_layout():
         },
     ]
 
+    p9 = nav_row("p9", 9) + [
+        {"name": "p9_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+        {"name": "p9_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
+        {"name": "p9_f_region", "row": 3, "column": 6, "colspan": 6, "rowspan": 2},
+        {"name": "p9_kpi_new", "row": 5, "column": 0, "colspan": 4, "rowspan": 4},
+        {"name": "p9_kpi_expand", "row": 5, "column": 4, "colspan": 4, "rowspan": 4},
+        {"name": "p9_kpi_churn", "row": 5, "column": 8, "colspan": 4, "rowspan": 4},
+        {"name": "p9_sec_bridge", "row": 9, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_ch_bridge", "row": 10, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p9_sec_growth", "row": 20, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_ch_growth", "row": 21, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p9_sec_churn", "row": 31, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_ch_churn", "row": 32, "column": 0, "colspan": 12, "rowspan": 8},
+    ]
+
     return {
         "name": "Default",
         "numColumns": 12,
@@ -2664,6 +2765,7 @@ def build_layout():
             pg("competitive", "Competitive Intelligence", p6),
             pg("advanalytics", "Advanced Analytics", p7),
             pg("revstats", "Statistical Analysis", p8),
+            pg("arrbridge", "ARR Bridge", p9),
         ],
     }
 

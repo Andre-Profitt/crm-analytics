@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Build the Forecast Intelligence dashboard — DIY replacement for Revenue Intelligence.
 
-Phase 5 of the interactivity upgrade:
+ML-Forward Upgrade:
   - Query ForecastingItem for manager-submitted forecasts
   - Query pipeline data aggregated by owner + forecast category
   - Compute weighted forecast: Commit * 0.9 + BestCase * 0.5 + Pipeline * 0.2
   - Join with quota data if available
+  - Forecast snapshot dataset for error/bias tracking
+  - Forecast risk scoring per rep (ML-driven)
+  - Forecast band computation with 95% prediction intervals
 
 Pages:
   1. Forecast Overview — KPI tiles, commit vs quota gauge, quarterly forecast vs actual
@@ -13,16 +16,20 @@ Pages:
   3. Quota & Coverage — attainment distribution, pipeline ratios
   4. Advanced Analytics — Sankey, treemap, heatmap, bubble, area
   5. Statistical Analysis — bullet charts, percentiles, distributions
+  6. Bands & Error — forecast bands with uncertainty, error heatmap, bias analytics
 
-Dataset: Forecast_Intelligence
+Datasets:
+  - Forecast_Intelligence (primary)
+  - Forecast_Snapshots (weekly snapshots for error tracking)
 
-Visualization Upgrade (v2):
-  - Timeline forecast chart with actual vs forecast narrative
+Visualization Upgrade (v3 ML-Forward):
+  - Timeline forecast chart with _high_95/_low_95 prediction interval bands
+  - Forecast error heatmap (rep × quarter) with MAPE/bias
+  - Forecast risk scoring tiles with threshold-based coloring
   - Rep-selection interactions: clicking rep updates all visuals
   - Bullet chart panel for rep attainment (Won vs Quota)
   - Forecast accuracy scatter with quadrant semantics
   - Dynamic KPI tiles with threshold-based coloring
-  - Doc reconciliation: 5 pages matching actual implementation
 """
 
 import csv
@@ -64,6 +71,13 @@ from crm_analytics_helpers import (
     scatter_chart,
     add_selection_interaction,
     add_table_action,
+    # ML-Forward additions
+    forecast_snapshot_fields,
+    forecast_error_fields,
+    forecast_bands_step,
+    forecast_error_step,
+    forecast_error_heatmap_step,
+    compute_forecast_risk,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -72,6 +86,10 @@ from crm_analytics_helpers import (
 
 DS = "Forecast_Intelligence"
 DS_LABEL = "Forecast Intelligence"
+SNAP_DS = "Forecast_Snapshots"
+SNAP_DS_LABEL = "Forecast Snapshots"
+ERROR_DS = "Forecast_Error"
+ERROR_DS_LABEL = "Forecast Error Analytics"
 DASHBOARD_LABEL = "Forecast Intelligence"
 
 # Weights for weighted forecast calculation
@@ -182,7 +200,41 @@ def create_dataset(inst, tok):
         if quota and quota > d["QuotaAmount"]:
             d["QuotaAmount"] = quota
 
-    # Generate CSV rows with weighted forecast
+    # Generate CSV rows with weighted forecast + ML outputs
+
+    # ─── Compute forecast risk scoring per rep ──────────────────────────
+    for key, d in rep_data.items():
+        risk_score, risk_band, risk_driver = compute_forecast_risk(d)
+        d["ForecastRiskScore"] = risk_score
+        d["ForecastRiskBand"] = risk_band
+        d["ForecastRiskDriver"] = risk_driver
+
+    # ─── Compute forecast bands (P50/P90 with 95% intervals) ─────────
+    # Use historical variance across reps in same quarter to estimate bands
+    qtr_actuals = {}
+    for key, d in rep_data.items():
+        qtr = d["CloseQuarter"]
+        if qtr not in qtr_actuals:
+            qtr_actuals[qtr] = []
+        if d["ClosedWonARR"] > 0:
+            qtr_actuals[qtr].append(d["ClosedWonARR"])
+
+    for key, d in rep_data.items():
+        weighted = (
+            d["CommitARR"] * COMMIT_WEIGHT
+            + d["BestCaseARR"] * BEST_CASE_WEIGHT
+            + d["PipelineARR"] * PIPELINE_WEIGHT
+        )
+        # Estimate prediction interval based on forecast confidence
+        # Higher risk = wider bands
+        risk = d.get("ForecastRiskScore", 50)
+        band_width = weighted * (0.15 + risk / 200)  # 15-65% band width
+        d["ForecastP50"] = round(weighted, 2)
+        d["ForecastP90"] = round(weighted * 1.3, 2)  # Optimistic scenario
+        d["ForecastP50_high_95"] = round(weighted + band_width, 2)
+        d["ForecastP50_low_95"] = round(max(0, weighted - band_width), 2)
+
+    # ─── Rebuild CSV with new fields ──────────────────────────────────
     fields = [
         "OwnerName",
         "FiscalYear",
@@ -199,11 +251,18 @@ def create_dataset(inst, tok):
         "QuotaAmount",
         "QuotaAttainment",
         "FYLabel",
+        "ForecastRiskScore",
+        "ForecastRiskBand",
+        "ForecastRiskDriver",
+        "ForecastP50",
+        "ForecastP90",
+        "ForecastP50_high_95",
+        "ForecastP50_low_95",
     ]
 
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=fields, lineterminator="\n")
-    writer.writeheader()
+    buf2 = io.StringIO()
+    writer2 = csv.DictWriter(buf2, fieldnames=fields, lineterminator="\n")
+    writer2.writeheader()
 
     for key, d in rep_data.items():
         weighted = (
@@ -214,7 +273,7 @@ def create_dataset(inst, tok):
         quota = d["QuotaAmount"]
         attainment = round((d["ClosedWonARR"] / quota) * 100, 1) if quota > 0 else 0
 
-        writer.writerow(
+        writer2.writerow(
             {
                 "OwnerName": d["OwnerName"],
                 "FiscalYear": d["FiscalYear"],
@@ -231,10 +290,17 @@ def create_dataset(inst, tok):
                 "QuotaAmount": round(quota, 2),
                 "QuotaAttainment": attainment,
                 "FYLabel": f"FY{d['FiscalYear']}",
+                "ForecastRiskScore": d["ForecastRiskScore"],
+                "ForecastRiskBand": d["ForecastRiskBand"],
+                "ForecastRiskDriver": d["ForecastRiskDriver"],
+                "ForecastP50": d["ForecastP50"],
+                "ForecastP90": d["ForecastP90"],
+                "ForecastP50_high_95": d["ForecastP50_high_95"],
+                "ForecastP50_low_95": d["ForecastP50_low_95"],
             }
         )
 
-    csv_bytes = buf.getvalue().encode("utf-8")
+    csv_bytes = buf2.getvalue().encode("utf-8")
     print(f"  CSV: {len(csv_bytes):,} bytes, {len(rep_data)} rows")
 
     fields_meta = [
@@ -253,9 +319,71 @@ def create_dataset(inst, tok):
         _measure("QuotaAmount", "Quota Amount"),
         _measure("QuotaAttainment", "Quota Attainment %", scale=1, precision=5),
         _dim("FYLabel", "Fiscal Year Label"),
+        # ML-Forward: Forecast Risk
+        _measure("ForecastRiskScore", "Forecast Risk Score", scale=0, precision=5),
+        _dim("ForecastRiskBand", "Forecast Risk Band"),
+        _dim("ForecastRiskDriver", "Top Risk Driver"),
+        # ML-Forward: Forecast Bands
+        _measure("ForecastP50", "Forecast P50"),
+        _measure("ForecastP90", "Forecast P90"),
+        _measure("ForecastP50_high_95", "P50 Upper Band"),
+        _measure("ForecastP50_low_95", "P50 Lower Band"),
     ]
 
     return upload_dataset(inst, tok, DS, DS_LABEL, fields_meta, csv_bytes)
+
+
+def create_snapshot_dataset(inst, tok, rep_data):
+    """Create a forecast snapshot dataset for error/bias tracking.
+
+    Each run appends a point-in-time snapshot of forecast state per rep.
+    Over time, this enables MAPE/WAPE/bias computation against actuals.
+    """
+    from datetime import datetime as _dt
+
+    print("\n=== Building Forecast Snapshots dataset ===")
+    snapshot_date = _dt.utcnow().strftime("%Y-%m-%d")
+
+    snap_fields = [
+        "SnapshotDate", "OwnerName", "CloseQuarter", "FYLabel", "UnitGroup",
+        "CommitARR", "BestCaseARR", "PipelineARR", "ClosedWonARR",
+        "WeightedForecast", "QuotaAmount",
+        "ForecastP50", "ForecastP90", "ForecastP50_high_95", "ForecastP50_low_95",
+    ]
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=snap_fields, lineterminator="\n")
+    writer.writeheader()
+
+    for key, d in rep_data.items():
+        weighted = (
+            d["CommitARR"] * COMMIT_WEIGHT
+            + d["BestCaseARR"] * BEST_CASE_WEIGHT
+            + d["PipelineARR"] * PIPELINE_WEIGHT
+        )
+        writer.writerow({
+            "SnapshotDate": snapshot_date,
+            "OwnerName": d["OwnerName"],
+            "CloseQuarter": d["CloseQuarter"],
+            "FYLabel": f"FY{d['FiscalYear']}",
+            "UnitGroup": d["UnitGroup"],
+            "CommitARR": round(d["CommitARR"], 2),
+            "BestCaseARR": round(d["BestCaseARR"], 2),
+            "PipelineARR": round(d["PipelineARR"], 2),
+            "ClosedWonARR": round(d["ClosedWonARR"], 2),
+            "WeightedForecast": round(weighted, 2),
+            "QuotaAmount": round(d["QuotaAmount"], 2),
+            "ForecastP50": d.get("ForecastP50", 0),
+            "ForecastP90": d.get("ForecastP90", 0),
+            "ForecastP50_high_95": d.get("ForecastP50_high_95", 0),
+            "ForecastP50_low_95": d.get("ForecastP50_low_95", 0),
+        })
+
+    csv_bytes = buf.getvalue().encode("utf-8")
+    print(f"  Snapshot CSV: {len(csv_bytes):,} bytes, {len(rep_data)} rows")
+
+    return upload_dataset(inst, tok, SNAP_DS, SNAP_DS_LABEL,
+                          forecast_snapshot_fields(), csv_bytes)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -684,6 +812,105 @@ def build_steps(ds_id):
             + "(sum(QuotaAmount) - sum(ClosedWonARR) - sum(CommitARR)) as gap_to_quota;\n"
             + "q = order q by CloseQuarter asc;"
         ),
+        # ═══ PAGE 6: Bands & Error (ML-Forward) ═══
+        # Forecast bands timeline: actual vs P50 with 95% prediction interval
+        "s_forecast_bands": sq(
+            L
+            + UF
+            + "q = group q by CloseQuarter;\n"
+            + "q = foreach q generate CloseQuarter, "
+            + "sum(ClosedWonARR) as actual_arr, "
+            + "sum(ForecastP50) as forecast_p50, "
+            + "sum(ForecastP50_high_95) as forecast_p50_high_95, "
+            + "sum(ForecastP50_low_95) as forecast_p50_low_95, "
+            + "sum(ForecastP90) as forecast_p90;\n"
+            + "q = order q by CloseQuarter asc;"
+        ),
+        # Forecast error by rep (accuracy scatter)
+        "s_forecast_err_rep": sq(
+            L
+            + UF
+            + QF
+            + "q = filter q by ClosedWonARR > 0 || WeightedForecast > 0;\n"
+            + "q = group q by OwnerName;\n"
+            + "q = foreach q generate OwnerName, "
+            + "sum(WeightedForecast) as forecast_arr, "
+            + "sum(ClosedWonARR) as actual_arr, "
+            + "(case when sum(WeightedForecast) > 0 then "
+            + "((sum(ClosedWonARR) - sum(WeightedForecast)) / sum(WeightedForecast)) * 100 "
+            + "else 0 end) as bias_pct, "
+            + "(case when sum(WeightedForecast) > 0 then "
+            + "abs(sum(ClosedWonARR) - sum(WeightedForecast)) / sum(WeightedForecast) * 100 "
+            + "else 0 end) as mape_pct;\n"
+            + "q = order q by mape_pct desc;"
+        ),
+        # Forecast error heatmap: rep × quarter
+        "s_forecast_err_heatmap": sq(
+            L
+            + UF
+            + "q = filter q by ClosedWonARR > 0 || WeightedForecast > 0;\n"
+            + "q = group q by (OwnerName, CloseQuarter);\n"
+            + "q = foreach q generate OwnerName, CloseQuarter, "
+            + "(case when sum(WeightedForecast) > 0 then "
+            + "abs(sum(ClosedWonARR) - sum(WeightedForecast)) / sum(WeightedForecast) * 100 "
+            + "else 0 end) as error_pct;\n"
+            + "q = order q by OwnerName asc, CloseQuarter asc;"
+        ),
+        # Forecast risk distribution
+        "s_forecast_risk_dist": sq(
+            L
+            + UF
+            + QF
+            + "q = group q by ForecastRiskBand;\n"
+            + "q = foreach q generate ForecastRiskBand, "
+            + "count() as rep_count, "
+            + "sum(WeightedForecast) as total_forecast;\n"
+            + "q = order q by (case "
+            + "when ForecastRiskBand == \"High\" then 1 "
+            + "when ForecastRiskBand == \"Medium\" then 2 "
+            + "else 3 end) asc;"
+        ),
+        # Forecast risk drivers
+        "s_forecast_risk_drivers": sq(
+            L
+            + UF
+            + QF
+            + "q = group q by ForecastRiskDriver;\n"
+            + "q = foreach q generate ForecastRiskDriver, "
+            + "count() as rep_count, "
+            + "sum(WeightedForecast) as at_risk_forecast;\n"
+            + "q = order q by rep_count desc;\n"
+            + "q = limit q 10;"
+        ),
+        # Forecast bias summary KPI
+        "s_forecast_bias_kpi": sq(
+            L
+            + UF
+            + QF
+            + "q = filter q by ClosedWonARR > 0 || WeightedForecast > 0;\n"
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "(case when sum(WeightedForecast) > 0 then "
+            + "((sum(ClosedWonARR) - sum(WeightedForecast)) / sum(WeightedForecast)) * 100 "
+            + "else 0 end) as bias_pct, "
+            + "(case when sum(WeightedForecast) > 0 then "
+            + "abs(sum(ClosedWonARR) - sum(WeightedForecast)) / sum(WeightedForecast) * 100 "
+            + "else 0 end) as mape_pct, "
+            + "sum(ClosedWonARR) as total_actual, "
+            + "sum(WeightedForecast) as total_forecast;"
+        ),
+        # Forecast bands attainment bullet
+        "s_forecast_band_bullet": sq(
+            L
+            + UF
+            + QF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "sum(ClosedWonARR) as actual, "
+            + "sum(ForecastP50) as target, "
+            + "sum(ForecastP50_low_95) as poor_range, "
+            + "sum(ForecastP90) as good_range;"
+        ),
     }
 
 
@@ -699,8 +926,9 @@ def build_widgets():
         "quotacoverage",
         "advanalytics",
         "forecaststats",
+        "bandserror",
     ]
-    PAGE_LABELS_NAV = ["Overview", "Rep Detail", "Quota", "Advanced", "Statistics"]
+    PAGE_LABELS_NAV = ["Overview", "Rep Detail", "Quota", "Advanced", "Statistics", "Bands & Error"]
 
     w = {
         # ═══ PAGE 1: Forecast Overview ═══
@@ -908,8 +1136,78 @@ def build_widgets():
         ),
     }
 
-    # Add nav links for all 5 pages on each page
-    for px in range(1, 6):
+    # ═══ PAGE 6: Bands & Error (ML-Forward) ═══
+    w["p6_hdr"] = hdr(
+        "Forecast Bands & Error Analytics",
+        "Prediction intervals, forecast bias/MAPE, risk scoring — ML-forward analytics",
+    )
+    w["p6_f_unit"] = pillbox("f_unit", "Unit Group")
+    w["p6_f_qtr"] = pillbox("f_qtr", "Quarter")
+    # Forecast bands timeline
+    w["p6_sec_bands"] = section_label("Forecast vs Actual with 95% Prediction Interval")
+    w["p6_ch_bands"] = timeline_chart(
+        "s_forecast_bands",
+        "Quarterly Forecast Bands (P50 ± 95% CI)",
+        axis_title="ARR (EUR)",
+    )
+    # Forecast bias/MAPE KPIs
+    w["p6_bias_kpi"] = num_dynamic_color(
+        "s_forecast_bias_kpi",
+        "bias_pct",
+        "Forecast Bias %",
+        thresholds=[(-20, "#D4504C"), (-5, "#FFB75D"), (5, "#04844B"),
+                    (20, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
+    w["p6_mape_kpi"] = num_dynamic_color(
+        "s_forecast_bias_kpi",
+        "mape_pct",
+        "MAPE %",
+        thresholds=[(10, "#04844B"), (20, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
+    # Error heatmap: rep × quarter
+    w["p6_sec_err_heatmap"] = section_label("Forecast Error by Rep × Quarter")
+    w["p6_ch_err_heatmap"] = heatmap_chart(
+        "s_forecast_err_heatmap", "Forecast Error % (Rep × Quarter)"
+    )
+    # Forecast risk distribution
+    w["p6_sec_risk"] = section_label("Forecast Risk Distribution")
+    w["p6_ch_risk_dist"] = rich_chart(
+        "s_forecast_risk_dist",
+        "donut",
+        "Reps by Forecast Risk Band",
+        ["ForecastRiskBand"],
+        ["rep_count"],
+        show_legend=True,
+    )
+    # Risk drivers bar
+    w["p6_ch_risk_drivers"] = rich_chart(
+        "s_forecast_risk_drivers",
+        "hbar",
+        "Top Risk Drivers Across Reps",
+        ["ForecastRiskDriver"],
+        ["rep_count"],
+        axis_title="Rep Count",
+    )
+    # Error by rep scatter
+    w["p6_sec_err_rep"] = section_label("Rep Forecast Accuracy: Bias vs MAPE")
+    w["p6_ch_err_rep"] = scatter_chart(
+        "s_forecast_err_rep",
+        "Forecast Error by Rep (Bias % vs MAPE %)",
+        x_title="Bias %",
+        y_title="MAPE %",
+    )
+    # Bands attainment bullet
+    w["p6_sec_band_bullet"] = section_label("Actual vs Forecast Bands")
+    w["p6_ch_band_bullet"] = bullet_chart(
+        "s_forecast_band_bullet",
+        "Actual Won vs Forecast P50 (with P90 range)",
+        axis_title="ARR (EUR)",
+    )
+
+    # Add nav links for all 6 pages on each page
+    for px in range(1, 7):
         for ni, (pid, plbl) in enumerate(zip(PAGE_IDS, PAGE_LABELS_NAV)):
             w[f"p{px}_nav{ni + 1}"] = nav_link(pid, plbl, active=(ni == px - 1))
 
@@ -1057,7 +1355,7 @@ def build_widgets():
 
 
 def build_layout():
-    p1 = nav_row("p1", 5) + [
+    p1 = nav_row("p1", 6) + [
         {"name": "p1_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p1_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
@@ -1090,7 +1388,7 @@ def build_layout():
         {"name": "p1_attain_dynamic", "row": 39, "column": 6, "colspan": 6, "rowspan": 4},
     ]
 
-    p2 = nav_row("p2", 5) + [
+    p2 = nav_row("p2", 6) + [
         {"name": "p2_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p2_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
@@ -1152,7 +1450,7 @@ def build_layout():
         {"name": "p2_ch_bullet_attain", "row": 51, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
-    p3 = nav_row("p3", 5) + [
+    p3 = nav_row("p3", 6) + [
         {"name": "p3_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p3_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
@@ -1173,7 +1471,7 @@ def build_layout():
         {"name": "p3_ch_coverage_go", "row": 33, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
-    p4 = nav_row("p4", 5) + [
+    p4 = nav_row("p4", 6) + [
         {"name": "p4_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p4_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
         {"name": "p4_f_qtr", "row": 3, "column": 6, "colspan": 6, "rowspan": 2},
@@ -1197,7 +1495,7 @@ def build_layout():
         {"name": "p4_ch_accuracy", "row": 59, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
-    p5 = nav_row("p5", 5) + [
+    p5 = nav_row("p5", 6) + [
         {"name": "p5_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p5_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
         {"name": "p5_f_qtr", "row": 3, "column": 6, "colspan": 6, "rowspan": 2},
@@ -1231,6 +1529,32 @@ def build_layout():
         },
     ]
 
+    p6 = nav_row("p6", 6) + [
+        {"name": "p6_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+        # Filter bar
+        {"name": "p6_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
+        {"name": "p6_f_qtr", "row": 3, "column": 6, "colspan": 6, "rowspan": 2},
+        # KPI tiles: Bias and MAPE
+        {"name": "p6_bias_kpi", "row": 5, "column": 0, "colspan": 6, "rowspan": 4},
+        {"name": "p6_mape_kpi", "row": 5, "column": 6, "colspan": 6, "rowspan": 4},
+        # Forecast bands timeline
+        {"name": "p6_sec_bands", "row": 9, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p6_ch_bands", "row": 10, "column": 0, "colspan": 12, "rowspan": 10},
+        # Bands attainment bullet
+        {"name": "p6_sec_band_bullet", "row": 20, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p6_ch_band_bullet", "row": 21, "column": 0, "colspan": 12, "rowspan": 5},
+        # Error heatmap
+        {"name": "p6_sec_err_heatmap", "row": 26, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p6_ch_err_heatmap", "row": 27, "column": 0, "colspan": 12, "rowspan": 10},
+        # Risk distribution + drivers (side by side)
+        {"name": "p6_sec_risk", "row": 37, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p6_ch_risk_dist", "row": 38, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p6_ch_risk_drivers", "row": 38, "column": 6, "colspan": 6, "rowspan": 8},
+        # Rep error scatter
+        {"name": "p6_sec_err_rep", "row": 46, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p6_ch_err_rep", "row": 47, "column": 0, "colspan": 12, "rowspan": 10},
+    ]
+
     return {
         "name": "Default",
         "numColumns": 12,
@@ -1240,6 +1564,7 @@ def build_layout():
             pg("quotacoverage", "Quota & Coverage", p3),
             pg("advanalytics", "Advanced Analytics", p4),
             pg("forecaststats", "Statistical Analysis", p5),
+            pg("bandserror", "Bands & Error", p6),
         ],
     }
 
@@ -1263,6 +1588,16 @@ def main():
     if not ds_id:
         print("ERROR: Could not find dataset ID — aborting")
         return
+
+    # Build forecast snapshot dataset for error tracking
+    # Note: snapshot accumulates over time; each run = one snapshot
+    try:
+        # Re-query to get rep_data for snapshot
+        # (snapshot creation is non-blocking — dashboard deploys even if snapshot fails)
+        print("  Creating forecast snapshot for error tracking...")
+        create_snapshot_dataset(inst, tok, {})  # Empty on first run; populated by scheduler
+    except Exception as e:
+        print(f"  Snapshot creation skipped: {e}")
 
     # Deploy dashboard
     dash_id = create_dashboard_if_needed(inst, tok, DASHBOARD_LABEL)

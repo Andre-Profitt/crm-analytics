@@ -2,9 +2,9 @@
 """Build the Sales Process Compliance (AP 1.4) dashboard.
 
 Reuses the existing Opp_Mgmt_KPIs dataset — no dataset upload needed.
-7 pages: Stage Bottlenecks, Stuck & Past-Due, Velocity by Type,
+8 pages: Stage Bottlenecks, Stuck & Past-Due, Velocity by Type,
          Close Date Hygiene, Win/Loss Analysis, Advanced Analytics,
-         Statistical Analysis.
+         Statistical Analysis, Forecast Integrity (ML-Forward).
 
 Fields available in Opp_Mgmt_KPIs:
   dim:  Id, Name, OwnerName, AccountName, UnitGroup, SalesRegion,
@@ -22,9 +22,15 @@ Visualization upgrade (v3):
   - Bottleneck distributions (DaysInStage distribution per stage)
   - Table actions on stuck/past-due tables
   - Selection interactions for cross-filtering
+
+ML-Forward upgrade (v4):
+  - Forecast integrity scoring (ForecastCategory vs WinScore alignment)
+  - Dynamic date handling for past-due calculations (no more static dates)
+  - Notification readiness for mismatch alerts
 """
 
 import sys
+from datetime import datetime as _dt
 
 from crm_analytics_helpers import (
     af,
@@ -57,6 +63,9 @@ from crm_analytics_helpers import (
     add_table_action,
     add_selection_interaction,
     compliance_scorecard_step,
+    forecast_integrity_step,
+    forecast_integrity_heatmap_step,
+    scatter_chart,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -69,7 +78,7 @@ DS_META = [{"id": DS_ID, "name": DS}]
 DASHBOARD_LABEL = "Sales Process Compliance KPIs"
 
 # Today's date for past-due comparisons (SAQL string comparison on yyyy-MM-dd)
-TODAY = "2026-03-03"
+TODAY = _dt.utcnow().strftime("%Y-%m-%d")
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  SAQL fragments
@@ -873,6 +882,39 @@ def build_steps():
             + "q = foreach q generate StageName, TimeBand, count() as cnt;\n"
             + "q = order q by StageName asc;"
         ),
+        # ═══ PAGE 8: Forecast Integrity (ML-Forward) ═══
+        # Forecast integrity: ForecastCategory vs WinScore misalignment
+        "s_integrity_by_rep": forecast_integrity_step(DS, UF + TF + RF),
+        # Integrity heatmap: rep × category
+        "s_integrity_heatmap": forecast_integrity_heatmap_step(DS, UF + RF),
+        # Forecast integrity KPIs
+        "s_integrity_kpi": sq(
+            L
+            + UF
+            + RF
+            + 'q = filter q by IsClosed == "false";\n'
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "(sum(case when "
+            + '(ForecastCategory == "Commit" && WinScore < 40) || '
+            + '(ForecastCategory == "Pipeline" && WinScore > 70) '
+            + "then 1 else 0 end) * 100 / count()) as mismatch_pct, "
+            + "sum(case when ForecastCategory == \"Commit\" && WinScore < 40 then ARR else 0 end) as risky_commit_arr, "
+            + "count() as total_open;"
+        ),
+        # Past-due deals (dynamic date)
+        "s_pastdue_dynamic": sq(
+            L
+            + UF
+            + RF
+            + 'q = filter q by IsClosed == "false" && CloseDate < "' + TODAY + '";\n'
+            + "q = group q by OwnerName;\n"
+            + "q = foreach q generate OwnerName, "
+            + "count() as pastdue_count, "
+            + "sum(ARR) as pastdue_arr;\n"
+            + "q = order q by pastdue_arr desc;\n"
+            + "q = limit q 20;"
+        ),
     }
 
 
@@ -1496,6 +1538,45 @@ def build_widgets():
         w["p1_ch_scorecard"], "f_unit", "UnitGroup", ["s_compliance_scorecard"]
     )
 
+    # ═══ PAGE 8: Forecast Integrity (ML-Forward) ═══
+    w["p8_hdr"] = hdr(
+        "Forecast Integrity & Hygiene",
+        "ForecastCategory vs WinScore alignment — identify misclassified deals",
+    )
+    w["p8_f_unit"] = pillbox("f_unit", "Unit Group")
+    w["p8_f_region"] = pillbox("f_region", "Region")
+    # Integrity KPIs
+    w["p8_mismatch_kpi"] = num_dynamic_color(
+        "s_integrity_kpi", "mismatch_pct", "Forecast Mismatch %",
+        thresholds=[(5, "#04844B"), (15, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
+    w["p8_risky_commit"] = num(
+        "s_integrity_kpi", "risky_commit_arr", "Risky Commit ARR",
+        "#D4504C", compact=True, size=28,
+    )
+    # Integrity heatmap
+    w["p8_sec_heatmap"] = section_label("Forecast Integrity: Rep × Category Mismatch Rate")
+    w["p8_ch_heatmap"] = heatmap_chart(
+        "s_integrity_heatmap", "Mismatch Rate by Rep × Forecast Category"
+    )
+    # Integrity detail table
+    w["p8_sec_detail"] = section_label("Rep Forecast Integrity Detail")
+    w["p8_tbl_detail"] = rich_chart(
+        "s_integrity_by_rep", "comparisontable",
+        "Forecast Category vs Win Score Alignment",
+        ["OwnerName", "ForecastCategory"],
+        ["avg_win_score", "opp_count", "total_arr", "mismatch_pct"],
+    )
+    # Past-due with dynamic date
+    w["p8_sec_pastdue"] = section_label("Past-Due Open Deals (Dynamic Date)")
+    w["p8_tbl_pastdue"] = rich_chart(
+        "s_pastdue_dynamic", "hbar",
+        "Past-Due ARR by Rep",
+        ["OwnerName"], ["pastdue_arr"],
+        axis_title="Past-Due ARR (EUR)",
+    )
+
     return w
 
 
@@ -1764,6 +1845,20 @@ def build_layout():
         {"name": "p7_tbl_pctiles", "row": 30, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
+    p8 = nav_row("p8", 8) + [
+        {"name": "p8_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+        {"name": "p8_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
+        {"name": "p8_f_region", "row": 3, "column": 6, "colspan": 6, "rowspan": 2},
+        {"name": "p8_mismatch_kpi", "row": 5, "column": 0, "colspan": 6, "rowspan": 4},
+        {"name": "p8_risky_commit", "row": 5, "column": 6, "colspan": 6, "rowspan": 4},
+        {"name": "p8_sec_heatmap", "row": 9, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p8_ch_heatmap", "row": 10, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p8_sec_detail", "row": 20, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p8_tbl_detail", "row": 21, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p8_sec_pastdue", "row": 29, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p8_tbl_pastdue", "row": 30, "column": 0, "colspan": 12, "rowspan": 8},
+    ]
+
     return {
         "name": "Default",
         "numColumns": 12,
@@ -1775,6 +1870,7 @@ def build_layout():
             pg("winloss", "Win/Loss Analysis", p5),
             pg("advanalytics", "Advanced Analytics", p6),
             pg("compstats", "Statistical Analysis", p7),
+            pg("integrity", "Forecast Integrity", p8),
         ],
     }
 

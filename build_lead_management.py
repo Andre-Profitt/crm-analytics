@@ -2,8 +2,8 @@
 """Build the Lead Management KPI dashboard (AP 1.1).
 
 Features:
-  - 6 pages: MQL Funnel, Channel Mix, Conversion Tracking, Activity & Engagement,
-    Advanced Analytics, Lead Statistics
+  - 7 pages: MQL Funnel, Channel Mix, Conversion Tracking, Activity & Engagement,
+    Advanced Analytics, Lead Statistics, Predictive Scoring
   - UNION SAQL funnel: Total Leads -> MQL -> Converted -> Won
   - MQL rate gauge, activity rate gauge
   - Channel mix donuts, stacked area, combo charts
@@ -19,6 +19,11 @@ Visualization Upgrade:
   - SLA time-to-first-touch metrics
   - Dynamic KPI tiles with threshold-based coloring
   - Table actions for lead conversion workflow
+
+ML-Forward Upgrade:
+  - Conversion propensity scoring by lead score band
+  - SLA compliance bullet charts (actual vs target days)
+  - Revenue linkage readiness indicators
 """
 
 import csv
@@ -66,6 +71,7 @@ from crm_analytics_helpers import (
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
     add_table_action,
+    scatter_chart,
 )
 
 DS = "Lead_Management"
@@ -876,6 +882,59 @@ def build_steps(ds_id):
             + '(sum(case when ConvertedFlag == "true" then 1 else 0 end) / count()) * 100 as conversion_rate, '
             + "avg(DaysToConvert) as avg_days_to_convert;"
         ),
+        # ═══ PAGE 7: Predictive Scoring (ML-Forward) ═══
+        # Lead score distribution by conversion outcome
+        "s_score_conversion": sq(
+            L
+            + "q = group q by (LeadScoreBand, IsConverted);\n"
+            + "q = foreach q generate LeadScoreBand, IsConverted, "
+            + "count() as lead_count;\n"
+            + "q = order q by LeadScoreBand asc;"
+        ),
+        # SLA compliance: DaysToFirstActivity vs target
+        "s_sla_bullet": sq(
+            L
+            + "q = filter q by DaysToFirstActivity >= 0;\n"
+            + "q = group q by OwnerName;\n"
+            + "q = foreach q generate OwnerName, "
+            + "avg(DaysToFirstActivity) as actual, "
+            + "2 as target;\n"
+            + "q = order q by actual desc;\n"
+            + "q = limit q 15;"
+        ),
+        # Conversion rate by lead score band
+        "s_score_wr": sq(
+            L
+            + "q = group q by LeadScoreBand;\n"
+            + "q = foreach q generate LeadScoreBand, "
+            + "(sum(case when IsConverted == \"true\" then 1 else 0 end) * 100 / count()) as conversion_rate, "
+            + "count() as lead_count, "
+            + "avg(LeadScore) as avg_score;\n"
+            + "q = order q by avg_score asc;"
+        ),
+        # Scoring KPIs
+        "s_scoring_kpi": sq(
+            L
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "avg(LeadScore) as avg_score, "
+            + "(sum(case when IsConverted == \"true\" then 1 else 0 end) * 100 / count()) as overall_conversion, "
+            + "avg(DaysToFirstActivity) as avg_sla_days, "
+            + "count() as total_leads;"
+        ),
+        # Score lift chart (high score vs low score conversion)
+        "s_score_lift": sq(
+            L
+            + "q = group q by LeadScoreBand;\n"
+            + "q = foreach q generate LeadScoreBand, "
+            + "(sum(case when IsConverted == \"true\" then 1 else 0 end) * 100 / count()) as conversion_pct, "
+            + "count() as lead_count, "
+            + "sum(case when IsConverted == \"true\" then 1 else 0 end) as converted_count;\n"
+            + "q = order q by (case "
+            + "when LeadScoreBand == \"High\" then 1 "
+            + "when LeadScoreBand == \"Medium\" then 2 "
+            + "else 3 end) asc;"
+        ),
     }
 
 
@@ -1377,6 +1436,59 @@ def build_widgets():
         size=28,
     )
 
+    # ═══ PAGE 7: Predictive Scoring (ML-Forward) ═══
+    w["p7_hdr"] = hdr(
+        "Predictive Lead Scoring & SLA",
+        "Score-based conversion analysis, SLA compliance, prioritization",
+    )
+    # Scoring KPIs
+    w["p7_kpi_score"] = num(
+        "s_scoring_kpi", "avg_score", "Avg Lead Score", "#0070D2", size=28,
+    )
+    w["p7_kpi_conversion"] = num_dynamic_color(
+        "s_scoring_kpi", "overall_conversion", "Overall Conversion %",
+        thresholds=[(10, "#D4504C"), (20, "#FFB75D"), (100, "#04844B")],
+        size=28,
+    )
+    w["p7_kpi_sla"] = num_dynamic_color(
+        "s_scoring_kpi", "avg_sla_days", "Avg Days to First Activity",
+        thresholds=[(2, "#04844B"), (5, "#FFB75D"), (30, "#D4504C")],
+        size=28,
+    )
+    # Score lift chart
+    w["p7_sec_lift"] = section_label("Conversion Rate by Lead Score Band")
+    w["p7_ch_lift"] = rich_chart(
+        "s_score_lift", "column",
+        "Conversion % by Score Band (Lift Analysis)",
+        ["LeadScoreBand"], ["conversion_pct"],
+        axis_title="Conversion %",
+        show_values=True,
+    )
+    # SLA bullet chart
+    w["p7_sec_sla"] = section_label("SLA Compliance: Days to First Activity vs 2-Day Target")
+    w["p7_ch_sla"] = bullet_chart(
+        "s_sla_bullet",
+        "Rep SLA Compliance (Actual vs 2-Day Target)",
+        axis_title="Days",
+    )
+    # Score × conversion heatmap
+    w["p7_sec_conversion"] = section_label("Lead Score × Conversion Outcome")
+    w["p7_ch_conversion"] = rich_chart(
+        "s_score_conversion", "stackcolumn",
+        "Leads by Score Band and Conversion Status",
+        ["LeadScoreBand"], ["lead_count"],
+        split=["IsConverted"],
+        show_legend=True, axis_title="Lead Count",
+    )
+    # Score win rate
+    w["p7_sec_wr"] = section_label("Conversion Rate Detail by Score Band")
+    w["p7_ch_wr"] = rich_chart(
+        "s_score_wr", "comparisontable",
+        "Score Band Conversion Statistics",
+        ["LeadScoreBand"],
+        ["conversion_rate", "lead_count", "avg_score"],
+    )
+
     return w
 
 
@@ -1387,7 +1499,7 @@ def build_widgets():
 
 def build_layout():
     # ── Page 1: MQL Funnel ──
-    p1 = nav_row("p1", 6) + [
+    p1 = nav_row("p1", 7) + [
         # Header
         {"name": "p1_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
@@ -1415,7 +1527,7 @@ def build_layout():
     ]
 
     # ── Page 2: Channel Mix ──
-    p2 = nav_row("p2", 6) + [
+    p2 = nav_row("p2", 7) + [
         {"name": "p2_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p2_f_source", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1435,7 +1547,7 @@ def build_layout():
     ]
 
     # ── Page 3: Conversion Tracking ──
-    p3 = nav_row("p3", 6) + [
+    p3 = nav_row("p3", 7) + [
         {"name": "p3_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p3_f_source", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1475,7 +1587,7 @@ def build_layout():
     ]
 
     # ── Page 4: Activity & Engagement ──
-    p4 = nav_row("p4", 6) + [
+    p4 = nav_row("p4", 7) + [
         {"name": "p4_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p4_f_source", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1525,7 +1637,7 @@ def build_layout():
         {"name": "p4_avg_first_touch", "row": 43, "column": 6, "colspan": 6, "rowspan": 5},
     ]
 
-    p5 = nav_row("p5", 6) + [
+    p5 = nav_row("p5", 7) + [
         {"name": "p5_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p5_f_source", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
         {"name": "p5_f_status", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
@@ -1548,7 +1660,7 @@ def build_layout():
         {"name": "p5_ch_bubble", "row": 48, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
-    p6 = nav_row("p6", 6) + [
+    p6 = nav_row("p6", 7) + [
         {"name": "p6_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p6_f_source", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
         {"name": "p6_f_status", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
@@ -1623,6 +1735,21 @@ def build_layout():
         {"name": "p6_ch_running", "row": 44, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
+    p7 = nav_row("p7", 7) + [
+        {"name": "p7_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+        {"name": "p7_kpi_score", "row": 3, "column": 0, "colspan": 4, "rowspan": 4},
+        {"name": "p7_kpi_conversion", "row": 3, "column": 4, "colspan": 4, "rowspan": 4},
+        {"name": "p7_kpi_sla", "row": 3, "column": 8, "colspan": 4, "rowspan": 4},
+        {"name": "p7_sec_lift", "row": 7, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p7_ch_lift", "row": 8, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p7_sec_sla", "row": 16, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p7_ch_sla", "row": 17, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p7_sec_conversion", "row": 25, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p7_ch_conversion", "row": 26, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p7_sec_wr", "row": 34, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p7_ch_wr", "row": 35, "column": 0, "colspan": 12, "rowspan": 8},
+    ]
+
     return {
         "name": "Default",
         "numColumns": 12,
@@ -1633,6 +1760,7 @@ def build_layout():
             pg("activity", "Activity", p4),
             pg("advanalytics", "Advanced Analytics", p5),
             pg("leadstats", "Statistical Analysis", p6),
+            pg("scoring", "Predictive Scoring", p7),
         ],
     }
 

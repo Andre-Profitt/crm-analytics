@@ -75,6 +75,9 @@ from crm_analytics_helpers import (
     add_selection_interaction,
     add_table_action,
     stage_transition_step,
+    # ML-Forward additions
+    scatter_chart,
+    growth_cube_step,
 )
 
 DASHBOARD_LABEL = "Opp Management"
@@ -1758,6 +1761,94 @@ def build_steps():
             + "sum(ARR) as sum_arr, count() as cnt;\n"
             + "q = order q by sum_arr desc;"
         ),
+        # ═══ PAGE 9: Quantitative Growth & Risk (ML-Forward) ═══
+        # Product × Region pipeline heatmap
+        "s_growth_prod_region": sq(
+            L
+            + FY
+            + OPEN
+            + UF
+            + "q = group q by (ProductFamily, SalesRegion);\n"
+            + "q = foreach q generate ProductFamily, SalesRegion, "
+            + "sum(ARR) as pipeline_arr, "
+            + "count() as opp_count, "
+            + "avg(WinScore) as avg_win_score;\n"
+            + "q = order q by ProductFamily asc, SalesRegion asc;"
+        ),
+        # Win rate by ProductFamily × UnitGroup
+        "s_growth_wr_matrix": sq(
+            L
+            + FY
+            + CLOSED
+            + UF
+            + RF
+            + "q = group q by (ProductFamily, UnitGroup);\n"
+            + "q = foreach q generate ProductFamily, UnitGroup, "
+            + "(sum(case when IsWon == \"true\" then 1 else 0 end) * 100 / count()) as win_rate, "
+            + "sum(ARR) as total_arr, "
+            + "count() as deal_count;\n"
+            + "q = order q by ProductFamily asc, UnitGroup asc;"
+        ),
+        # Coverage bullet by ProductFamily
+        "s_growth_coverage_bullet": sq(
+            L
+            + FY
+            + UF
+            + RF
+            + "q = group q by ProductFamily;\n"
+            + "q = foreach q generate ProductFamily, "
+            + "sum(case when IsClosed == \"false\" then ARR else 0 end) as pipeline, "
+            + "sum(case when IsWon == \"true\" then ARR else 0 end) as won, "
+            + "(case when sum(case when IsWon == \"true\" then ARR else 0 end) > 0 then "
+            + "sum(case when IsClosed == \"false\" then ARR else 0 end) / "
+            + "sum(case when IsWon == \"true\" then ARR else 0 end) else 0 end) as actual, "
+            + "3 as target;\n"
+            + "q = order q by pipeline desc;\n"
+            + "q = limit q 10;"
+        ),
+        # Deal risk distribution by WinScoreBand
+        "s_growth_risk_dist": sq(
+            L
+            + FY
+            + OPEN
+            + UF
+            + RF
+            + "q = group q by WinScoreBand;\n"
+            + "q = foreach q generate WinScoreBand, "
+            + "count() as opp_count, "
+            + "sum(ARR) as total_arr;\n"
+            + "q = order q by (case "
+            + "when WinScoreBand == \"Low\" then 1 "
+            + "when WinScoreBand == \"Medium\" then 2 "
+            + "else 3 end) asc;"
+        ),
+        # At-risk deals (low win score, high ARR)
+        "s_growth_atrisk_deals": sq(
+            L
+            + FY
+            + OPEN
+            + UF
+            + RF
+            + "q = filter q by WinScore < 40;\n"
+            + "q = foreach q generate Name, OwnerName, ProductFamily, "
+            + "SalesRegion, UnitGroup, StageName, "
+            + "WinScore, ARR, AgeInDays, DaysInStage;\n"
+            + "q = order q by ARR desc;\n"
+            + "q = limit q 20;"
+        ),
+        # Growth KPIs
+        "s_growth_kpi": sq(
+            L
+            + FY
+            + UF
+            + RF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "sum(case when IsClosed == \"false\" then ARR else 0 end) as pipeline_arr, "
+            + "sum(case when IsWon == \"true\" then ARR else 0 end) as won_arr, "
+            + "avg(WinScore) as avg_win_score, "
+            + "sum(case when IsClosed == \"false\" && WinScore < 40 then ARR else 0 end) as at_risk_arr;"
+        ),
     }
 
 
@@ -2679,6 +2770,60 @@ def build_widgets():
     if "p5_tbl_stale" in w:
         add_table_action(w["p5_tbl_stale"])
 
+    # ═══ PAGE 9: Quantitative Growth & Risk (ML-Forward) ═══
+    w["p9_hdr"] = hdr(
+        "Quantitative Growth & Risk",
+        "Product × Region growth heatmaps, win probability risk, coverage analysis",
+    )
+    w["p9_f_unit"] = pillbox("f_unit", "Unit Group")
+    w["p9_f_region"] = pillbox("f_region", "Region")
+    # Growth KPIs
+    w["p9_kpi_pipeline"] = num(
+        "s_growth_kpi", "pipeline_arr", "Open Pipeline", "#0070D2", compact=True, size=28,
+    )
+    w["p9_kpi_won"] = num(
+        "s_growth_kpi", "won_arr", "Won ARR", "#04844B", compact=True, size=28,
+    )
+    w["p9_kpi_risk"] = num_dynamic_color(
+        "s_growth_kpi", "at_risk_arr", "At-Risk Pipeline ARR",
+        thresholds=[(500000, "#04844B"), (2000000, "#FFB75D"), (100000000, "#D4504C")],
+        compact=True, size=28,
+    )
+    # Product × Region heatmap
+    w["p9_sec_prod_region"] = section_label("Pipeline by Product × Region")
+    w["p9_ch_prod_region"] = heatmap_chart(
+        "s_growth_prod_region", "Pipeline ARR: Product Family × Sales Region"
+    )
+    # Win rate matrix
+    w["p9_sec_wr_matrix"] = section_label("Win Rate by Product × Unit Group")
+    w["p9_ch_wr_matrix"] = heatmap_chart(
+        "s_growth_wr_matrix", "Win Rate %: Product Family × Unit Group"
+    )
+    # Coverage bullet by product
+    w["p9_sec_coverage"] = section_label("Pipeline Coverage by Product (vs 3x Target)")
+    w["p9_ch_coverage"] = bullet_chart(
+        "s_growth_coverage_bullet",
+        "Coverage Ratio by Product Family",
+        axis_title="Coverage Ratio",
+    )
+    # Risk distribution
+    w["p9_sec_risk_dist"] = section_label("Deal Risk Distribution (Win Score)")
+    w["p9_ch_risk_dist"] = rich_chart(
+        "s_growth_risk_dist", "donut",
+        "Open Pipeline by Win Score Band",
+        ["WinScoreBand"], ["total_arr"],
+        show_legend=True,
+    )
+    # At-risk deals table
+    w["p9_sec_atrisk"] = section_label("At-Risk Deals (Win Score < 40)")
+    w["p9_tbl_atrisk"] = rich_chart(
+        "s_growth_atrisk_deals", "comparisontable",
+        "Low Win Probability Deals",
+        ["Name", "OwnerName", "ProductFamily", "SalesRegion", "StageName"],
+        ["WinScore", "ARR", "AgeInDays", "DaysInStage"],
+    )
+    add_table_action(w["p9_tbl_atrisk"])
+
     return w
 
 
@@ -3096,6 +3241,31 @@ def build_layout():
         {"name": "p8_velocity_arr", "row": 45, "column": 6, "colspan": 6, "rowspan": 7},
     ]
 
+    p9 = nav_row("p9", 9) + [
+        {"name": "p9_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+        # Filter bar
+        {"name": "p9_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
+        {"name": "p9_f_region", "row": 3, "column": 6, "colspan": 6, "rowspan": 2},
+        # KPI tiles
+        {"name": "p9_kpi_pipeline", "row": 5, "column": 0, "colspan": 4, "rowspan": 4},
+        {"name": "p9_kpi_won", "row": 5, "column": 4, "colspan": 4, "rowspan": 4},
+        {"name": "p9_kpi_risk", "row": 5, "column": 8, "colspan": 4, "rowspan": 4},
+        # Product × Region heatmap
+        {"name": "p9_sec_prod_region", "row": 9, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_ch_prod_region", "row": 10, "column": 0, "colspan": 12, "rowspan": 10},
+        # Win rate matrix
+        {"name": "p9_sec_wr_matrix", "row": 20, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_ch_wr_matrix", "row": 21, "column": 0, "colspan": 12, "rowspan": 10},
+        # Coverage bullet + risk distribution
+        {"name": "p9_sec_coverage", "row": 31, "column": 0, "colspan": 6, "rowspan": 1},
+        {"name": "p9_ch_coverage", "row": 32, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p9_sec_risk_dist", "row": 31, "column": 6, "colspan": 6, "rowspan": 1},
+        {"name": "p9_ch_risk_dist", "row": 32, "column": 6, "colspan": 6, "rowspan": 8},
+        # At-risk deals table
+        {"name": "p9_sec_atrisk", "row": 40, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p9_tbl_atrisk", "row": 41, "column": 0, "colspan": 12, "rowspan": 10},
+    ]
+
     return {
         "name": "Default",
         "numColumns": 12,
@@ -3108,6 +3278,7 @@ def build_layout():
             pg("productmix", "Product Mix", p6),
             pg("advanalytics", "Advanced Analytics", p7),
             pg("statsanalysis", "Statistical Analysis", p8),
+            pg("growth", "Growth & Risk", p9),
         ],
     }
 

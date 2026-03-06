@@ -2,8 +2,9 @@
 """Build the Contract Operations KPI dashboard (AP 1.6, 1.8).
 
 Features (v2):
-  - 7 pages: Active Book, Renewal Pipeline, Agreements, Fulfillment,
-    Contract Aging, Advanced Analytics, Statistical Analysis
+  - 8 pages: Active Book, Renewal Pipeline, Agreements, Fulfillment,
+    Contract Aging, Advanced Analytics, Statistical Analysis,
+    Renewal Forecasting (ML-Forward)
   - Interactive nav bar across all pages
   - Global 4-filter bar (Unit Group, Agreement Type, Renewal Window, Status)
   - Dataset built from Contract SOQL with computed fields
@@ -19,6 +20,11 @@ Visualization upgrade (v3):
   - Aging waterfall (contract aging distribution by vintage)
   - Table actions on at-risk and detail tables
   - Selection interactions for cross-filtering
+
+ML-Forward upgrade (v4):
+  - Renewal forecasting with risk-weighted expected value
+  - Expected churn computation by unit group
+  - Renewal propensity scoring with timeline risk bands
 """
 
 import csv
@@ -68,6 +74,7 @@ from crm_analytics_helpers import (
     add_table_action,
     add_selection_interaction,
     renewal_timeline_step,
+    compute_churn_probability,
 )
 
 DS = "Contract_Operations"
@@ -715,6 +722,59 @@ def build_steps(ds_id):
             + "q = foreach q generate "
             + "(sum(has_coverage) / count()) * 100 as coverage_pct, 90 as target;"
         ),
+        # ═══ PAGE 8: Renewal Forecasting (ML-Forward) ═══
+        # Expected renewal value: risk-weighted ARR
+        "s_renewal_ev": sq(
+            L
+            + UF
+            + "q = group q by RenewalWindow;\n"
+            + "q = foreach q generate RenewalWindow, "
+            + "sum(ARR) as total_arr, "
+            + "count() as contract_count, "
+            + "sum(case when RiskLevel == \"High\" || RiskLevel == \"Critical\" then ARR else 0 end) as high_risk_arr, "
+            + "sum(case when RiskLevel == \"Low\" || RiskLevel == \"\" then ARR else 0 end) as low_risk_arr;\n"
+            + "q = order q by (case "
+            + "when RenewalWindow == \"0 Days\" then 1 "
+            + "when RenewalWindow == \"1-30 Days\" then 2 "
+            + "when RenewalWindow == \"31-60 Days\" then 3 "
+            + "when RenewalWindow == \"61-90 Days\" then 4 "
+            + "else 5 end) asc;"
+        ),
+        # Expected churn ARR by unit group
+        "s_ev_churn_unit": sq(
+            L
+            + "q = filter q by RiskLevel in [\"High\", \"Critical\"] || DaysToExpiry < 90;\n"
+            + "q = group q by UnitGroup;\n"
+            + "q = foreach q generate UnitGroup, "
+            + "sum(ARR) as at_risk_arr, "
+            + "count() as at_risk_count, "
+            + "avg(DaysToExpiry) as avg_days_to_expiry;\n"
+            + "q = order q by at_risk_arr desc;"
+        ),
+        # Renewal forecast KPIs
+        "s_renewal_forecast_kpi": sq(
+            L
+            + UF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "sum(ARR) as total_arr, "
+            + "sum(case when DaysToExpiry <= 90 then ARR else 0 end) as expiring_90d_arr, "
+            + "sum(case when RiskLevel in [\"High\", \"Critical\"] then ARR else 0 end) as high_risk_arr, "
+            + "(sum(case when RiskLevel in [\"High\", \"Critical\"] then ARR else 0 end) * 100 / "
+            + "case when sum(ARR) > 0 then sum(ARR) else 1 end) as risk_pct;"
+        ),
+        # Renewal timeline with risk bands
+        "s_renewal_risk_timeline": sq(
+            L
+            + UF
+            + "q = group q by EndDate_Month;\n"
+            + "q = foreach q generate EndDate_Month, "
+            + "sum(ARR) as total_arr, "
+            + "sum(case when RiskLevel in [\"High\", \"Critical\"] then ARR else 0 end) as at_risk_arr, "
+            + "sum(case when RiskLevel == \"Low\" || RiskLevel == \"\" then ARR else 0 end) as safe_arr;\n"
+            + "q = order q by EndDate_Month asc;\n"
+            + "q = limit q 18;"
+        ),
     }
 
 
@@ -1160,6 +1220,53 @@ def build_widgets():
         w["p2_ch_timeline"], "f_unit", "UnitGroup", ["s_renewal_timeline"]
     )
 
+    # ═══ PAGE 8: Renewal Forecasting (ML-Forward) ═══
+    w["p8_hdr"] = hdr(
+        "Renewal Forecasting & Risk",
+        "Expected renewal value, risk-weighted ARR, churn exposure by window",
+    )
+    w["p8_f_unit"] = pillbox("f_unit", "Unit Group")
+    # Renewal KPIs
+    w["p8_kpi_expiring"] = num(
+        "s_renewal_forecast_kpi", "expiring_90d_arr", "Expiring 90d ARR",
+        "#D4504C", compact=True, size=28,
+    )
+    w["p8_kpi_risk"] = num_dynamic_color(
+        "s_renewal_forecast_kpi", "risk_pct", "High Risk ARR %",
+        thresholds=[(10, "#04844B"), (25, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
+    w["p8_kpi_total"] = num(
+        "s_renewal_forecast_kpi", "total_arr", "Total Contract ARR",
+        "#0070D2", compact=True, size=28,
+    )
+    # Renewal EV by window
+    w["p8_sec_ev"] = section_label("Renewal Value by Window (Risk-Weighted)")
+    w["p8_ch_ev"] = rich_chart(
+        "s_renewal_ev", "stackcolumn",
+        "Contract ARR by Renewal Window (Risk Decomposition)",
+        ["RenewalWindow"], ["low_risk_arr", "high_risk_arr"],
+        show_legend=True, axis_title="ARR (EUR)",
+    )
+    # EV churn by unit
+    w["p8_sec_churn"] = section_label("Churn Exposure by Unit Group")
+    w["p8_ch_churn"] = rich_chart(
+        "s_ev_churn_unit", "hbar",
+        "At-Risk ARR by Unit Group",
+        ["UnitGroup"], ["at_risk_arr"],
+        axis_title="At-Risk ARR (EUR)",
+    )
+    # Risk timeline
+    w["p8_sec_timeline"] = section_label("Renewal Timeline: Safe vs At-Risk ARR")
+    w["p8_ch_timeline"] = combo_chart(
+        "s_renewal_risk_timeline",
+        "Monthly Renewal ARR (Safe vs At-Risk)",
+        ["EndDate_Month"],
+        bar_measures=["safe_arr", "at_risk_arr"],
+        line_measures=["total_arr"],
+        show_legend=True, axis_title="ARR (EUR)",
+    )
+
     return w
 
 
@@ -1193,7 +1300,7 @@ def _filter_row(prefix):
 def build_layout():
     # Page 1: Active Book  (content rows shifted +2 to make room for filter bar)
     p1 = (
-        nav_row("p1", 7)
+        nav_row("p1", 8)
         + [
             {"name": "p1_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         ]
@@ -1231,7 +1338,7 @@ def build_layout():
 
     # Page 2: Renewal Pipeline
     p2 = (
-        nav_row("p2", 7)
+        nav_row("p2", 8)
         + [
             {"name": "p2_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         ]
@@ -1278,7 +1385,7 @@ def build_layout():
 
     # Page 3: Agreement Types
     p3 = (
-        nav_row("p3", 7)
+        nav_row("p3", 8)
         + [
             {"name": "p3_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         ]
@@ -1329,7 +1436,7 @@ def build_layout():
 
     # Page 4: Fulfillment
     p4 = (
-        nav_row("p4", 7)
+        nav_row("p4", 8)
         + [
             {"name": "p4_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         ]
@@ -1378,7 +1485,7 @@ def build_layout():
 
     # Page 5: Contract Aging (Additive CRO #5)
     p5 = (
-        nav_row("p5", 7)
+        nav_row("p5", 8)
         + [
             {"name": "p5_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         ]
@@ -1415,7 +1522,7 @@ def build_layout():
         ]
     )
 
-    p6 = nav_row("p6", 7) + [
+    p6 = nav_row("p6", 8) + [
         {"name": "p6_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p6_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
         {"name": "p6_f_type", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
@@ -1438,7 +1545,7 @@ def build_layout():
         {"name": "p6_ch_bubble", "row": 48, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
-    p7 = nav_row("p7", 7) + [
+    p7 = nav_row("p7", 8) + [
         {"name": "p7_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         {"name": "p7_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
         {"name": "p7_f_type", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
@@ -1482,6 +1589,20 @@ def build_layout():
         {"name": "p7_ch_running", "row": 27, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
+    p8 = nav_row("p8", 8) + [
+        {"name": "p8_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+        {"name": "p8_f_unit", "row": 3, "column": 0, "colspan": 12, "rowspan": 2},
+        {"name": "p8_kpi_expiring", "row": 5, "column": 0, "colspan": 4, "rowspan": 4},
+        {"name": "p8_kpi_risk", "row": 5, "column": 4, "colspan": 4, "rowspan": 4},
+        {"name": "p8_kpi_total", "row": 5, "column": 8, "colspan": 4, "rowspan": 4},
+        {"name": "p8_sec_ev", "row": 9, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p8_ch_ev", "row": 10, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p8_sec_churn", "row": 20, "column": 0, "colspan": 6, "rowspan": 1},
+        {"name": "p8_ch_churn", "row": 21, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p8_sec_timeline", "row": 20, "column": 6, "colspan": 6, "rowspan": 1},
+        {"name": "p8_ch_timeline", "row": 21, "column": 6, "colspan": 6, "rowspan": 8},
+    ]
+
     return {
         "name": "Default",
         "numColumns": 12,
@@ -1493,6 +1614,7 @@ def build_layout():
             pg("aging", "Contract Aging", p5),
             pg("advanalytics", "Advanced Analytics", p6),
             pg("contractstats", "Statistical Analysis", p7),
+            pg("renewal_forecast", "Renewal Forecasting", p8),
         ],
     }
 

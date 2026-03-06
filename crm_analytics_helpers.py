@@ -2241,3 +2241,765 @@ def execute_query(inst, tok, query, language="SAQL"):
         "/services/data/v66.0/wave/query",
         body,
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  ML & Quantitative Analytics Foundation
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def arr_bridge_fields():
+    """Return standard metadata fields for an ARR bridge dataset.
+
+    Grain: month × customer × product × segment × region.
+    Components: StartARR, NewARR, ExpansionARR, ContractionARR, ChurnARR, EndARR.
+    """
+    return [
+        _dim("AccountId", "Account ID"),
+        _dim("AccountName", "Account Name"),
+        _dim("ProductFamily", "Product Family"),
+        _dim("Segment", "Segment"),
+        _dim("SalesRegion", "Sales Region"),
+        _dim("UnitGroup", "Unit Group"),
+        _dim("BridgeMonth", "Bridge Month"),
+        _dim("BridgeComponent", "Bridge Component"),
+        _dim("FYLabel", "Fiscal Year"),
+        _measure("StartARR", "Starting ARR"),
+        _measure("NewARR", "New ARR"),
+        _measure("ExpansionARR", "Expansion ARR"),
+        _measure("ContractionARR", "Contraction ARR"),
+        _measure("ChurnARR", "Churn ARR"),
+        _measure("EndARR", "Ending ARR"),
+        _measure("NetNewARR", "Net New ARR"),
+        _measure("GrowthRatePct", "Growth Rate %", scale=1, precision=5),
+    ]
+
+
+def cohort_retention_fields():
+    """Return standard metadata fields for a cohort retention dataset.
+
+    Grain: cohort_quarter × age_months × dimensions.
+    Supports GRR/NRR heatmaps and retention curves.
+    """
+    return [
+        _dim("CohortQuarter", "Cohort Quarter"),
+        _dim("ProductFamily", "Product Family"),
+        _dim("Segment", "Segment"),
+        _dim("SalesRegion", "Sales Region"),
+        _dim("UnitGroup", "Unit Group"),
+        _measure("AgeMonths", "Age (Months)", scale=0, precision=5),
+        _measure("CohortSize", "Cohort Size", scale=0, precision=10),
+        _measure("RetainedCount", "Retained Count", scale=0, precision=10),
+        _measure("RetainedARR", "Retained ARR"),
+        _measure("ExpandedARR", "Expanded ARR"),
+        _measure("ChurnedARR", "Churned ARR"),
+        _measure("GRR", "Gross Retention Rate %", scale=1, precision=5),
+        _measure("NRR", "Net Retention Rate %", scale=1, precision=5),
+    ]
+
+
+def ml_prediction_fields(prefix="Churn"):
+    """Return metadata fields for ML prediction outputs.
+
+    Generates standardized prediction + driver fields for any model type.
+    Use prefix="Churn", "Expansion", "Renewal", "WinProb", etc.
+
+    Args:
+        prefix: model name prefix for field naming
+
+    Returns:
+        list of field metadata dicts
+    """
+    return [
+        _measure(f"{prefix}Probability", f"{prefix} Probability %", scale=1, precision=5),
+        _dim(f"{prefix}RiskBand", f"{prefix} Risk Band"),
+        _dim(f"{prefix}Driver1", f"{prefix} Top Driver"),
+        _dim(f"{prefix}Driver2", f"{prefix} Second Driver"),
+        _measure(f"{prefix}Score", f"{prefix} Score", scale=0, precision=5),
+    ]
+
+
+def forecast_snapshot_fields():
+    """Return metadata fields for a forecast snapshot dataset.
+
+    Grain: snapshot_date × rep × fiscal_period × category.
+    Enables forecast error, bias, and accuracy analytics.
+    """
+    return [
+        _dim("SnapshotDate", "Snapshot Date"),
+        _dim("OwnerName", "Owner Name"),
+        _dim("FiscalQuarter", "Fiscal Quarter"),
+        _dim("FYLabel", "Fiscal Year"),
+        _dim("UnitGroup", "Unit Group"),
+        _dim("ForecastCategory", "Forecast Category"),
+        _measure("CommitARR", "Commit ARR"),
+        _measure("BestCaseARR", "Best Case ARR"),
+        _measure("PipelineARR", "Pipeline ARR"),
+        _measure("ClosedWonARR", "Closed Won ARR"),
+        _measure("WeightedForecast", "Weighted Forecast"),
+        _measure("QuotaAmount", "Quota"),
+        _measure("ForecastP50", "Forecast P50"),
+        _measure("ForecastP90", "Forecast P90"),
+        _measure("ForecastP50_high_95", "P50 Upper Band"),
+        _measure("ForecastP50_low_95", "P50 Lower Band"),
+    ]
+
+
+def forecast_error_fields():
+    """Return metadata fields for forecast error analytics.
+
+    Computed from snapshot vs actuals comparison.
+    """
+    return [
+        _dim("OwnerName", "Owner Name"),
+        _dim("FiscalQuarter", "Fiscal Quarter"),
+        _dim("UnitGroup", "Unit Group"),
+        _dim("Segment", "Segment"),
+        _dim("ProductFamily", "Product Family"),
+        _dim("SalesRegion", "Sales Region"),
+        _measure("ForecastARR", "Forecast ARR"),
+        _measure("ActualARR", "Actual ARR"),
+        _measure("AbsoluteError", "Absolute Error"),
+        _measure("ErrorPct", "Error %", scale=1, precision=5),
+        _measure("BiasPct", "Bias %", scale=1, precision=5),
+        _measure("MAPE", "MAPE %", scale=1, precision=5),
+        _measure("WAPE", "WAPE %", scale=1, precision=5),
+    ]
+
+
+# ─── ARR bridge SAQL helpers ──────────────────────────────────────────────
+
+
+def arr_bridge_waterfall_step(ds_name, base_filters="", group_field="all"):
+    """Build a SAQL step for ARR bridge waterfall visualization.
+
+    Produces bridge components (New, Expansion, Contraction, Churn)
+    suitable for waterfall_chart().
+
+    Args:
+        ds_name: ARR bridge dataset name
+        base_filters: SAQL filter lines
+        group_field: optional segmentation field
+    """
+    group_clause = f"by '{group_field}'" if group_field != "all" else "by all"
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q {group_clause};\n"
+        f"q = foreach q generate "
+        f"sum(NewARR) as new_arr, "
+        f"sum(ExpansionARR) as expansion_arr, "
+        f"sum(ContractionARR) * -1 as contraction_arr, "
+        f"sum(ChurnARR) * -1 as churn_arr, "
+        f"sum(NetNewARR) as net_new_arr;"
+    )
+    return sq(q)
+
+
+def arr_bridge_trend_step(ds_name, base_filters=""):
+    """Build a SAQL step for monthly ARR bridge trend (stacked area).
+
+    Shows bridge components over time for trend analysis.
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by BridgeMonth;\n"
+        f"q = foreach q generate "
+        f"BridgeMonth as BridgeMonth, "
+        f"sum(NewARR) as new_arr, "
+        f"sum(ExpansionARR) as expansion_arr, "
+        f"sum(ContractionARR) * -1 as contraction_arr, "
+        f"sum(ChurnARR) * -1 as churn_arr, "
+        f"sum(EndARR) as end_arr;\n"
+        f"q = order q by BridgeMonth asc;\n"
+        f"q = limit q 24;"
+    )
+    return sq(q)
+
+
+def growth_cube_step(ds_name, dim1, dim2, base_filters=""):
+    """Build a SAQL step for growth cube heatmap (product × segment × region).
+
+    Creates a 2D grid with growth rate as the color dimension.
+    Suitable for heatmap_chart().
+
+    Args:
+        ds_name: ARR bridge or growth cube dataset name
+        dim1: row dimension (e.g. ProductFamily)
+        dim2: column dimension (e.g. SalesRegion)
+        base_filters: SAQL filter lines
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by ('{dim1}', '{dim2}');\n"
+        f"q = foreach q generate "
+        f"'{dim1}' as '{dim1}', "
+        f"'{dim2}' as '{dim2}', "
+        f"(case when sum(StartARR) > 0 then "
+        f"((sum(EndARR) - sum(StartARR)) / sum(StartARR)) * 100 "
+        f"else 0 end) as growth_rate_pct, "
+        f"sum(NetNewARR) as net_new_arr, "
+        f"sum(EndARR) as end_arr;\n"
+        f"q = order q by '{dim1}' asc, '{dim2}' asc;"
+    )
+    return sq(q)
+
+
+def cohort_retention_step(ds_name, base_filters="", measure="NRR"):
+    """Build a SAQL step for cohort retention heatmap.
+
+    Creates CohortQuarter × AgeMonths grid with GRR or NRR as color.
+    Suitable for heatmap_chart().
+
+    Args:
+        ds_name: cohort retention dataset name
+        base_filters: SAQL filter lines
+        measure: "NRR" or "GRR"
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by (CohortQuarter, AgeMonths);\n"
+        f"q = foreach q generate "
+        f"CohortQuarter as CohortQuarter, "
+        f"AgeMonths as AgeMonths, "
+        f"avg({measure}) as {measure.lower()}_pct;\n"
+        f"q = order q by CohortQuarter asc, AgeMonths asc;"
+    )
+    return sq(q)
+
+
+# ─── Forecast analytics SAQL helpers ─────────────────────────────────────
+
+
+def forecast_bands_step(ds_name, base_filters=""):
+    """Build a SAQL step for forecast timeline with prediction bands.
+
+    Produces columns for timeline_chart() with _high_95/_low_95 suffixes
+    that render as shaded prediction interval bands.
+
+    Args:
+        ds_name: forecast snapshot dataset name
+        base_filters: SAQL filter lines
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by FiscalQuarter;\n"
+        f"q = foreach q generate "
+        f"FiscalQuarter as FiscalQuarter, "
+        f"sum(ClosedWonARR) as actual_arr, "
+        f"sum(ForecastP50) as forecast_p50, "
+        f"sum(ForecastP50_high_95) as forecast_p50_high_95, "
+        f"sum(ForecastP50_low_95) as forecast_p50_low_95, "
+        f"sum(ForecastP90) as forecast_p90;\n"
+        f"q = order q by FiscalQuarter asc;"
+    )
+    return sq(q)
+
+
+def forecast_error_step(ds_name, group_field="OwnerName", base_filters=""):
+    """Build a SAQL step for forecast error analytics.
+
+    Computes MAPE, bias, and absolute error by grouping dimension.
+    Suitable for heatmap_chart() (rep × quarter) or bar charts.
+
+    Args:
+        ds_name: forecast error dataset name
+        group_field: dimension to group by (OwnerName, UnitGroup, etc.)
+        base_filters: SAQL filter lines
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by '{group_field}';\n"
+        f"q = foreach q generate "
+        f"'{group_field}' as '{group_field}', "
+        f"avg(ErrorPct) as avg_error_pct, "
+        f"avg(BiasPct) as avg_bias_pct, "
+        f"avg(MAPE) as avg_mape, "
+        f"sum(AbsoluteError) as total_abs_error, "
+        f"count() as forecast_count;\n"
+        f"q = order q by avg_mape desc;\n"
+        f"q = limit q 20;"
+    )
+    return sq(q)
+
+
+def forecast_error_heatmap_step(ds_name, base_filters=""):
+    """Build a SAQL step for forecast error heatmap (rep × quarter).
+
+    Creates a 2D grid of error rates suitable for heatmap_chart().
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by (OwnerName, FiscalQuarter);\n"
+        f"q = foreach q generate "
+        f"OwnerName as OwnerName, "
+        f"FiscalQuarter as FiscalQuarter, "
+        f"avg(ErrorPct) as avg_error_pct;\n"
+        f"q = order q by OwnerName asc, FiscalQuarter asc;"
+    )
+    return sq(q)
+
+
+def forecast_integrity_step(ds_name, base_filters=""):
+    """Build a SAQL step for forecast integrity scoring.
+
+    Compares ForecastCategory to WinProbability to find misalignments
+    (e.g. Commit with low probability, Pipeline with high probability).
+    Used by Sales Compliance dashboard.
+
+    Args:
+        ds_name: opportunity dataset with ForecastCategory and WinScore fields
+        base_filters: SAQL filter lines
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f'q = filter q by IsClosed == "false";\n'
+        f"q = group q by (OwnerName, ForecastCategory);\n"
+        f"q = foreach q generate "
+        f"OwnerName as OwnerName, "
+        f"ForecastCategory as ForecastCategory, "
+        f"avg(WinScore) as avg_win_score, "
+        f"count() as opp_count, "
+        f"sum(ARR) as total_arr, "
+        f"(sum(case when "
+        f'(ForecastCategory == "Commit" && WinScore < 40) || '
+        f'(ForecastCategory == "Pipeline" && WinScore > 70) '
+        f"then 1 else 0 end) / count() * 100) as mismatch_pct;\n"
+        f"q = order q by mismatch_pct desc;"
+    )
+    return sq(q)
+
+
+def forecast_integrity_heatmap_step(ds_name, base_filters=""):
+    """Build a SAQL step for forecast integrity heatmap (rep × category).
+
+    Shows mismatch rate by rep and forecast category.
+    Suitable for heatmap_chart().
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f'q = filter q by IsClosed == "false";\n'
+        f"q = group q by (OwnerName, ForecastCategory);\n"
+        f"q = foreach q generate "
+        f"OwnerName as OwnerName, "
+        f"ForecastCategory as ForecastCategory, "
+        f"(sum(case when "
+        f'(ForecastCategory == "Commit" && WinScore < 40) || '
+        f'(ForecastCategory == "Pipeline" && WinScore > 70) '
+        f"then 1 else 0 end) / count() * 100) as mismatch_rate;\n"
+        f"q = order q by OwnerName asc;"
+    )
+    return sq(q)
+
+
+# ─── ML scoring pipeline helpers ─────────────────────────────────────────
+
+
+def compute_churn_probability(account, contracts=None):
+    """Compute churn probability for an account using a rule-based model.
+
+    Scoring factors:
+      - Health score inversion: 0-25 pts (lower health = higher churn risk)
+      - Contract expiry proximity: 0-20 pts (closer expiry = higher risk)
+      - Revenue trend: 0-15 pts (declining NRR = higher risk)
+      - Engagement decline: 0-15 pts (low recent activity)
+      - Risk level: 0-15 pts (mapped from Salesforce risk level)
+      - Product concentration: 0-10 pts (single product = higher risk)
+
+    Args:
+        account: dict with account fields (HealthScore, NRR_Proxy, etc.)
+        contracts: optional list of contract dicts for this account
+
+    Returns:
+        (probability: float 0-100, risk_band: str, top_driver: str, second_driver: str)
+    """
+    scores = {}
+
+    # 1. Health score inversion (0-25)
+    health = account.get("HealthScore") or 50
+    try:
+        health = float(health)
+    except (ValueError, TypeError):
+        health = 50
+    scores["Low Health Score"] = max(0, min(25, round((100 - health) / 4)))
+
+    # 2. Contract expiry proximity (0-20)
+    expiring_90d = account.get("ExpiringContracts90d") or 0
+    expiring_180d = account.get("ExpiringContracts180d") or 0
+    try:
+        expiring_90d = int(float(expiring_90d))
+        expiring_180d = int(float(expiring_180d))
+    except (ValueError, TypeError):
+        expiring_90d = expiring_180d = 0
+    if expiring_90d > 0:
+        scores["Contracts Expiring Soon"] = 20
+    elif expiring_180d > 0:
+        scores["Contracts Expiring Soon"] = 12
+    else:
+        scores["Contracts Expiring Soon"] = 0
+
+    # 3. Revenue trend / NRR proxy (0-15)
+    nrr = account.get("NRR_Proxy") or 100
+    try:
+        nrr = float(nrr)
+    except (ValueError, TypeError):
+        nrr = 100
+    if nrr < 80:
+        scores["Declining Revenue"] = 15
+    elif nrr < 90:
+        scores["Declining Revenue"] = 10
+    elif nrr < 100:
+        scores["Declining Revenue"] = 5
+    else:
+        scores["Declining Revenue"] = 0
+
+    # 4. Engagement decline (0-15)
+    recent_activity = account.get("RecentActivityCount") or 0
+    try:
+        recent_activity = int(float(recent_activity))
+    except (ValueError, TypeError):
+        recent_activity = 0
+    if recent_activity == 0:
+        scores["No Recent Engagement"] = 15
+    elif recent_activity < 3:
+        scores["No Recent Engagement"] = 8
+    else:
+        scores["No Recent Engagement"] = 0
+
+    # 5. Risk level (0-15)
+    risk = (account.get("RiskLevel") or "").lower()
+    if risk in ("high", "critical"):
+        scores["High Risk Level"] = 15
+    elif risk == "medium":
+        scores["High Risk Level"] = 8
+    else:
+        scores["High Risk Level"] = 0
+
+    # 6. Product concentration (0-10)
+    product_count = account.get("ProductCount") or 1
+    try:
+        product_count = int(float(product_count))
+    except (ValueError, TypeError):
+        product_count = 1
+    if product_count <= 1:
+        scores["Single Product"] = 10
+    elif product_count == 2:
+        scores["Single Product"] = 5
+    else:
+        scores["Single Product"] = 0
+
+    total = sum(scores.values())
+    probability = max(0, min(100, total))
+
+    # Risk band
+    if probability >= 70:
+        band = "High"
+    elif probability >= 40:
+        band = "Medium"
+    else:
+        band = "Low"
+
+    # Top drivers (sorted by contribution)
+    sorted_drivers = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    driver1 = sorted_drivers[0][0] if sorted_drivers else ""
+    driver2 = sorted_drivers[1][0] if len(sorted_drivers) > 1 else ""
+
+    return probability, band, driver1, driver2
+
+
+def compute_expansion_probability(account):
+    """Compute expansion probability for an account.
+
+    Scoring factors:
+      - Expansion score (existing): 0-25 pts
+      - NRR trend (growing): 0-20 pts
+      - Product whitespace: 0-20 pts (fewer products = more room)
+      - Engagement level: 0-15 pts
+      - Account size / AuM: 0-10 pts
+      - Multi-year contracts: 0-10 pts (stability signal)
+
+    Args:
+        account: dict with account fields
+
+    Returns:
+        (probability: float 0-100, band: str, top_driver: str, second_driver: str)
+    """
+    scores = {}
+
+    # 1. Expansion score (0-25)
+    exp_score = account.get("ExpansionScore") or 0
+    try:
+        exp_score = float(exp_score)
+    except (ValueError, TypeError):
+        exp_score = 0
+    scores["High Expansion Score"] = max(0, min(25, round(exp_score / 4)))
+
+    # 2. NRR trend (0-20)
+    nrr = account.get("NRR_Proxy") or 100
+    try:
+        nrr = float(nrr)
+    except (ValueError, TypeError):
+        nrr = 100
+    if nrr > 120:
+        scores["Strong Revenue Growth"] = 20
+    elif nrr > 110:
+        scores["Strong Revenue Growth"] = 15
+    elif nrr > 100:
+        scores["Strong Revenue Growth"] = 8
+    else:
+        scores["Strong Revenue Growth"] = 0
+
+    # 3. Product whitespace (0-20)
+    product_count = account.get("ProductCount") or 0
+    try:
+        product_count = int(float(product_count))
+    except (ValueError, TypeError):
+        product_count = 0
+    if product_count <= 1:
+        scores["Product Whitespace"] = 20
+    elif product_count == 2:
+        scores["Product Whitespace"] = 12
+    elif product_count == 3:
+        scores["Product Whitespace"] = 5
+    else:
+        scores["Product Whitespace"] = 0
+
+    # 4. Engagement level (0-15)
+    recent_activity = account.get("RecentActivityCount") or 0
+    try:
+        recent_activity = int(float(recent_activity))
+    except (ValueError, TypeError):
+        recent_activity = 0
+    if recent_activity >= 10:
+        scores["Active Engagement"] = 15
+    elif recent_activity >= 5:
+        scores["Active Engagement"] = 10
+    elif recent_activity >= 1:
+        scores["Active Engagement"] = 5
+    else:
+        scores["Active Engagement"] = 0
+
+    # 5. Account size (0-10)
+    aum = account.get("AuM") or 0
+    try:
+        aum = float(aum)
+    except (ValueError, TypeError):
+        aum = 0
+    if aum > 50000000000:  # >50B
+        scores["Large Account"] = 10
+    elif aum > 10000000000:  # >10B
+        scores["Large Account"] = 7
+    elif aum > 1000000000:  # >1B
+        scores["Large Account"] = 4
+    else:
+        scores["Large Account"] = 0
+
+    # 6. Multi-year contracts (0-10)
+    multi_year = account.get("MultiYearCount") or 0
+    try:
+        multi_year = int(float(multi_year))
+    except (ValueError, TypeError):
+        multi_year = 0
+    scores["Multi-Year Contracts"] = min(10, multi_year * 5)
+
+    total = sum(scores.values())
+    probability = max(0, min(100, total))
+
+    if probability >= 65:
+        band = "High"
+    elif probability >= 35:
+        band = "Medium"
+    else:
+        band = "Low"
+
+    sorted_drivers = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    driver1 = sorted_drivers[0][0] if sorted_drivers else ""
+    driver2 = sorted_drivers[1][0] if len(sorted_drivers) > 1 else ""
+
+    return probability, band, driver1, driver2
+
+
+def compute_forecast_risk(rep_data):
+    """Compute forecast risk score for a rep/period.
+
+    Evaluates whether the rep is likely to miss their forecast.
+
+    Scoring factors:
+      - Win-probability-weighted pipeline vs commit gap: 0-30 pts
+      - Historical accuracy (if available): 0-20 pts
+      - Pipeline age/stale ratio: 0-20 pts
+      - Push/slip signal count: 0-15 pts
+      - Coverage ratio: 0-15 pts
+
+    Args:
+        rep_data: dict with rep-level forecast fields
+
+    Returns:
+        (risk_score: float 0-100, risk_band: str, top_driver: str)
+    """
+    scores = {}
+
+    # 1. Weighted pipeline vs commit gap (0-30)
+    weighted = rep_data.get("WeightedForecast") or 0
+    commit = rep_data.get("CommitARR") or 0
+    quota = rep_data.get("QuotaAmount") or 1
+    try:
+        weighted = float(weighted)
+        commit = float(commit)
+        quota = float(quota) if float(quota) > 0 else 1
+    except (ValueError, TypeError):
+        weighted = commit = 0
+        quota = 1
+    coverage_of_quota = weighted / quota if quota > 0 else 0
+    if coverage_of_quota < 0.5:
+        scores["Low Weighted Pipeline"] = 30
+    elif coverage_of_quota < 0.8:
+        scores["Low Weighted Pipeline"] = 20
+    elif coverage_of_quota < 1.0:
+        scores["Low Weighted Pipeline"] = 10
+    else:
+        scores["Low Weighted Pipeline"] = 0
+
+    # 2. Historical accuracy (0-20)
+    prior_accuracy = rep_data.get("PriorAccuracyPct") or 100
+    try:
+        prior_accuracy = float(prior_accuracy)
+    except (ValueError, TypeError):
+        prior_accuracy = 100
+    if prior_accuracy < 60:
+        scores["Poor Forecast History"] = 20
+    elif prior_accuracy < 80:
+        scores["Poor Forecast History"] = 12
+    elif prior_accuracy < 90:
+        scores["Poor Forecast History"] = 5
+    else:
+        scores["Poor Forecast History"] = 0
+
+    # 3. Pipeline age (0-20)
+    stale_pct = rep_data.get("StalePipelinePct") or 0
+    try:
+        stale_pct = float(stale_pct)
+    except (ValueError, TypeError):
+        stale_pct = 0
+    if stale_pct > 50:
+        scores["Stale Pipeline"] = 20
+    elif stale_pct > 30:
+        scores["Stale Pipeline"] = 12
+    elif stale_pct > 15:
+        scores["Stale Pipeline"] = 5
+    else:
+        scores["Stale Pipeline"] = 0
+
+    # 4. Push/slip signals (0-15)
+    push_count = rep_data.get("PushCount") or 0
+    try:
+        push_count = int(float(push_count))
+    except (ValueError, TypeError):
+        push_count = 0
+    if push_count >= 5:
+        scores["Frequent Deal Slippage"] = 15
+    elif push_count >= 3:
+        scores["Frequent Deal Slippage"] = 8
+    elif push_count >= 1:
+        scores["Frequent Deal Slippage"] = 3
+    else:
+        scores["Frequent Deal Slippage"] = 0
+
+    # 5. Coverage ratio (0-15)
+    total_pipe = rep_data.get("TotalPipelineARR") or 0
+    try:
+        total_pipe = float(total_pipe)
+    except (ValueError, TypeError):
+        total_pipe = 0
+    pipe_coverage = total_pipe / quota if quota > 0 else 0
+    if pipe_coverage < 1.5:
+        scores["Insufficient Coverage"] = 15
+    elif pipe_coverage < 2.0:
+        scores["Insufficient Coverage"] = 8
+    elif pipe_coverage < 3.0:
+        scores["Insufficient Coverage"] = 3
+    else:
+        scores["Insufficient Coverage"] = 0
+
+    total = sum(scores.values())
+    risk_score = max(0, min(100, total))
+
+    if risk_score >= 60:
+        band = "High"
+    elif risk_score >= 30:
+        band = "Medium"
+    else:
+        band = "Low"
+
+    sorted_drivers = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    driver1 = sorted_drivers[0][0] if sorted_drivers else ""
+
+    return risk_score, band, driver1
+
+
+# ─── Reusable dashboard page builders ─────────────────────────────────────
+
+
+def build_retention_page_widgets(prefix, ds_name, ds_id, base_filters=""):
+    """Build a complete retention & growth page with cohort heatmap + ARR bridge.
+
+    Returns (steps, widgets) dicts ready to merge into dashboard.
+    Requires cohort retention and ARR bridge datasets.
+
+    Args:
+        prefix: page widget prefix (e.g. "p6")
+        ds_name: cohort retention dataset name
+        ds_id: dataset ID for step metadata
+        base_filters: SAQL filter lines
+    """
+    steps = {
+        f"s_{prefix}_cohort_nrr": cohort_retention_step(ds_name, base_filters, "NRR"),
+        f"s_{prefix}_cohort_grr": cohort_retention_step(ds_name, base_filters, "GRR"),
+    }
+
+    widgets = {
+        f"{prefix}_sec_retention": section_label("Cohort Retention Analysis"),
+        f"{prefix}_ch_cohort_nrr": heatmap_chart(
+            f"s_{prefix}_cohort_nrr", "Net Revenue Retention by Cohort"
+        ),
+        f"{prefix}_ch_cohort_grr": heatmap_chart(
+            f"s_{prefix}_cohort_grr", "Gross Revenue Retention by Cohort"
+        ),
+    }
+
+    return steps, widgets
+
+
+def build_forecast_bands_page_widgets(prefix, ds_name, ds_id, base_filters=""):
+    """Build a forecast bands & error page with timeline bands + error heatmap.
+
+    Returns (steps, widgets) dicts ready to merge into dashboard.
+
+    Args:
+        prefix: page widget prefix (e.g. "p6")
+        ds_name: forecast snapshot dataset name
+        ds_id: dataset ID
+        base_filters: SAQL filter lines
+    """
+    steps = {
+        f"s_{prefix}_forecast_bands": forecast_bands_step(ds_name, base_filters),
+    }
+
+    widgets = {
+        f"{prefix}_sec_bands": section_label("Forecast Bands & Uncertainty"),
+        f"{prefix}_ch_bands": timeline_chart(
+            f"s_{prefix}_forecast_bands",
+            "Actual vs Forecast with 95% Prediction Interval",
+            axis_title="ARR (EUR)",
+        ),
+    }
+
+    return steps, widgets

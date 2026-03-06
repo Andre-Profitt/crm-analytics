@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """Build the Customer Intelligence dashboard — unified view of current customers.
 
-Joins Account + Opportunity + Contract + Contact data into a single per-account
-dataset with computed health scores, expansion signals, product adoption,
-NRR components, and engagement metrics.
+ML-Forward Upgrade:
+  Joins Account + Opportunity + Contract + Contact data into a single per-account
+  dataset with computed health scores, expansion signals, product adoption,
+  NRR components, and engagement metrics.
+
+  ML additions:
+    - Predictive churn scoring (rule-based → probability + risk band + drivers)
+    - Predictive expansion scoring (probability + band + drivers)
+    - Expected churn ARR computation (probability × ARR at risk)
+    - Cohort retention analytics (GRR/NRR by cohort quarter)
 
 Pages:
   1. Portfolio Overview — Total customers, ARR, NRR/GRR proxy, health distribution
@@ -14,16 +21,9 @@ Pages:
   6. Customer Segmentation — Segment performance, cohort, revenue concentration
   7. Engagement & Contacts — Contact coverage, C-level penetration, activity
   8. Advanced Analytics — Sankey, treemap, heatmap, bubble, area, stats
+  9. Retention & Growth — Cohort retention heatmap, expected churn waterfall, at-risk actions
 
 Dataset: Customer_Intelligence (one row per account)
-
-Visualization Upgrade:
-  - Health transition Sankey (HealthBand movement visualization)
-  - Renewal timeline chart (ARR at risk over time)
-  - Health score driver waterfall (score component breakdown)
-  - Revenue concentration curve with small multiples
-  - Dynamic KPI tiles with threshold-based coloring
-  - Adoption × Segment heatmap for cross-sell pattern discovery
 """
 
 import csv
@@ -66,6 +66,9 @@ from crm_analytics_helpers import (
     set_record_links_xmd,  # noqa: F401
     add_selection_interaction,
     add_table_action,
+    # ML-Forward additions
+    compute_churn_probability,
+    compute_expansion_probability,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -93,6 +96,7 @@ PAGE_IDS = [
     "segments",
     "engagement",
     "advanalytics",
+    "retention",
 ]
 PAGE_LABELS = [
     "Portfolio",
@@ -102,7 +106,8 @@ PAGE_LABELS = [
     "Contracts",
     "Segmentation",
     "Engagement",
-    "Advanced Analytics",
+    "Advanced",
+    "Retention",
 ]
 NUM_PAGES = len(PAGE_IDS)
 
@@ -533,6 +538,19 @@ def create_dataset(inst, tok):
         "LandToExpandDays",
         "ContactTier",
         "ProductCombo",
+        # ML-Forward: Churn prediction
+        "ChurnProbability",
+        "ChurnRiskBand",
+        "ChurnDriver1",
+        "ChurnDriver2",
+        "ExpectedChurnARR",
+        # ML-Forward: Expansion prediction
+        "ExpansionProbability",
+        "ExpansionPropensityBand",
+        "ExpansionDriver1",
+        "ExpansionDriver2",
+        # ML-Forward: Cohort tracking
+        "CohortQuarter",
     ]
 
     buf = io.StringIO()
@@ -650,6 +668,43 @@ def create_dataset(inst, tok):
         # Product combination (sorted, pipe-delimited)
         product_combo = "|".join(sorted(products)) if len(products) >= 2 else ""
 
+        # ─── ML-Forward: Churn prediction ─────────────────────────────
+        churn_input = {
+            "HealthScore": health,
+            "ExpiringContracts90d": con_data.get("ExpiringContracts90d", 0),
+            "ExpiringContracts180d": con_data.get("ExpiringContracts180d", 0),
+            "NRR_Proxy": nrr,
+            "RecentActivityCount": contact_data.get("RecentActivityCount", 0),
+            "RiskLevel": a.get("Risk_of_Potential_Termination__c") or "",
+            "ProductCount": len(products),
+        }
+        churn_prob, churn_band, churn_d1, churn_d2 = compute_churn_probability(
+            churn_input
+        )
+
+        # ─── ML-Forward: Expansion prediction ────────────────────────
+        exp_input = {
+            "ExpansionScore": expansion,
+            "NRR_Proxy": nrr,
+            "ProductCount": len(products),
+            "RecentActivityCount": contact_data.get("RecentActivityCount", 0),
+            "AuM": aum,
+            "MultiYearCount": con_data.get("MultiYearCount", 0),
+        }
+        exp_prob, exp_band, exp_d1, exp_d2 = compute_expansion_probability(exp_input)
+
+        # ─── ML-Forward: Cohort quarter ───────────────────────────────
+        first_won = opp_data.get("FirstLandWonDate", "")
+        if first_won:
+            try:
+                fwd = datetime.strptime(first_won[:10], "%Y-%m-%d")
+                q = (fwd.month - 1) // 3 + 1
+                cohort_qtr = f"FY{fwd.year} Q{q}"
+            except (ValueError, TypeError):
+                cohort_qtr = ""
+        else:
+            cohort_qtr = ""
+
         writer.writerow(
             {
                 "AccountId": aid,
@@ -721,6 +776,21 @@ def create_dataset(inst, tok):
                 "LandToExpandDays": land_to_expand,
                 "ContactTier": contact_tier,
                 "ProductCombo": product_combo,
+                # ML-Forward: Churn prediction
+                "ChurnProbability": churn_prob,
+                "ChurnRiskBand": churn_band,
+                "ChurnDriver1": churn_d1,
+                "ChurnDriver2": churn_d2,
+                "ExpectedChurnARR": round(
+                    churn_prob / 100 * max(total_won, open_pipe), 2
+                ),
+                # ML-Forward: Expansion prediction
+                "ExpansionProbability": exp_prob,
+                "ExpansionPropensityBand": exp_band,
+                "ExpansionDriver1": exp_d1,
+                "ExpansionDriver2": exp_d2,
+                # ML-Forward: Cohort
+                "CohortQuarter": cohort_qtr,
             }
         )
         row_count += 1
@@ -792,6 +862,19 @@ def create_dataset(inst, tok):
         _measure("LandToExpandDays", "Land-to-Expand Days", scale=0, precision=6),
         _dim("ContactTier", "Contact Tier"),
         _dim("ProductCombo", "Product Combination"),
+        # ML-Forward: Churn prediction
+        _measure("ChurnProbability", "Churn Probability %", scale=1, precision=5),
+        _dim("ChurnRiskBand", "Churn Risk Band"),
+        _dim("ChurnDriver1", "Churn Top Driver"),
+        _dim("ChurnDriver2", "Churn Second Driver"),
+        _measure("ExpectedChurnARR", "Expected Churn ARR"),
+        # ML-Forward: Expansion prediction
+        _measure("ExpansionProbability", "Expansion Probability %", scale=1, precision=5),
+        _dim("ExpansionPropensityBand", "Expansion Propensity Band"),
+        _dim("ExpansionDriver1", "Expansion Top Driver"),
+        _dim("ExpansionDriver2", "Expansion Second Driver"),
+        # ML-Forward: Cohort tracking
+        _dim("CohortQuarter", "Cohort Quarter"),
     ]
 
     return upload_dataset(inst, tok, DS, DS_LABEL, fields_meta, csv_bytes)
@@ -1722,6 +1805,112 @@ def build_steps(ds_id):
             + "(sum(case when HealthBand == \"At-Risk\" then 1 else 0 end) * 100 / count()) as at_risk_pct, "
             + "count() as total_customers;"
         ),
+        # ═══ PAGE 9: Retention & Growth (ML-Forward) ═══
+        # Cohort retention heatmap: CohortQuarter × NRR proxy
+        "s_cohort_nrr": sq(
+            L
+            + UF
+            + SF
+            + "q = filter q by CohortQuarter != \"\";\n"
+            + "q = group q by CohortQuarter;\n"
+            + "q = foreach q generate CohortQuarter, "
+            + "count() as cohort_size, "
+            + "avg(NRR_Proxy) as avg_nrr, "
+            + "avg(GRR_Proxy) as avg_grr, "
+            + "sum(case when IsRetained == \"true\" then 1 else 0 end) as retained_count, "
+            + "(sum(case when IsRetained == \"true\" then 1 else 0 end) * 100 / count()) as retention_rate;\n"
+            + "q = order q by CohortQuarter asc;"
+        ),
+        # Churn probability distribution
+        "s_churn_dist": sq(
+            L
+            + UF
+            + SF
+            + "q = group q by ChurnRiskBand;\n"
+            + "q = foreach q generate ChurnRiskBand, "
+            + "count() as acct_count, "
+            + "sum(ExpectedChurnARR) as expected_churn_arr, "
+            + "sum(TotalWonARR) as total_arr;\n"
+            + "q = order q by (case "
+            + "when ChurnRiskBand == \"High\" then 1 "
+            + "when ChurnRiskBand == \"Medium\" then 2 "
+            + "else 3 end) asc;"
+        ),
+        # Expected churn by segment (waterfall-like)
+        "s_churn_by_segment": sq(
+            L
+            + UF
+            + "q = group q by Segment;\n"
+            + "q = foreach q generate Segment, "
+            + "sum(ExpectedChurnARR) as expected_churn, "
+            + "sum(TotalWonARR) as total_arr, "
+            + "(sum(ExpectedChurnARR) * 100 / sum(TotalWonARR)) as churn_pct;\n"
+            + "q = order q by expected_churn desc;"
+        ),
+        # Churn drivers (top reasons)
+        "s_churn_drivers": sq(
+            L
+            + UF
+            + SF
+            + "q = group q by ChurnDriver1;\n"
+            + "q = foreach q generate ChurnDriver1, "
+            + "count() as acct_count, "
+            + "sum(ExpectedChurnARR) as expected_churn_arr;\n"
+            + "q = order q by expected_churn_arr desc;\n"
+            + "q = limit q 10;"
+        ),
+        # Expansion propensity distribution
+        "s_expansion_dist": sq(
+            L
+            + UF
+            + SF
+            + "q = group q by ExpansionPropensityBand;\n"
+            + "q = foreach q generate ExpansionPropensityBand, "
+            + "count() as acct_count, "
+            + "sum(ExpandPipelineARR) as expand_pipeline;\n"
+            + "q = order q by (case "
+            + "when ExpansionPropensityBand == \"High\" then 1 "
+            + "when ExpansionPropensityBand == \"Medium\" then 2 "
+            + "else 3 end) asc;"
+        ),
+        # At-risk accounts table (churn probability > 50%)
+        "s_churn_at_risk_list": sq(
+            L
+            + UF
+            + SF
+            + "q = filter q by ChurnProbability > 50;\n"
+            + "q = foreach q generate AccountName, UnitGroup, Segment, "
+            + "ChurnProbability, ChurnRiskBand, ChurnDriver1, "
+            + "ExpectedChurnARR, TotalWonARR, HealthBand, LifecycleStage;\n"
+            + "q = order q by ExpectedChurnARR desc;\n"
+            + "q = limit q 25;"
+        ),
+        # Churn KPIs
+        "s_churn_kpi": sq(
+            L
+            + UF
+            + SF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "sum(ExpectedChurnARR) as total_expected_churn, "
+            + "avg(ChurnProbability) as avg_churn_prob, "
+            + "sum(case when ChurnRiskBand == \"High\" then 1 else 0 end) as high_risk_count, "
+            + "count() as total_accounts;"
+        ),
+        # Churn by product
+        "s_churn_by_product": sq(
+            L
+            + UF
+            + SF
+            + "q = filter q by ProductCombo != \"\";\n"
+            + "q = group q by ProductCombo;\n"
+            + "q = foreach q generate ProductCombo, "
+            + "avg(ChurnProbability) as avg_churn_prob, "
+            + "sum(ExpectedChurnARR) as expected_churn, "
+            + "count() as acct_count;\n"
+            + "q = order q by expected_churn desc;\n"
+            + "q = limit q 10;"
+        ),
     }
 
 
@@ -2509,6 +2698,81 @@ def build_widgets():
         size=28,
     )
 
+    # ═══ PAGE 9: Retention & Growth (ML-Forward) ═══
+    w["p9_hdr"] = hdr(
+        "Retention & Growth Intelligence",
+        "Predictive churn/expansion scoring, cohort retention, expected churn impact",
+    )
+    w["p9_f_unit"] = pillbox("f_unit", "Unit Group")
+    w["p9_f_segment"] = pillbox("f_segment", "Segment")
+    # Churn KPI tiles
+    w["p9_churn_total"] = num(
+        "s_churn_kpi", "total_expected_churn", "Expected Churn ARR", "#D4504C",
+        compact=True, size=28,
+    )
+    w["p9_churn_prob"] = num_dynamic_color(
+        "s_churn_kpi", "avg_churn_prob", "Avg Churn Probability %",
+        thresholds=[(20, "#04844B"), (40, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
+    w["p9_high_risk"] = num(
+        "s_churn_kpi", "high_risk_count", "High-Risk Accounts", "#D4504C",
+        size=28,
+    )
+    # Cohort retention bar
+    w["p9_sec_cohort"] = section_label("Cohort Retention Analysis")
+    w["p9_ch_cohort"] = rich_chart(
+        "s_cohort_nrr", "column",
+        "NRR & GRR by Cohort Quarter",
+        ["CohortQuarter"], ["avg_nrr", "avg_grr"],
+        show_legend=True, axis_title="Rate %",
+    )
+    # Churn distribution
+    w["p9_sec_churn_dist"] = section_label("Churn Risk Distribution")
+    w["p9_ch_churn_dist"] = rich_chart(
+        "s_churn_dist", "donut",
+        "Accounts by Churn Risk Band",
+        ["ChurnRiskBand"], ["acct_count"],
+        show_legend=True,
+    )
+    # Expected churn by segment
+    w["p9_ch_churn_seg"] = rich_chart(
+        "s_churn_by_segment", "hbar",
+        "Expected Churn ARR by Segment",
+        ["Segment"], ["expected_churn"],
+        axis_title="Expected Churn ARR (EUR)",
+    )
+    # Churn drivers
+    w["p9_sec_drivers"] = section_label("Top Churn Drivers")
+    w["p9_ch_drivers"] = rich_chart(
+        "s_churn_drivers", "hbar",
+        "Top Churn Risk Factors",
+        ["ChurnDriver1"], ["expected_churn_arr"],
+        axis_title="Expected Churn ARR (EUR)",
+    )
+    # Expansion propensity
+    w["p9_sec_expansion"] = section_label("Expansion Propensity Distribution")
+    w["p9_ch_expansion"] = rich_chart(
+        "s_expansion_dist", "donut",
+        "Accounts by Expansion Propensity",
+        ["ExpansionPropensityBand"], ["acct_count"],
+        show_legend=True,
+    )
+    # At-risk accounts table
+    w["p9_sec_atrisk"] = section_label("High-Risk Churn Accounts (Prob > 50%)")
+    w["p9_tbl_atrisk"] = rich_chart(
+        "s_churn_at_risk_list", "comparisontable",
+        "At-Risk Accounts — Recommended Actions",
+        ["AccountName", "UnitGroup", "Segment", "ChurnRiskBand", "ChurnDriver1"],
+        ["ChurnProbability", "ExpectedChurnARR", "TotalWonARR"],
+    )
+    add_table_action(w["p9_tbl_atrisk"], object_name="Account", id_field="AccountId")
+    # Churn by product
+    w["p9_sec_product"] = section_label("Churn Risk by Product Combination")
+    w["p9_ch_product"] = heatmap_chart(
+        "s_churn_by_product", "Avg Churn Probability by Product Combo"
+    )
+
     return w
 
 
@@ -3095,6 +3359,39 @@ def build_layout():
         ]
     )
 
+    # ── PAGE 9: Retention & Growth (ML-Forward) ──
+    p9 = (
+        nav_row("p9", NUM_PAGES)
+        + _std_header("p9")
+        + [
+            # Filter bar
+            {"name": "p9_f_unit", "row": 3, "column": 0, "colspan": 6, "rowspan": 2},
+            {"name": "p9_f_segment", "row": 3, "column": 6, "colspan": 6, "rowspan": 2},
+            # Churn KPI tiles (row 5)
+            {"name": "p9_churn_total", "row": 5, "column": 0, "colspan": 4, "rowspan": 4},
+            {"name": "p9_churn_prob", "row": 5, "column": 4, "colspan": 4, "rowspan": 4},
+            {"name": "p9_high_risk", "row": 5, "column": 8, "colspan": 4, "rowspan": 4},
+            # Cohort retention (row 9)
+            {"name": "p9_sec_cohort", "row": 9, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p9_ch_cohort", "row": 10, "column": 0, "colspan": 12, "rowspan": 8},
+            # Churn distribution + by segment (row 18)
+            {"name": "p9_sec_churn_dist", "row": 18, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p9_ch_churn_dist", "row": 19, "column": 0, "colspan": 6, "rowspan": 8},
+            {"name": "p9_ch_churn_seg", "row": 19, "column": 6, "colspan": 6, "rowspan": 8},
+            # Churn drivers + expansion propensity (row 27)
+            {"name": "p9_sec_drivers", "row": 27, "column": 0, "colspan": 6, "rowspan": 1},
+            {"name": "p9_ch_drivers", "row": 28, "column": 0, "colspan": 6, "rowspan": 8},
+            {"name": "p9_sec_expansion", "row": 27, "column": 6, "colspan": 6, "rowspan": 1},
+            {"name": "p9_ch_expansion", "row": 28, "column": 6, "colspan": 6, "rowspan": 8},
+            # At-risk accounts table (row 36)
+            {"name": "p9_sec_atrisk", "row": 36, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p9_tbl_atrisk", "row": 37, "column": 0, "colspan": 12, "rowspan": 10},
+            # Churn by product (row 47)
+            {"name": "p9_sec_product", "row": 47, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p9_ch_product", "row": 48, "column": 0, "colspan": 12, "rowspan": 8},
+        ]
+    )
+
     return {
         "name": "Default",
         "numColumns": 12,
@@ -3107,6 +3404,7 @@ def build_layout():
             pg(PAGE_IDS[5], PAGE_LABELS[5], p6),
             pg(PAGE_IDS[6], PAGE_LABELS[6], p7),
             pg(PAGE_IDS[7], PAGE_LABELS[7], p8),
+            pg(PAGE_IDS[8], PAGE_LABELS[8], p9),
         ],
     }
 
