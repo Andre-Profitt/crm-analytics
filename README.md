@@ -67,36 +67,33 @@ pip install -r requirements.txt
 
 ## Usage
 
+Deploying requires a live Salesforce org connection (instance URL + access token via the `sf` CLI). Each builder calls `get_auth()` which runs `sf org display` to get credentials from a locally authenticated org.
+
 ```bash
-# Deploy Advanced Pipeline Analytics
-python build_advanced_analytics.py
+# Authenticate to your org first
+sf org login web --alias crm-target
 
-# Deploy Book of Business
-python build_dashboard.py
+# Then run any individual builder
+python3 build_dashboard.py
+python3 build_advanced_analytics.py
 
-# Deploy all dashboards
-make all
+# Or deploy everything in dependency order
+python3 scripts/deploy_orchestrator.py
+
+# Dry-run to see the plan without executing
+python3 scripts/deploy_orchestrator.py --dry-run
 ```
 
 Each builder:
 
-1. Authenticates via `sf` CLI
+1. Authenticates via `sf` CLI (`sf org display` at runtime)
 2. Queries Salesforce (Opportunities, OpportunityHistory, etc.)
 3. Runs ML models and computes analytics
 4. Uploads datasets to CRM Analytics
 5. Builds and deploys the dashboard JSON via PATCH API
 6. Sets XMD record links for drill-through navigation
 
-## Configuration
-
-Authentication uses the Salesforce CLI:
-
-```bash
-sf org login web --alias myorg
-sf config set target-org myorg
-```
-
-No `.env` files or hardcoded credentials — the builders call `sf org display` at runtime.
+No `.env` files or hardcoded credentials.
 
 ## Developer Intelligence
 
