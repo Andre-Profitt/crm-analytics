@@ -13,8 +13,17 @@ Pages:
   5. Contract & Renewal — Renewal calendar, term distribution, at-risk renewals
   6. Customer Segmentation — Segment performance, cohort, revenue concentration
   7. Engagement & Contacts — Contact coverage, C-level penetration, activity
+  8. Advanced Analytics — Sankey, treemap, heatmap, bubble, area, stats
 
 Dataset: Customer_Intelligence (one row per account)
+
+Visualization Upgrade:
+  - Health transition Sankey (HealthBand movement visualization)
+  - Renewal timeline chart (ARR at risk over time)
+  - Health score driver waterfall (score component breakdown)
+  - Revenue concentration curve with small multiples
+  - Dynamic KPI tiles with threshold-based coloring
+  - Adoption × Segment heatmap for cross-sell pattern discovery
 """
 
 import csv
@@ -31,6 +40,7 @@ from crm_analytics_helpers import (
     sq,
     af,
     num,
+    num_dynamic_color,
     rich_chart,
     gauge,
     treemap_chart,
@@ -40,6 +50,9 @@ from crm_analytics_helpers import (
     sankey_chart,
     area_chart,
     bullet_chart,
+    timeline_chart,
+    combo_chart,
+    scatter_chart,
     pillbox,
     coalesce_filter,
     hdr,
@@ -51,6 +64,8 @@ from crm_analytics_helpers import (
     deploy_dashboard,
     create_dashboard_if_needed,
     set_record_links_xmd,  # noqa: F401
+    add_selection_interaction,
+    add_table_action,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1618,6 +1633,95 @@ def build_steps(ds_id):
             + "(order by HealthScore) as p75_health;\n"
             + "q = order q by UnitGroup asc;"
         ),
+        # ═══ VIZ UPGRADE: Health Transition Sankey ═══
+        # Shows movement between health bands (requires PriorHealthBand field)
+        "s_health_transition": sq(
+            L
+            + UF
+            + IF
+            + SF
+            + 'q = filter q by PriorHealthBand != "" && PriorHealthBand != "null";\n'
+            + "q = group q by (PriorHealthBand, HealthBand);\n"
+            + "q = foreach q generate "
+            + "PriorHealthBand as source, "
+            + "HealthBand as target, "
+            + "count() as cnt, "
+            + "sum(TotalWonARR) as total_arr;\n"
+            + "q = order q by cnt desc;"
+        ),
+        # ═══ VIZ UPGRADE: Health Score Driver Waterfall ═══
+        # Break down average health score into component contributions
+        "s_health_drivers": sq(
+            L
+            + UF
+            + IF
+            + HF
+            + SF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "avg(ContractScore) as contract_component, "
+            + "avg(RevenueTrendScore) as revenue_component, "
+            + "avg(EngagementScore) as engagement_component, "
+            + "avg(ContactScore) as contact_component, "
+            + "avg(AdoptionScore) as adoption_component, "
+            + "avg(RiskScore) as risk_component;"
+        ),
+        # ═══ VIZ UPGRADE: Renewal Timeline ═══
+        # ARR at risk grouped by contract end month
+        "s_renewal_timeline": sq(
+            L
+            + UF
+            + IF
+            + SF
+            + 'q = filter q by ContractEndMonth != "" && ContractEndMonth != "null";\n'
+            + "q = group q by ContractEndMonth;\n"
+            + "q = foreach q generate ContractEndMonth, "
+            + "sum(TotalWonARR) as expiring_arr, "
+            + "count() as acct_count, "
+            + "avg(HealthScore) as avg_health;\n"
+            + "q = order q by ContractEndMonth asc;\n"
+            + "q = limit q 24;"
+        ),
+        # ═══ VIZ UPGRADE: Revenue Concentration Curve ═══
+        # Top accounts ranked by ARR for Pareto analysis
+        "s_revenue_concentration": sq(
+            L
+            + UF
+            + IF
+            + SF
+            + "q = group q by AccountName;\n"
+            + "q = foreach q generate AccountName, "
+            + "sum(TotalWonARR) as acct_arr, "
+            + "max(HealthScore) as health;\n"
+            + "q = order q by acct_arr desc;\n"
+            + "q = limit q 50;"
+        ),
+        # ═══ VIZ UPGRADE: Adoption × Segment Heatmap ═══
+        "s_adoption_segment": sq(
+            L
+            + UF
+            + IF
+            + SF
+            + "q = group q by (ProductCount, Segment);\n"
+            + "q = foreach q generate "
+            + 'ProductCount as ProductCount, '
+            + "Segment, "
+            + "count() as acct_count, "
+            + "sum(TotalWonARR) as total_arr;\n"
+            + "q = order q by ProductCount asc;"
+        ),
+        # ═══ VIZ UPGRADE: Dynamic KPI Thresholds ═══
+        "s_ci_kpi_thresh": sq(
+            L
+            + UF
+            + IF
+            + SF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "avg(HealthScore) as avg_health, "
+            + "(sum(case when HealthBand == \"At-Risk\" then 1 else 0 end) * 100 / count()) as at_risk_pct, "
+            + "count() as total_customers;"
+        ),
     }
 
 
@@ -2330,13 +2434,80 @@ def build_widgets():
     )
 
     # ── Phase 7: Embedded table actions ──────────────────────────────────
-    from crm_analytics_helpers import add_table_action
-
     add_table_action(w["p2_tbl_risk"], "salesforceActions", "Account", "Id")
     add_table_action(w["p3_tbl_ws"], "salesforceActions", "Account", "Id")
     add_table_action(w["p4_tbl_top"], "salesforceActions", "Account", "Id")
     add_table_action(w["p5_tbl_risk"], "salesforceActions", "Account", "Id")
     add_table_action(w["p7_tbl_low"], "salesforceActions", "Account", "Id")
+
+    # ═══ VIZ UPGRADE: Health Transition Sankey ═══
+    w["p8_sec_health_flow"] = section_label("Health Band Transitions")
+    w["p8_ch_health_flow"] = sankey_chart(
+        "s_health_transition", "Account Health Movement (Prior → Current)"
+    )
+
+    # ═══ VIZ UPGRADE: Health Score Driver Waterfall ═══
+    w["p8_sec_drivers"] = section_label("Health Score Component Breakdown")
+    w["p8_ch_drivers"] = rich_chart(
+        "s_health_drivers",
+        "comparisontable",
+        "Avg Score by Component (out of 15-20 each)",
+        [],
+        [
+            "contract_component",
+            "revenue_component",
+            "engagement_component",
+            "contact_component",
+            "adoption_component",
+            "risk_component",
+        ],
+    )
+
+    # ═══ VIZ UPGRADE: Renewal Timeline ═══
+    w["p5_sec_timeline"] = section_label("Renewal Timeline: Expiring ARR by Month")
+    w["p5_ch_timeline"] = combo_chart(
+        "s_renewal_timeline",
+        "Expiring ARR & Account Count by Month",
+        ["ContractEndMonth"],
+        bar_measures=["expiring_arr"],
+        line_measures=["avg_health"],
+        show_legend=True,
+        axis_title="ARR (EUR)",
+        axis2_title="Avg Health Score",
+    )
+
+    # ═══ VIZ UPGRADE: Revenue Concentration ═══
+    w["p1_sec_concentration"] = section_label("Revenue Concentration (Top 50)")
+    w["p1_ch_concentration"] = rich_chart(
+        "s_revenue_concentration",
+        "hbar",
+        "ARR by Account (Top 50 Customers)",
+        ["AccountName"],
+        ["acct_arr"],
+        axis_title="ARR (EUR)",
+    )
+
+    # ═══ VIZ UPGRADE: Adoption × Segment Heatmap ═══
+    w["p8_sec_adopt_seg"] = section_label("Product Adoption × Segment")
+    w["p8_ch_adopt_seg"] = heatmap_chart(
+        "s_adoption_segment", "Accounts by Product Count × Segment"
+    )
+
+    # ═══ VIZ UPGRADE: Dynamic KPI Tiles ═══
+    w["p1_health_dynamic"] = num_dynamic_color(
+        "s_ci_kpi_thresh",
+        "avg_health",
+        "Avg Health Score",
+        thresholds=[(40, "#D4504C"), (70, "#FFB75D"), (100, "#04844B")],
+        size=28,
+    )
+    w["p1_atrisk_dynamic"] = num_dynamic_color(
+        "s_ci_kpi_thresh",
+        "at_risk_pct",
+        "At-Risk Customers %",
+        thresholds=[(10, "#04844B"), (25, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
 
     return w
 
@@ -2488,6 +2659,11 @@ def build_layout():
             # GRR + Logo Retention KPIs (row 35)
             {"name": "p1_kpi_grr", "row": 35, "column": 0, "colspan": 6, "rowspan": 4},
             {"name": "p1_kpi_logo", "row": 35, "column": 6, "colspan": 6, "rowspan": 4},
+            # VIZ UPGRADE: Revenue Concentration + Dynamic KPIs
+            {"name": "p1_sec_concentration", "row": 39, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p1_ch_concentration", "row": 40, "column": 0, "colspan": 12, "rowspan": 8},
+            {"name": "p1_health_dynamic", "row": 48, "column": 0, "colspan": 6, "rowspan": 4},
+            {"name": "p1_atrisk_dynamic", "row": 48, "column": 6, "colspan": 6, "rowspan": 4},
         ]
     )
 
@@ -2681,6 +2857,9 @@ def build_layout():
                 "colspan": 12,
                 "rowspan": 8,
             },
+            # VIZ UPGRADE: Renewal Timeline
+            {"name": "p5_sec_timeline", "row": 27, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p5_ch_timeline", "row": 28, "column": 0, "colspan": 12, "rowspan": 8},
         ]
     )
 
@@ -2904,6 +3083,15 @@ def build_layout():
                 "colspan": 12,
                 "rowspan": 8,
             },
+            # VIZ UPGRADE: Health Transition Sankey
+            {"name": "p8_sec_health_flow", "row": 47, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p8_ch_health_flow", "row": 48, "column": 0, "colspan": 12, "rowspan": 10},
+            # VIZ UPGRADE: Health Score Driver Breakdown
+            {"name": "p8_sec_drivers", "row": 58, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p8_ch_drivers", "row": 59, "column": 0, "colspan": 12, "rowspan": 6},
+            # VIZ UPGRADE: Adoption × Segment Heatmap
+            {"name": "p8_sec_adopt_seg", "row": 65, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p8_ch_adopt_seg", "row": 66, "column": 0, "colspan": 12, "rowspan": 10},
         ]
     )
 

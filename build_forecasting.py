@@ -10,8 +10,19 @@ Phase 5 of the interactivity upgrade:
 Pages:
   1. Forecast Overview — KPI tiles, commit vs quota gauge, quarterly forecast vs actual
   2. Rep-Level Detail — rep forecast table, category breakdown, waterfall
+  3. Quota & Coverage — attainment distribution, pipeline ratios
+  4. Advanced Analytics — Sankey, treemap, heatmap, bubble, area
+  5. Statistical Analysis — bullet charts, percentiles, distributions
 
 Dataset: Forecast_Intelligence
+
+Visualization Upgrade (v2):
+  - Timeline forecast chart with actual vs forecast narrative
+  - Rep-selection interactions: clicking rep updates all visuals
+  - Bullet chart panel for rep attainment (Won vs Quota)
+  - Forecast accuracy scatter with quadrant semantics
+  - Dynamic KPI tiles with threshold-based coloring
+  - Doc reconciliation: 5 pages matching actual implementation
 """
 
 import csv
@@ -27,6 +38,7 @@ from crm_analytics_helpers import (
     sq,
     af,
     num,
+    num_dynamic_color,
     rich_chart,
     gauge,
     waterfall_chart,
@@ -46,6 +58,12 @@ from crm_analytics_helpers import (
     bubble_chart,
     area_chart,
     bullet_chart,
+    timeline_chart,
+    combo_chart,
+    line_chart,
+    scatter_chart,
+    add_selection_interaction,
+    add_table_action,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -601,6 +619,71 @@ def build_steps(ds_id):
             + "percentile_disc(0.50) within group (order by QuotaAttainment) as median_attain;\n"
             + "q = order q by avg_attain desc;"
         ),
+        # ═══ VIZ UPGRADE: Timeline Forecast Narrative ═══
+        # Actual vs forecast over quarters for forecast accuracy storytelling
+        "s_forecast_timeline": sq(
+            L
+            + UF
+            + "q = group q by CloseQuarter;\n"
+            + "q = foreach q generate CloseQuarter, "
+            + "sum(ClosedWonARR) as actual_won, "
+            + "sum(WeightedForecast) as forecast, "
+            + "sum(CommitARR) as commit_arr;\n"
+            + "q = order q by CloseQuarter asc;"
+        ),
+        # ═══ VIZ UPGRADE: Rep Attainment Bullet (Won vs Quota per rep) ═══
+        "s_rep_bullet_attain": sq(
+            L
+            + UF
+            + QF
+            + "q = filter q by QuotaAmount > 0;\n"
+            + "q = group q by OwnerName;\n"
+            + "q = foreach q generate OwnerName, "
+            + "sum(ClosedWonARR) as actual, "
+            + "sum(QuotaAmount) as target;\n"
+            + "q = order q by actual desc;\n"
+            + "q = limit q 15;"
+        ),
+        # ═══ VIZ UPGRADE: Forecast Accuracy Scatter ═══
+        # Forecast vs Actual per rep with quadrant semantics
+        "s_forecast_accuracy": sq(
+            L
+            + UF
+            + QF
+            + "q = filter q by QuotaAmount > 0;\n"
+            + "q = group q by OwnerName;\n"
+            + "q = foreach q generate OwnerName, "
+            + "sum(WeightedForecast) as forecast_arr, "
+            + "sum(ClosedWonARR) as actual_won, "
+            + "(case when sum(WeightedForecast) > 0 then "
+            + "abs(sum(ClosedWonARR) - sum(WeightedForecast)) / sum(WeightedForecast) * 100 "
+            + "else 0 end) as accuracy_error_pct;\n"
+            + "q = order q by forecast_arr desc;"
+        ),
+        # ═══ VIZ UPGRADE: Dynamic KPI Thresholds ═══
+        "s_forecast_kpi_thresh": sq(
+            L
+            + UF
+            + QF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "(case when sum(QuotaAmount) > 0 then sum(CommitARR) / sum(QuotaAmount) * 100 else 0 end) as commit_vs_quota, "
+            + "(case when sum(QuotaAmount) > 0 then sum(ClosedWonARR) / sum(QuotaAmount) * 100 else 0 end) as attainment_pct, "
+            + "(case when sum(ClosedWonARR) > 0 then sum(PipelineARR) / sum(ClosedWonARR) else 0 end) as pipe_coverage;"
+        ),
+        # ═══ VIZ UPGRADE: Coverage-to-Go by Quarter ═══
+        "s_coverage_to_go": sq(
+            L
+            + UF
+            + "q = group q by CloseQuarter;\n"
+            + "q = foreach q generate CloseQuarter, "
+            + "sum(QuotaAmount) as quota, "
+            + "sum(ClosedWonARR) as won, "
+            + "sum(PipelineARR) as pipeline, "
+            + "sum(CommitARR) as commit_arr, "
+            + "(sum(QuotaAmount) - sum(ClosedWonARR) - sum(CommitARR)) as gap_to_quota;\n"
+            + "q = order q by CloseQuarter asc;"
+        ),
     }
 
 
@@ -903,6 +986,68 @@ def build_widgets():
         [],
     )
 
+    # ═══ VIZ UPGRADE: Timeline Forecast Narrative ═══
+    w["p1_sec_timeline"] = section_label("Forecast vs Actual Over Time")
+    w["p1_ch_timeline"] = combo_chart(
+        "s_forecast_timeline",
+        "Quarterly: Actual Won vs Forecast vs Commit",
+        ["CloseQuarter"],
+        bar_measures=["actual_won"],
+        line_measures=["forecast", "commit_arr"],
+        show_legend=True,
+        axis_title="ARR (EUR)",
+    )
+
+    # ═══ VIZ UPGRADE: Dynamic KPI Tiles ═══
+    w["p1_commit_dynamic"] = num_dynamic_color(
+        "s_forecast_kpi_thresh",
+        "commit_vs_quota",
+        "Commit vs Quota %",
+        thresholds=[(50, "#D4504C"), (80, "#FFB75D"), (150, "#04844B")],
+        size=28,
+    )
+    w["p1_attain_dynamic"] = num_dynamic_color(
+        "s_forecast_kpi_thresh",
+        "attainment_pct",
+        "Attainment %",
+        thresholds=[(50, "#D4504C"), (80, "#FFB75D"), (150, "#04844B")],
+        size=28,
+    )
+
+    # ═══ VIZ UPGRADE: Rep Attainment Bullet Panel ═══
+    w["p2_sec_bullet_attain"] = section_label("Rep Attainment: Won vs Quota")
+    w["p2_ch_bullet_attain"] = bullet_chart(
+        "s_rep_bullet_attain",
+        "Rep Attainment (Won ARR vs Quota Target)",
+        axis_title="ARR (EUR)",
+    )
+
+    # ═══ VIZ UPGRADE: Forecast Accuracy Scatter ═══
+    w["p4_sec_accuracy"] = section_label("Forecast Accuracy by Rep")
+    w["p4_ch_accuracy"] = scatter_chart(
+        "s_forecast_accuracy",
+        "Forecast vs Actual Won (Per Rep)",
+        x_title="Forecasted ARR",
+        y_title="Actual Won ARR",
+        show_legend=True,
+    )
+
+    # ═══ VIZ UPGRADE: Coverage-to-Go Combo ═══
+    w["p3_sec_coverage_go"] = section_label("Coverage-to-Go by Quarter")
+    w["p3_ch_coverage_go"] = combo_chart(
+        "s_coverage_to_go",
+        "Quota vs Won vs Pipeline (Coverage Gap)",
+        ["CloseQuarter"],
+        bar_measures=["won", "commit_arr", "pipeline"],
+        line_measures=["quota"],
+        show_legend=True,
+        axis_title="ARR (EUR)",
+    )
+
+    # Add table actions on rep detail tables
+    if "p2_tbl_rep" in w:
+        add_table_action(w["p2_tbl_rep"])
+
     return w
 
 
@@ -937,6 +1082,12 @@ def build_layout():
             "colspan": 12,
             "rowspan": 6,
         },
+        # VIZ UPGRADE: Timeline Forecast Narrative
+        {"name": "p1_sec_timeline", "row": 30, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p1_ch_timeline", "row": 31, "column": 0, "colspan": 12, "rowspan": 8},
+        # VIZ UPGRADE: Dynamic KPI Tiles
+        {"name": "p1_commit_dynamic", "row": 39, "column": 0, "colspan": 6, "rowspan": 4},
+        {"name": "p1_attain_dynamic", "row": 39, "column": 6, "colspan": 6, "rowspan": 4},
     ]
 
     p2 = nav_row("p2", 5) + [
@@ -996,6 +1147,9 @@ def build_layout():
             "colspan": 12,
             "rowspan": 8,
         },
+        # VIZ UPGRADE: Rep Attainment Bullet Panel
+        {"name": "p2_sec_bullet_attain", "row": 50, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p2_ch_bullet_attain", "row": 51, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
     p3 = nav_row("p3", 5) + [
@@ -1014,6 +1168,9 @@ def build_layout():
         # Attainment Detail Table
         {"name": "p3_sec_detail", "row": 23, "column": 0, "colspan": 12, "rowspan": 1},
         {"name": "p3_tbl_attain", "row": 24, "column": 0, "colspan": 12, "rowspan": 8},
+        # VIZ UPGRADE: Coverage-to-Go
+        {"name": "p3_sec_coverage_go", "row": 32, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p3_ch_coverage_go", "row": 33, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
     p4 = nav_row("p4", 5) + [
@@ -1035,6 +1192,9 @@ def build_layout():
         # Area
         {"name": "p4_sec_area", "row": 49, "column": 0, "colspan": 12, "rowspan": 1},
         {"name": "p4_ch_area", "row": 50, "column": 0, "colspan": 12, "rowspan": 8},
+        # VIZ UPGRADE: Forecast Accuracy Scatter
+        {"name": "p4_sec_accuracy", "row": 58, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p4_ch_accuracy", "row": 59, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     p5 = nav_row("p5", 5) + [

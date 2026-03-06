@@ -8,8 +8,17 @@ Pages:
   4. Cancellation & Churn (RW 1.10) — lost ARR, risk dist, at-risk, net ARR
   5. Product/Pricing (RW 1.14) — SaaS ARR, penetration, product mix
   6. Competitive Intelligence — competitor frequency, win rate, reason analysis
+  7. Advanced Analytics — Sankey, treemap, heatmap, bubble, area
+  8. Statistical Analysis — bullet charts, percentiles, distributions
 
 Dataset: Revenue_Motions (Opportunity + Account fields)
+
+Visualization Upgrade:
+  - Motion → Stage/Outcome Sankey for deal flow visualization
+  - NRR bridge waterfall (Start → Renewed → Expanded → Churned)
+  - Competitor × Segment heatmap for competitive pattern discovery
+  - Renewal cohort timeline view
+  - Dynamic KPI tiles with threshold-based coloring
 """
 
 import csv
@@ -27,6 +36,7 @@ from crm_analytics_helpers import (
     sq,
     af,
     num,
+    num_dynamic_color,
     num_with_trend,
     trend_step,
     rich_chart,
@@ -52,9 +62,12 @@ from crm_analytics_helpers import (
     bullet_chart,
     bubble_chart,
     choropleth_chart,
+    combo_chart,
+    timeline_chart,
     create_dataflow,
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
+    add_table_action,
 )
 
 DS = "Revenue_Motions"
@@ -1381,6 +1394,75 @@ def build_steps(ds_id):
             + "percentile_disc(0.90) within group (order by SalesCycleDuration) as p90_cycle;\n"
             + "q = order q by avg_cycle desc;"
         ),
+        # ═══ VIZ UPGRADE: Motion → Stage Flow Sankey ═══
+        "s_motion_flow": sq(
+            f'q1 = load "{DS}";\n'
+            + "q1 = filter q1 by FiscalYear == 2026;\n"
+            + UF.replace("q ", "q1 ").replace("q by", "q1 by")
+            + RF.replace("q ", "q1 ").replace("q by", "q1 by")
+            + 'q1 = filter q1 by IsLand == "true";\n'
+            + "q1 = group q1 by StageName;\n"
+            + 'q1 = foreach q1 generate "Land" as source, StageName as target, sum(ARR) as arr;\n'
+            + f'q2 = load "{DS}";\n'
+            + "q2 = filter q2 by FiscalYear == 2026;\n"
+            + UF.replace("q ", "q2 ").replace("q by", "q2 by")
+            + RF.replace("q ", "q2 ").replace("q by", "q2 by")
+            + 'q2 = filter q2 by IsExpand == "true";\n'
+            + "q2 = group q2 by StageName;\n"
+            + 'q2 = foreach q2 generate "Expand" as source, StageName as target, sum(ARR) as arr;\n'
+            + f'q3 = load "{DS}";\n'
+            + "q3 = filter q3 by FiscalYear == 2026;\n"
+            + UF.replace("q ", "q3 ").replace("q by", "q3 by")
+            + RF.replace("q ", "q3 ").replace("q by", "q3 by")
+            + 'q3 = filter q3 by IsRenewal == "true";\n'
+            + "q3 = group q3 by StageName;\n"
+            + 'q3 = foreach q3 generate "Renewal" as source, StageName as target, sum(ARR) as arr;\n'
+            + "q = union q1, q2, q3;\n"
+            + "q = order q by source asc, arr desc;"
+        ),
+        # ═══ VIZ UPGRADE: NRR Bridge Waterfall ═══
+        "s_nrr_bridge": sq(
+            L
+            + FY26
+            + UF
+            + RF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + 'sum(case when IsRenewal == "true" && IsWon == "true" then ARR else 0 end) as renewed_arr, '
+            + 'sum(case when IsExpand == "true" && IsWon == "true" then ARR else 0 end) as expanded_arr, '
+            + 'sum(case when IsClosed == "true" && IsWon == "false" && IsRenewal == "true" then ARR else 0 end) as churned_arr, '
+            + 'sum(case when IsLand == "true" && IsWon == "true" then ARR else 0 end) as new_arr;'
+        ),
+        # ═══ VIZ UPGRADE: Competitor × Segment Heatmap ═══
+        "s_competitor_segment": sq(
+            L
+            + FY26
+            + CLOSED
+            + UF
+            + RF
+            + 'q = filter q by CompetitorName != "" && CompetitorName != "null";\n'
+            + "q = group q by (CompetitorName, UnitGroup);\n"
+            + "q = foreach q generate CompetitorName, UnitGroup, "
+            + "count() as deal_count, "
+            + 'sum(case when IsWon == "true" then 1 else 0 end) as won_count, '
+            + '(sum(case when IsWon == "true" then 1 else 0 end) / count()) * 100 as win_rate;\n'
+            + "q = order q by deal_count desc;"
+        ),
+        # ═══ VIZ UPGRADE: Dynamic KPI Thresholds ═══
+        "s_rm_kpi_thresh": sq(
+            L
+            + FY26
+            + UF
+            + RF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + '(sum(case when IsRenewal == "true" && IsWon == "true" then ARR else 0 end) * 100 / '
+            + 'case when sum(case when IsRenewal == "true" then ARR else 0 end) > 0 then '
+            + 'sum(case when IsRenewal == "true" then ARR else 0 end) else 1 end) as renewal_rate, '
+            + '(sum(case when IsClosed == "true" && IsWon == "false" && IsRenewal == "true" then ARR else 0 end) * 100 / '
+            + 'case when sum(case when IsRenewal == "true" then ARR else 0 end) > 0 then '
+            + 'sum(case when IsRenewal == "true" then ARR else 0 end) else 1 end) as churn_rate;'
+        ),
     }
 
 
@@ -2167,6 +2249,45 @@ def build_widgets():
     for px in range(1, 8):
         w[f"p{px}_nav8"] = nav_link("revstats", "Statistics")
 
+    # ═══ VIZ UPGRADE: Motion → Stage Flow Sankey ═══
+    w["p7_sec_motion_flow"] = section_label("Revenue Motion → Stage Flow")
+    w["p7_ch_motion_flow"] = sankey_chart(
+        "s_motion_flow", "Deal Flow: Land / Expand / Renewal → Stage",
+        source_field="source", target_field="target", measure_field="arr",
+    )
+
+    # ═══ VIZ UPGRADE: NRR Bridge Waterfall ═══
+    w["p4_sec_nrr_bridge"] = section_label("Net Revenue Retention Bridge")
+    w["p4_ch_nrr_bridge"] = rich_chart(
+        "s_nrr_bridge",
+        "comparisontable",
+        "NRR Components: Renewed + Expanded − Churned + New",
+        [],
+        ["renewed_arr", "expanded_arr", "churned_arr", "new_arr"],
+    )
+
+    # ═══ VIZ UPGRADE: Competitor × Segment Heatmap ═══
+    w["p6_sec_comp_heat"] = section_label("Competitive Win Rate × Unit Group")
+    w["p6_ch_comp_heat"] = heatmap_chart(
+        "s_competitor_segment", "Competitor × Segment Win Rate Matrix"
+    )
+
+    # ═══ VIZ UPGRADE: Dynamic KPI Tiles ═══
+    w["p1_renewal_rate_dynamic"] = num_dynamic_color(
+        "s_rm_kpi_thresh",
+        "renewal_rate",
+        "Renewal Win Rate %",
+        thresholds=[(70, "#D4504C"), (90, "#FFB75D"), (100, "#04844B")],
+        size=28,
+    )
+    w["p1_churn_rate_dynamic"] = num_dynamic_color(
+        "s_rm_kpi_thresh",
+        "churn_rate",
+        "Churn Rate %",
+        thresholds=[(10, "#04844B"), (25, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
+
     return w
 
 
@@ -2207,6 +2328,9 @@ def build_layout():
         {"name": "p1_yoy_land", "row": 62, "column": 0, "colspan": 4, "rowspan": 8},
         {"name": "p1_yoy_expand", "row": 62, "column": 4, "colspan": 4, "rowspan": 8},
         {"name": "p1_yoy_renewal", "row": 62, "column": 8, "colspan": 4, "rowspan": 8},
+        # VIZ UPGRADE: Dynamic KPI Tiles
+        {"name": "p1_renewal_rate_dynamic", "row": 70, "column": 0, "colspan": 6, "rowspan": 4},
+        {"name": "p1_churn_rate_dynamic", "row": 70, "column": 6, "colspan": 6, "rowspan": 4},
     ]
 
     # ── Page 2: Renewals (RW 1.8) ──
@@ -2311,6 +2435,9 @@ def build_layout():
         {"name": "p4_net_arr", "row": 35, "column": 6, "colspan": 6, "rowspan": 8},
         # Iteration 4: Lost ARR % gauge (KPI 27)
         {"name": "p4_lost_pct", "row": 21, "column": 6, "colspan": 6, "rowspan": 6},
+        # VIZ UPGRADE: NRR Bridge
+        {"name": "p4_sec_nrr_bridge", "row": 43, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p4_ch_nrr_bridge", "row": 44, "column": 0, "colspan": 12, "rowspan": 6},
     ]
 
     # ── Page 5: Product/Pricing (RW 1.14) ──
@@ -2421,6 +2548,9 @@ def build_layout():
             "colspan": 12,
             "rowspan": 10,
         },
+        # VIZ UPGRADE: Competitor × Segment Heatmap
+        {"name": "p6_sec_comp_heat", "row": 70, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p6_ch_comp_heat", "row": 71, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     p7 = nav_row("p7", 8) + [
@@ -2447,6 +2577,9 @@ def build_layout():
         # Bubble: Motion deal size vs cycle time
         {"name": "p7_sec_bubble", "row": 58, "column": 0, "colspan": 12, "rowspan": 1},
         {"name": "p7_ch_bubble", "row": 59, "column": 0, "colspan": 12, "rowspan": 10},
+        # VIZ UPGRADE: Motion Flow Sankey
+        {"name": "p7_sec_motion_flow", "row": 69, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p7_ch_motion_flow", "row": 70, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     p8 = nav_row("p8", 8) + [

@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
 """Build the Contract Operations KPI dashboard (AP 1.6, 1.8).
 
-Features:
-  - 4 pages: Active Book, Renewal Pipeline, Agreement Types, Fulfillment
+Features (v2):
+  - 7 pages: Active Book, Renewal Pipeline, Agreements, Fulfillment,
+    Contract Aging, Advanced Analytics, Statistical Analysis
   - Interactive nav bar across all pages
   - Global 4-filter bar (Unit Group, Agreement Type, Renewal Window, Status)
   - Dataset built from Contract SOQL with computed fields
   - Gauge, funnel, waterfall, area, donut, hbar, column, stackhbar, stackcolumn
   - Comparison tables for at-risk expirations and contract detail
+  - Treemap, heatmap, sankey, bubble (V2 advanced viz)
+  - Bullet charts and statistical percentiles (V2 phase 6/8)
+
+Visualization upgrade (v3):
+  - Dynamic KPI tiles with threshold-based coloring (num_dynamic_color)
+  - Renewal timeline combo chart (expiring ARR by month with urgency)
+  - Coverage bullet chart (renewal coverage vs target)
+  - Aging waterfall (contract aging distribution by vintage)
+  - Table actions on at-risk and detail tables
+  - Selection interactions for cross-filtering
 """
 
 import csv
@@ -30,6 +41,7 @@ from crm_analytics_helpers import (
     coalesce_filter,
     num,
     num_with_trend,
+    num_dynamic_color,
     trend_step,
     rich_chart,
     gauge,
@@ -48,9 +60,14 @@ from crm_analytics_helpers import (
     bullet_chart,
     sankey_chart,
     bubble_chart,
+    combo_chart,
+    timeline_chart,
     create_dataflow,
     run_dataflow,
-    set_record_links_xmd,  # noqa: F401
+    set_record_links_xmd,
+    add_table_action,
+    add_selection_interaction,
+    renewal_timeline_step,
 )
 
 DS = "Contract_Operations"
@@ -647,6 +664,57 @@ def build_steps(ds_id):
             + "sum(monthly_new) over (order by StartMonth "
             + "rows unbounded preceding) as cumul_contracts;"
         ),
+        # ═══ V3 VIZ UPGRADE ═══
+        # Renewal timeline: expiring contracts by month with urgency breakdown
+        "s_renewal_timeline": renewal_timeline_step(
+            DS,
+            date_field="ExpiryMonth",
+            base_filters=ACTIVE + UF + TF + WF + SF,
+        ),
+        # KPI thresholds for dynamic coloring
+        "s_co_kpi_thresh": sq(
+            L
+            + ACTIVE
+            + UF
+            + TF
+            + WF
+            + SF
+            + "q = foreach q generate "
+            + '(case when IsActive == "true" then 1 else 0 end) as is_active, '
+            + "(case when DaysToExpiry <= 90 then 1 else 0 end) as expiring_soon;\n"
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "(sum(is_active) / count()) * 100 as active_rate, "
+            + "(sum(expiring_soon) / count()) * 100 as urgent_pct;"
+        ),
+        # Aging waterfall: contract count by vintage year (for waterfall viz)
+        "s_aging_waterfall": sq(
+            L
+            + ACTIVE
+            + UF
+            + TF
+            + WF
+            + SF
+            + 'q = filter q by StartDate != "";\n'
+            + "q = foreach q generate substr(StartDate, 1, 4) as VintageYear;\n"
+            + "q = group q by VintageYear;\n"
+            + "q = foreach q generate VintageYear, count() as cnt;\n"
+            + "q = order q by VintageYear asc;"
+        ),
+        # Coverage bullet: renewal coverage % vs 90% target
+        "s_coverage_bullet": sq(
+            L
+            + EXPIRING
+            + UF
+            + TF
+            + WF
+            + SF
+            + "q = foreach q generate "
+            + "(case when DaysToExpiry > 90 then 1 else 0 end) as has_coverage;\n"
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "(sum(has_coverage) / count()) * 100 as coverage_pct, 90 as target;"
+        ),
     }
 
 
@@ -930,8 +998,6 @@ def build_widgets():
     add_reference_line(w["p2_ch_expiry"], 5, "Avg Monthly", "#D4504C", "dashed")
 
     # ── Phase 7: Embedded table actions ──────────────────────────────────
-    from crm_analytics_helpers import add_table_action
-
     add_table_action(w["p2_ch_at_risk"], "salesforceActions", "Contract", "Id")
     add_table_action(w["p4_ch_detail"], "salesforceActions", "Contract", "Id")
 
@@ -1045,6 +1111,55 @@ def build_widgets():
     for px in range(1, 7):
         w[f"p{px}_nav7"] = nav_link("contractstats", "Statistics")
 
+    # ═══ V3 VIZ UPGRADE ═══
+    # Dynamic KPI tiles on Page 1
+    w["p1_active_rate_dynamic"] = num_dynamic_color(
+        "s_co_kpi_thresh",
+        "active_rate",
+        "Active Rate %",
+        [(60, "#D4504C"), (80, "#FFB75D"), (100, "#04844B")],
+        size=28,
+    )
+    w["p1_urgent_pct_dynamic"] = num_dynamic_color(
+        "s_co_kpi_thresh",
+        "urgent_pct",
+        "Expiring ≤90d %",
+        [(10, "#04844B"), (25, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
+
+    # Renewal timeline combo on Page 2
+    w["p2_sec_timeline"] = section_label("Renewal Timeline: Expiring Contracts by Month")
+    w["p2_ch_timeline"] = combo_chart(
+        "s_renewal_timeline",
+        "Expiring Contract ARR by Month",
+        show_legend=True,
+        axis_title="Contracts",
+    )
+
+    # Coverage bullet on Page 2
+    w["p2_sec_coverage"] = section_label("Renewal Coverage Target")
+    w["p2_bullet_coverage"] = bullet_chart(
+        "s_coverage_bullet",
+        "Renewal Coverage % (Target: 90%)",
+        axis_title="%",
+    )
+
+    # Aging waterfall on Page 5
+    w["p5_sec_aging_wf"] = section_label("Contract Aging Distribution")
+    w["p5_ch_aging_waterfall"] = waterfall_chart(
+        "s_aging_waterfall",
+        "Active Contracts by Vintage Year",
+        "VintageYear",
+        "cnt",
+        axis_label="Contract Count",
+    )
+
+    # Selection interactions: filter bar drives renewal timeline
+    add_selection_interaction(
+        w["p2_ch_timeline"], "f_unit", "UnitGroup", ["s_renewal_timeline"]
+    )
+
     return w
 
 
@@ -1108,6 +1223,9 @@ def build_layout():
                 "colspan": 3,
                 "rowspan": 4,
             },
+            # V3: Dynamic KPI tiles
+            {"name": "p1_active_rate_dynamic", "row": 21, "column": 0, "colspan": 6, "rowspan": 5},
+            {"name": "p1_urgent_pct_dynamic", "row": 21, "column": 6, "colspan": 6, "rowspan": 5},
         ]
     )
 
@@ -1149,6 +1267,12 @@ def build_layout():
                 "colspan": 8,
                 "rowspan": 10,
             },
+            # V3: Renewal timeline
+            {"name": "p2_sec_timeline", "row": 25, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p2_ch_timeline", "row": 26, "column": 0, "colspan": 12, "rowspan": 8},
+            # V3: Coverage bullet
+            {"name": "p2_sec_coverage", "row": 34, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p2_bullet_coverage", "row": 35, "column": 0, "colspan": 12, "rowspan": 5},
         ]
     )
 
@@ -1285,6 +1409,9 @@ def build_layout():
                 "colspan": 12,
                 "rowspan": 8,
             },
+            # V3: Aging waterfall
+            {"name": "p5_sec_aging_wf", "row": 22, "column": 0, "colspan": 12, "rowspan": 1},
+            {"name": "p5_ch_aging_waterfall", "row": 23, "column": 0, "colspan": 12, "rowspan": 8},
         ]
     )
 

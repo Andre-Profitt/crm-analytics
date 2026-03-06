@@ -5,9 +5,13 @@ Provides reusable functions for:
 - Salesforce auth & API calls
 - Dataset upload (InsightsExternalData)
 - SAQL step builders
-- Widget builders (number, chart, gauge, funnel, waterfall, choropleth)
+- Widget builders (number, chart, gauge, funnel, waterfall, choropleth,
+  sankey, treemap, bubble, heatmap, bullet, timeline, combo, scatter, line)
+- Widget interaction framework (selection, results, facet interactions)
+- Dynamic KPI coloring with threshold-based conditional formatting
 - Layout helpers (header, section label, nav link, page)
 - Dashboard deployment
+- Dataflow management
 """
 
 import base64
@@ -314,6 +318,58 @@ def num(step, field, title, color, compact=False, size=24):
     }
 
 
+def num_dynamic_color(step, field, title, thresholds, compact=False, size=24):
+    """Build a KPI tile with dynamic color based on threshold step values.
+
+    Uses CRM Analytics results interactions to set numberColor dynamically
+    based on the value of a threshold field in the step results.
+
+    Args:
+        step: step name producing the value
+        field: measure field name
+        title: widget title
+        thresholds: list of (max_value, color) tuples, e.g.
+            [(50, "#D4504C"), (80, "#FFB75D"), (100, "#04844B")]
+            Values below first max get first color, etc.
+        compact: whether to use compact number format
+        size: font size for the number
+    """
+    # Default to green; interactions will override based on value
+    default_color = thresholds[-1][1] if thresholds else "#04844B"
+    widget = {
+        "type": "number",
+        "parameters": {
+            "step": step,
+            "measureField": field,
+            "compact": compact,
+            "title": title,
+            "titleColor": "#54698D",
+            "titleSize": 12,
+            "numberColor": default_color,
+            "numberSize": size,
+            "textAlignment": "center",
+            "exploreLink": True,
+            "interactions": [],
+        },
+    }
+    # Build results interaction rules for dynamic coloring
+    rules = []
+    for max_val, color in thresholds:
+        rules.append({
+            "condition": {"operator": "<=", "value": max_val},
+            "action": {"type": "setProperty", "property": "numberColor", "value": color},
+        })
+    if rules:
+        widget["parameters"]["interactions"].append({
+            "type": "resultsInteraction",
+            "group": "color",
+            "enabled": True,
+            "source": {"step": step, "field": field},
+            "rules": rules,
+        })
+    return widget
+
+
 def rich_chart(
     step,
     viz,
@@ -511,14 +567,22 @@ def waterfall_chart(
     return {"type": "chart", "parameters": params}
 
 
-def choropleth_chart(step, title, geo_field, measure_field):
-    """Build a choropleth (world map) chart widget."""
+def choropleth_chart(step, title, geo_field, measure_field, map_type="World"):
+    """Build a choropleth (map) chart widget.
+
+    Args:
+        step: step name
+        title: chart title
+        geo_field: dimension field with geographic values
+        measure_field: measure field for color intensity
+        map_type: map region - "World", "USA", "Europe", "Asia" etc.
+    """
     return {
         "type": "chart",
         "parameters": {
             "step": step,
             "visualizationType": "choropleth",
-            "map": "World",
+            "map": map_type,
             "binValues": False,
             "lowColor": "#C6DBEF",
             "highColor": "#08519C",
@@ -1600,6 +1664,321 @@ def add_table_action(
         }
     )
     return widget
+
+
+def add_selection_interaction(widget, source_step, source_field, target_steps):
+    """Add a selection interaction to a widget for cross-step/cross-dataset binding.
+
+    When a user clicks/selects on this widget, the selection value is broadcast
+    to the target steps, enabling cross-dataset filtering and dynamic queries.
+
+    Args:
+        widget: widget dict to modify in-place
+        source_step: step name that provides the selection
+        source_field: field name to broadcast
+        target_steps: list of step names to receive the selection
+
+    Returns the modified widget.
+    """
+    params = widget.get("parameters", widget)
+    if "interactions" not in params:
+        params["interactions"] = []
+
+    params["interactions"].append({
+        "type": "selectionInteraction",
+        "group": "selection",
+        "enabled": True,
+        "source": {"step": source_step, "field": source_field},
+        "targets": [{"step": t, "field": source_field} for t in target_steps],
+    })
+    return widget
+
+
+def add_results_interaction(widget, source_step, source_field, target_property, rules):
+    """Add a results interaction for dynamic widget property updates.
+
+    Enables data-driven dynamic formatting: e.g. change numberColor, title,
+    or other widget properties based on query result values.
+
+    Args:
+        widget: widget dict to modify in-place
+        source_step: step name providing the data
+        source_field: field name to evaluate
+        target_property: widget property to set (e.g. "numberColor", "titleColor")
+        rules: list of dicts with {condition: {operator, value}, action: {value}}
+
+    Returns the modified widget.
+    """
+    params = widget.get("parameters", widget)
+    if "interactions" not in params:
+        params["interactions"] = []
+
+    formatted_rules = []
+    for rule in rules:
+        formatted_rules.append({
+            "condition": rule["condition"],
+            "action": {
+                "type": "setProperty",
+                "property": target_property,
+                "value": rule["action"]["value"],
+            },
+        })
+
+    params["interactions"].append({
+        "type": "resultsInteraction",
+        "group": f"dynamic_{target_property}",
+        "enabled": True,
+        "source": {"step": source_step, "field": source_field},
+        "rules": formatted_rules,
+    })
+    return widget
+
+
+def add_initial_selection(widget, step, field, values):
+    """Set a default/initial selection on a filter or chart widget.
+
+    Useful for setting dashboard defaults (e.g., current quarter, logged-in
+    user's unit group) so the dashboard loads with context.
+
+    Args:
+        widget: widget dict to modify in-place
+        step: step name to set selection on
+        field: field name for the selection
+        values: list of default values to select
+
+    Returns the modified widget.
+    """
+    params = widget.get("parameters", widget)
+    if "interactions" not in params:
+        params["interactions"] = []
+
+    params["interactions"].append({
+        "type": "initialSelection",
+        "group": "init",
+        "enabled": True,
+        "step": step,
+        "selections": [{"field": field, "values": values}],
+    })
+    return widget
+
+
+def cohort_heatmap_step(ds_name, cohort_field, age_field, measure_expr,
+                        measure_alias="conversion_rate", base_filters=""):
+    """Build a SAQL step for cohort/retention heatmap visualization.
+
+    Creates a grid: cohort_field (rows) x age_field (columns) with color = measure.
+    Commonly used for lead conversion cohorts, renewal retention, etc.
+
+    Args:
+        ds_name: dataset name
+        cohort_field: field for cohort grouping (e.g. CreatedMonth)
+        age_field: field for age/time bucket (e.g. WeeksSinceCreated)
+        measure_expr: SAQL measure expression (e.g. "avg(ConversionRate) * 100")
+        measure_alias: output field name for the measure
+        base_filters: additional SAQL filter lines
+
+    Returns a SAQL step dict.
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by ('{cohort_field}', '{age_field}');\n"
+        f"q = foreach q generate "
+        f"'{cohort_field}' as '{cohort_field}', "
+        f"'{age_field}' as '{age_field}', "
+        f"{measure_expr} as '{measure_alias}';\n"
+        f"q = order q by ('{cohort_field}' asc, '{age_field}' asc);"
+    )
+    return sq(q)
+
+
+def nrr_bridge_step(ds_name, base_filters="", group_field="all"):
+    """Build a SAQL step for Net Revenue Retention (NRR) bridge waterfall.
+
+    Computes: Starting ARR → Renewed → Expanded → Churned → Ending ARR
+    as waterfall components. Suitable for waterfall_chart().
+
+    Args:
+        ds_name: dataset name with motion/renewal fields
+        base_filters: SAQL filter lines
+        group_field: field for segmentation (or "all" for total)
+
+    Returns a SAQL step dict.
+    """
+    group_clause = f"by '{group_field}'" if group_field != "all" else "by all"
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q {group_clause};\n"
+        f"q = foreach q generate "
+        f"sum(case when IsRenewal == \"true\" && IsWon == \"true\" then ARR else 0 end) as renewed_arr, "
+        f"sum(case when IsExpand == \"true\" && IsWon == \"true\" then ARR else 0 end) as expanded_arr, "
+        f"sum(case when IsClosed == \"true\" && IsWon == \"false\" && IsRenewal == \"true\" then ARR else 0 end) as churned_arr;\n"
+        f'r = load "{ds_name}";\n'
+        f"{base_filters.replace('q', 'r')}"
+        f"r = group r {group_clause.replace('q', 'r')};\n"
+        f"r = foreach r generate "
+        f"sum(case when IsRenewal == \"true\" then ARR else 0 end) as starting_arr;\n"
+        f'q = union q, r;\n'
+    )
+    return sq(q)
+
+
+def stage_transition_step(ds_name, base_filters=""):
+    """Build a SAQL step for stage-to-stage transition Sankey.
+
+    Creates source→target→count rows from stage hit flags (HitStage1..6).
+    Suitable for sankey_chart().
+
+    Args:
+        ds_name: dataset name with HitStage1-6 and StageName fields
+        base_filters: SAQL filter lines
+
+    Returns a SAQL step dict.
+    """
+    # Build UNION of stage transitions using HitStage flags
+    transitions = []
+    stage_names = [
+        ("HitStage1", "HitStage2", "Stage 1", "Stage 2"),
+        ("HitStage2", "HitStage3", "Stage 2", "Stage 3"),
+        ("HitStage3", "HitStage4", "Stage 3", "Stage 4"),
+        ("HitStage4", "HitStage5", "Stage 4", "Stage 5"),
+        ("HitStage5", "HitStage6", "Stage 5", "Stage 6"),
+    ]
+    parts = []
+    for i, (from_flag, to_flag, from_label, to_label) in enumerate(stage_names):
+        alias = f"q{i}"
+        part = (
+            f'{alias} = load "{ds_name}";\n'
+            f"{base_filters.replace('q =', f'{alias} =').replace('q by', f'{alias} by')}"
+            f'{alias} = filter {alias} by {from_flag} == "true" && {to_flag} == "true";\n'
+            f"{alias} = group {alias} by all;\n"
+            f'{alias} = foreach {alias} generate '
+            f'"{from_label}" as source, '
+            f'"{to_label}" as target, '
+            f"count() as cnt;\n"
+        )
+        parts.append(part)
+
+    q = "".join(parts)
+    # Union all transition segments
+    q += "q = union q0, q1, q2, q3, q4;\n"
+    q += "q = order q by source asc;"
+    return sq(q)
+
+
+def compliance_scorecard_step(ds_name, base_filters=""):
+    """Build a SAQL step producing compliance KPI metrics for scorecard.
+
+    Computes: stuck_rate, pastdue_pct, close_date_change_rate, avg_days_in_stage.
+    Suitable for num_dynamic_color() tiles.
+
+    Args:
+        ds_name: dataset name with DaysInStage, close date fields
+        base_filters: SAQL filter lines
+
+    Returns a SAQL step dict.
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f'q = filter q by IsClosed == "false";\n'
+        f"q = group q by all;\n"
+        f"q = foreach q generate "
+        f"(sum(case when DaysInStage > 30 then 1 else 0 end) / count() * 100) as stuck_rate, "
+        f"avg(DaysInStage) as avg_days_in_stage, "
+        f"count() as total_open;"
+    )
+    return sq(q)
+
+
+def renewal_timeline_step(ds_name, date_field="EndDate_Month", base_filters=""):
+    """Build a SAQL step for renewal timeline visualization.
+
+    Groups contracts by expiry month showing ARR at risk vs covered.
+    Suitable for timeline_chart() or combo_chart().
+
+    Args:
+        ds_name: dataset name with contract end date and ARR fields
+        date_field: month-level date field for grouping
+        base_filters: SAQL filter lines
+
+    Returns a SAQL step dict.
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by '{date_field}';\n"
+        f"q = foreach q generate "
+        f"'{date_field}' as '{date_field}', "
+        f"sum(ARR) as total_arr, "
+        f"sum(case when RenewalWindow == \"0 Days\" || RenewalWindow == \"1-30 Days\" then ARR else 0 end) as urgent_arr, "
+        f"sum(case when DaysToExpiry > 90 then ARR else 0 end) as covered_arr, "
+        f"count() as contract_count;\n"
+        f"q = order q by '{date_field}' asc;\n"
+        f"q = limit q 24;"
+    )
+    return sq(q)
+
+
+def health_transition_step(ds_name, base_filters=""):
+    """Build a SAQL step for health band transition Sankey.
+
+    Creates prior_band→current_band→count for visualizing account health movement.
+    Requires dataset with PriorHealthBand and HealthBand fields.
+    Suitable for sankey_chart().
+
+    Args:
+        ds_name: dataset name with health band fields
+        base_filters: SAQL filter lines
+
+    Returns a SAQL step dict.
+    """
+    q = (
+        f'q = load "{ds_name}";\n'
+        f"{base_filters}"
+        f"q = group q by (PriorHealthBand, HealthBand);\n"
+        f"q = foreach q generate "
+        f"PriorHealthBand as source, "
+        f"HealthBand as target, "
+        f"count() as cnt;\n"
+        f"q = order q by source asc;"
+    )
+    return sq(q)
+
+
+def motion_flow_step(ds_name, base_filters=""):
+    """Build a SAQL step for revenue motion flow Sankey.
+
+    Creates motion→stage/outcome flow visualization.
+    Suitable for sankey_chart().
+
+    Args:
+        ds_name: dataset name with motion flags (IsLand, IsExpand, IsRenewal)
+        base_filters: SAQL filter lines
+
+    Returns a SAQL step dict.
+    """
+    parts = []
+    for i, (flag, label) in enumerate([
+        ("IsLand", "Land"), ("IsExpand", "Expand"), ("IsRenewal", "Renewal"),
+    ]):
+        alias = f"q{i}"
+        part = (
+            f'{alias} = load "{ds_name}";\n'
+            f"{base_filters.replace('q =', f'{alias} =').replace('q by', f'{alias} by')}"
+            f'{alias} = filter {alias} by {flag} == "true";\n'
+            f"{alias} = group {alias} by StageName;\n"
+            f'{alias} = foreach {alias} generate '
+            f'"{label}" as source, '
+            f"StageName as target, "
+            f"sum(ARR) as arr;\n"
+        )
+        parts.append(part)
+    q = "".join(parts)
+    q += "q = union q0, q1, q2;\n"
+    q += "q = order q by source asc, arr desc;"
+    return sq(q)
 
 
 def shift_layout_rows(layout_entries, row_offset=2, skip_rows=None):

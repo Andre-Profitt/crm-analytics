@@ -2,7 +2,9 @@
 """Build the Sales Process Compliance (AP 1.4) dashboard.
 
 Reuses the existing Opp_Mgmt_KPIs dataset — no dataset upload needed.
-4 pages: Stage Bottlenecks, Stuck & Past-Due, Velocity by Type, Close Date Hygiene.
+7 pages: Stage Bottlenecks, Stuck & Past-Due, Velocity by Type,
+         Close Date Hygiene, Win/Loss Analysis, Advanced Analytics,
+         Statistical Analysis.
 
 Fields available in Opp_Mgmt_KPIs:
   dim:  Id, Name, OwnerName, AccountName, UnitGroup, SalesRegion,
@@ -13,6 +15,13 @@ Fields available in Opp_Mgmt_KPIs:
   msr:  FiscalYear, FiscalQuarter, ARR, Amount, Probability,
         AgeInDays, DaysInStage, SalesCycleDuration,
         Stage1to2Days..Stage5to6Days, WinScore
+
+Visualization upgrade (v3):
+  - Dynamic KPI tiles with threshold-based coloring (num_dynamic_color)
+  - Compliance scorecard (stuck_rate, avg_days_in_stage)
+  - Bottleneck distributions (DaysInStage distribution per stage)
+  - Table actions on stuck/past-due tables
+  - Selection interactions for cross-filtering
 """
 
 import sys
@@ -30,6 +39,7 @@ from crm_analytics_helpers import (
     nav_row,
     num,
     num_with_trend,
+    num_dynamic_color,
     pg,
     pillbox,
     rich_chart,
@@ -43,6 +53,10 @@ from crm_analytics_helpers import (
     sankey_chart,
     treemap_chart,
     area_chart,
+    combo_chart,
+    add_table_action,
+    add_selection_interaction,
+    compliance_scorecard_step,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -819,6 +833,46 @@ def build_steps():
             + "(order by DaysInStage) as p75_days;\n"
             + "q = order q by StageName asc;"
         ),
+        # ═══ V3 VIZ UPGRADE ═══
+        # Compliance scorecard: stuck_rate, avg_days_in_stage per stage
+        "s_compliance_scorecard": compliance_scorecard_step(
+            DS, base_filters=FY + OPEN + UF + RF + TF,
+        ),
+        # KPI thresholds for dynamic coloring
+        "s_sc_kpi_thresh": sq(
+            L
+            + FY
+            + OPEN
+            + UF
+            + RF
+            + TF
+            + SGF
+            + "q = foreach q generate "
+            + "(case when DaysInStage > 30 then 1 else 0 end) as is_stuck, "
+            + f'(case when CloseDate >= "{TODAY}" then 1 else 0 end) as is_future;\n'
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "(sum(is_stuck) / count()) * 100 as stuck_rate, "
+            + "(sum(is_future) / count()) * 100 as hygiene_pct;"
+        ),
+        # Bottleneck distribution: DaysInStage distribution per stage (5 time bands)
+        "s_bottleneck_dist": sq(
+            L
+            + FY
+            + OPEN
+            + UF
+            + RF
+            + TF
+            + "q = foreach q generate StageName, "
+            + '(case when DaysInStage <= 7 then "0-7d" '
+            + 'when DaysInStage <= 14 then "8-14d" '
+            + 'when DaysInStage <= 30 then "15-30d" '
+            + 'when DaysInStage <= 60 then "31-60d" '
+            + 'else "60d+" end) as TimeBand;\n'
+            + "q = group q by (StageName, TimeBand);\n"
+            + "q = foreach q generate StageName, TimeBand, count() as cnt;\n"
+            + "q = order q by StageName asc;"
+        ),
     }
 
 
@@ -1292,8 +1346,6 @@ def build_widgets():
     add_reference_line(w["p3_vel_monthly"], 60, "60-Day Target", "#D4504C", "dashed")
 
     # ── Phase 7: Embedded table actions ──────────────────────────────────
-    from crm_analytics_helpers import add_table_action
-
     add_table_action(w["p1_stuck_table"], "salesforceActions", "Opportunity", "Id")
     add_table_action(w["p2_stuck_table"], "salesforceActions", "Opportunity", "Id")
     add_table_action(w["p4_pastdue_table"], "salesforceActions", "Opportunity", "Id")
@@ -1396,6 +1448,54 @@ def build_widgets():
     for px in range(1, 7):
         w[f"p{px}_nav7"] = nav_link("compstats", "Statistics")
 
+    # ═══ V3 VIZ UPGRADE ═══
+    # Dynamic KPI tiles on Page 1
+    w["p1_stuck_rate_dynamic"] = num_dynamic_color(
+        "s_sc_kpi_thresh",
+        "stuck_rate",
+        "Stuck Rate %",
+        [(10, "#04844B"), (25, "#FFB75D"), (100, "#D4504C")],
+        size=28,
+    )
+    w["p1_hygiene_dynamic"] = num_dynamic_color(
+        "s_sc_kpi_thresh",
+        "hygiene_pct",
+        "Pipeline Hygiene %",
+        [(70, "#D4504C"), (90, "#FFB75D"), (100, "#04844B")],
+        size=28,
+    )
+
+    # Compliance scorecard on Page 1
+    w["p1_sec_scorecard"] = section_label("Compliance Scorecard by Stage")
+    w["p1_ch_scorecard"] = rich_chart(
+        "s_compliance_scorecard",
+        "comparisontable",
+        "Stage Compliance: Stuck Rate & Avg Days",
+        ["StageName"],
+        ["stuck_rate", "avg_days_in_stage", "total_cnt"],
+    )
+
+    # Bottleneck distribution on Page 1
+    w["p1_sec_bottleneck"] = section_label("Bottleneck Distribution")
+    w["p1_ch_bottleneck"] = rich_chart(
+        "s_bottleneck_dist",
+        "stackcolumn",
+        "Days-in-Stage Distribution by Stage",
+        ["StageName"],
+        ["cnt"],
+        split=["TimeBand"],
+        show_legend=True,
+        axis_title="Opportunity Count",
+    )
+
+    # Table action on lost deal detail (p5)
+    add_table_action(w["p5_ch_lost_detail"], "salesforceActions", "Opportunity", "Id")
+
+    # Selection interaction: unit filter drives scorecard
+    add_selection_interaction(
+        w["p1_ch_scorecard"], "f_unit", "UnitGroup", ["s_compliance_scorecard"]
+    )
+
     return w
 
 
@@ -1435,6 +1535,15 @@ def build_layout():
         {"name": "p1_ws_donut", "row": 38, "column": 3, "colspan": 3, "rowspan": 6},
         {"name": "p1_ws_stage", "row": 38, "column": 6, "colspan": 6, "rowspan": 6},
         {"name": "p1_ws_top25", "row": 44, "column": 0, "colspan": 12, "rowspan": 10},
+        # V3: Dynamic KPI tiles
+        {"name": "p1_stuck_rate_dynamic", "row": 54, "column": 0, "colspan": 6, "rowspan": 5},
+        {"name": "p1_hygiene_dynamic", "row": 54, "column": 6, "colspan": 6, "rowspan": 5},
+        # V3: Compliance scorecard
+        {"name": "p1_sec_scorecard", "row": 59, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p1_ch_scorecard", "row": 60, "column": 0, "colspan": 12, "rowspan": 8},
+        # V3: Bottleneck distribution
+        {"name": "p1_sec_bottleneck", "row": 68, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p1_ch_bottleneck", "row": 69, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     # ── Page 2: Stuck & Past-Due ──────────────────────────────────────────

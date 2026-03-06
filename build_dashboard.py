@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Opp Mgmt KPI dashboard — v6 COO/CRO KPI framework.
+"""Build the Opp Mgmt KPI dashboard — v7 COO/CRO KPI framework.
 
 Features:
   - Interactive UnitGroup listselector filter (aggregateflex step)
@@ -8,10 +8,21 @@ Features:
   - broadcastFacet on chart steps: clicking a bar cross-filters
   - Rich chart configs: columnMap, axis labels, legends, tooltips
   - widgetStyle for consistent look
-  - 6 pages: Executive Overview, Time Trends, Cross-Dimensional, Geographic, Sales Ops, Product Mix
+  - 8 pages: Executive Overview, Time Trends, Cross-Dimensional, Geographic,
+    Sales Ops, Product Mix, Advanced Analytics, Statistical Analysis
   - 16 KPI framework with conditional formatting
   - Win/Loss analysis, Forecast Accuracy, Pipeline Velocity
   - Stage conversion funnel and time-in-stage analytics
+
+  Visualization Upgrade (v7):
+  - Dynamic KPI tiles with threshold-based coloring (results interactions)
+  - Stage-to-stage transition Sankey for deal flow visualization
+  - Win/Loss reason heatmap (reason × segment matrix)
+  - Win/Loss reason waterfall (net ARR impact)
+  - Time-in-stage distribution trellis (small multiples by stage)
+  - Geographic map toggle views (World → US → EMEA drill)
+  - Cross-dimensional trellis (UnitGroup × Region small multiples)
+  - Table actions (View Record / Create Task) on drill-down tables
 """
 
 import csv
@@ -30,6 +41,7 @@ from crm_analytics_helpers import (
     sq,
     af,
     num,
+    num_dynamic_color,
     num_with_trend,
     trend_step,
     rich_chart,
@@ -49,15 +61,20 @@ from crm_analytics_helpers import (
     coalesce_filter,
     precompute_scoring_stats,
     compute_win_score,
-    sankey_chart,  # noqa: F401
-    treemap_chart,  # noqa: F401
-    bubble_chart,  # noqa: F401
-    heatmap_chart,  # noqa: F401
-    area_chart,  # noqa: F401
-    bullet_chart,  # noqa: F401
+    sankey_chart,
+    treemap_chart,
+    bubble_chart,
+    heatmap_chart,
+    area_chart,
+    bullet_chart,
+    combo_chart,
+    line_chart,
     create_dataflow,
     run_dataflow,
     set_record_links_xmd,
+    add_selection_interaction,
+    add_table_action,
+    stage_transition_step,
 )
 
 DASHBOARD_LABEL = "Opp Management"
@@ -1636,6 +1653,111 @@ def build_steps():
             + 'sum(case when HitStage6 == "Y" then 1 else 0 end) as hit_s6;\n'
             + "q = order q by FYLabel asc;"
         ),
+        # ═══ VIZ UPGRADE: Stage-to-Stage Transition Sankey ═══
+        # Tracks deal flow between consecutive stages using HitStage flags
+        "s_stage_transition": stage_transition_step(DS, FY + UF + RF),
+        # ═══ VIZ UPGRADE: Win/Loss Reason Heatmap ═══
+        # Reason × UnitGroup matrix colored by count for pattern discovery
+        "s_reason_heatmap": sq(
+            L
+            + FY
+            + CLOSED
+            + UF
+            + RF
+            + 'q = filter q by WonLostReason != "" && WonLostReason != "null";\n'
+            + "q = group q by (WonLostReason, UnitGroup);\n"
+            + "q = foreach q generate WonLostReason, UnitGroup, count() as cnt, "
+            + "sum(ARR) as total_arr;\n"
+            + "q = order q by cnt desc;"
+        ),
+        # ═══ VIZ UPGRADE: Win/Loss Reason Waterfall ═══
+        # Shows impact of each reason on pipeline (positive=won reasons, negative=lost)
+        "s_reason_waterfall": sq(
+            L
+            + FY
+            + CLOSED
+            + UF
+            + RF
+            + 'q = filter q by WonLostReason != "" && WonLostReason != "null";\n'
+            + "q = group q by WonLostReason;\n"
+            + "q = foreach q generate WonLostReason, "
+            + 'sum(case when IsWon == "true" then ARR else -ARR end) as net_impact;\n'
+            + "q = order q by net_impact desc;\n"
+            + "q = limit q 15;"
+        ),
+        # ═══ VIZ UPGRADE: Dynamic KPI Threshold Metrics ═══
+        # Computes KPI values + threshold indicators for dynamic coloring
+        "s_kpi_thresholds": sq(
+            L
+            + FY
+            + UF
+            + FYF
+            + RF
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + 'sum(case when IsWon == "true" then ARR else 0 end) as won_arr, '
+            + 'sum(case when IsClosed == "false" then ARR else 0 end) as pipe_arr, '
+            + "(case when count() > 0 then "
+            + 'sum(case when IsWon == "true" then 1 else 0 end) * 100 / count() '
+            + "else 0 end) as win_rate_pct, "
+            + "avg(AgeInDays) as avg_age, "
+            + "(case when sum(case when IsWon == \"true\" then ARR else 0 end) > 0 then "
+            + "sum(case when IsClosed == \"false\" then ARR else 0 end) / "
+            + "sum(case when IsWon == \"true\" then ARR else 0 end) else 0 end) as coverage_ratio;"
+        ),
+        # ═══ VIZ UPGRADE: Time-in-Stage Small Multiples ═══
+        # DaysInStage distribution per StageName for bottleneck analysis
+        "s_stage_time_dist": sq(
+            L
+            + FY
+            + OPEN
+            + UF
+            + RF
+            + "q = foreach q generate StageName, "
+            + "(case "
+            + 'when DaysInStage < 7 then "a_0-7d" '
+            + 'when DaysInStage < 14 then "b_7-14d" '
+            + 'when DaysInStage < 30 then "c_14-30d" '
+            + 'when DaysInStage < 60 then "d_30-60d" '
+            + 'else "e_60d+" end) as TimeBand, ARR;\n'
+            + "q = group q by (StageName, TimeBand);\n"
+            + "q = foreach q generate StageName, TimeBand, count() as deal_count, sum(ARR) as total_arr;\n"
+            + "q = order q by StageName asc, TimeBand asc;"
+        ),
+        # ═══ VIZ UPGRADE: Geographic Map with Region Toggle ═══
+        # US state-level drill from geo dataset
+        "s_geo_us": sq(
+            f'q = load "{GEO_DS}";\n'
+            + 'q = filter q by Country == "United States";\n'
+            + "q = group q by State;\n"
+            + "q = foreach q generate State, "
+            + "sum(pipeline_arr) as pipeline_arr, "
+            + "sum(opp_count) as opp_count;\n"
+            + "q = order q by pipeline_arr desc;"
+        ),
+        # EMEA regional view
+        "s_geo_emea": sq(
+            f'q = load "{GEO_DS}";\n'
+            + 'q = filter q by Region == "EMEA";\n'
+            + "q = group q by Country;\n"
+            + "q = foreach q generate Country, "
+            + "sum(pipeline_arr) as pipeline_arr, "
+            + "sum(opp_count) as opp_count;\n"
+            + "q = order q by pipeline_arr desc;"
+        ),
+        # ═══ VIZ UPGRADE: Cross-Dimensional Trellis (metric × segment) ═══
+        # Pipeline by UnitGroup × Region small multiples
+        "s_trellis_unit_region": sq(
+            L
+            + FY
+            + OPEN
+            + UF
+            + RF
+            + "q = group q by (UnitGroup, SalesRegion);\n"
+            + "q = foreach q generate UnitGroup, SalesRegion, "
+            + "sum(ARR) as sum_arr, count() as cnt;\n"
+            + "q = order q by sum_arr desc;"
+        ),
     }
 
 
@@ -2466,6 +2588,97 @@ def build_widgets():
     for px in range(1, 8):
         w[f"p{px}_nav8"] = nav_link("statsanalysis", "Statistics")
 
+    # ═══ VIZ UPGRADE: Dynamic KPI Tiles with Threshold-Based Coloring ═══
+    # Win Rate tile with dynamic red/amber/green based on percentage
+    w["p1_wr_dynamic"] = num_dynamic_color(
+        "s_kpi_thresholds",
+        "win_rate_pct",
+        "Win Rate %",
+        thresholds=[(15, "#D4504C"), (25, "#FFB75D"), (100, "#04844B")],
+        compact=False,
+        size=28,
+    )
+    # Coverage ratio with dynamic coloring
+    w["p1_coverage_dynamic"] = num_dynamic_color(
+        "s_kpi_thresholds",
+        "coverage_ratio",
+        "Pipeline Coverage (x)",
+        thresholds=[(2, "#D4504C"), (3, "#FFB75D"), (10, "#04844B")],
+        compact=False,
+        size=28,
+    )
+    # Average deal age with dynamic coloring (lower is better)
+    w["p1_age_dynamic"] = num_dynamic_color(
+        "s_kpi_thresholds",
+        "avg_age",
+        "Avg Opp Age (Days)",
+        thresholds=[(60, "#04844B"), (120, "#FFB75D"), (999, "#D4504C")],
+        compact=False,
+        size=24,
+    )
+
+    # ═══ VIZ UPGRADE: Stage Transition Sankey (Advanced Analytics page) ═══
+    w["p7_sec_stage_flow"] = section_label("Stage-to-Stage Deal Flow")
+    w["p7_ch_stage_flow"] = sankey_chart(
+        "s_stage_transition", "Deal Flow: Stage Transitions"
+    )
+
+    # ═══ VIZ UPGRADE: Win/Loss Reason Analysis ═══
+    w["p7_sec_reasons"] = section_label("Win/Loss Reason Analysis")
+    w["p7_ch_reason_heatmap"] = heatmap_chart(
+        "s_reason_heatmap", "Win/Loss Reasons × Unit Group"
+    )
+    w["p7_ch_reason_waterfall"] = waterfall_chart(
+        "s_reason_waterfall",
+        "Win/Loss Reason Impact (Net ARR)",
+        "WonLostReason",
+        "net_impact",
+        axis_label="Net ARR Impact (EUR)",
+    )
+
+    # ═══ VIZ UPGRADE: Time-in-Stage Distribution (trellis by stage) ═══
+    w["p7_sec_stage_time"] = section_label("Time-in-Stage Distribution")
+    w["p7_ch_stage_time"] = rich_chart(
+        "s_stage_time_dist",
+        "stackcolumn",
+        "Deal Count by Time Band (per Stage)",
+        ["TimeBand"],
+        ["deal_count"],
+        trellis=["StageName"],
+        show_legend=True,
+        axis_title="Deals",
+    )
+
+    # ═══ VIZ UPGRADE: Geographic Map Toggle Views ═══
+    w["p4_sec_map_us"] = section_label("US State Pipeline View")
+    w["p4_ch_map_us"] = choropleth_chart(
+        "s_geo_us", "US Pipeline by State", "State", "pipeline_arr", map_type="USA"
+    )
+    w["p4_sec_map_emea"] = section_label("EMEA Regional Pipeline View")
+    w["p4_ch_map_emea"] = choropleth_chart(
+        "s_geo_emea", "EMEA Pipeline by Country", "Country", "pipeline_arr", map_type="Europe"
+    )
+
+    # ═══ VIZ UPGRADE: Cross-Dimensional Trellis ═══
+    w["p3_sec_trellis"] = section_label("Pipeline by Unit Group × Region")
+    w["p3_ch_trellis"] = rich_chart(
+        "s_trellis_unit_region",
+        "column",
+        "Pipeline Distribution (Small Multiples)",
+        ["SalesRegion"],
+        ["sum_arr"],
+        trellis=["UnitGroup"],
+        show_legend=True,
+        axis_title="ARR (EUR)",
+    )
+
+    # ═══ VIZ UPGRADE: Add table actions on drill tables ═══
+    # Enable View Record / Create Task on Top 10 Opps table
+    add_table_action(w["p1_top10"])
+    # Enable actions on stale deals table
+    if "p5_tbl_stale" in w:
+        add_table_action(w["p5_tbl_stale"])
+
     return w
 
 
@@ -2502,6 +2715,10 @@ def build_layout():
         {"name": "p1_sec_yoy", "row": 40, "column": 0, "colspan": 12, "rowspan": 1},
         {"name": "p1_yoy_cwon", "row": 41, "column": 0, "colspan": 6, "rowspan": 8},
         {"name": "p1_yoy_pipe", "row": 41, "column": 6, "colspan": 6, "rowspan": 8},
+        # VIZ UPGRADE: Dynamic KPI Tiles with Threshold-Based Coloring
+        {"name": "p1_wr_dynamic", "row": 49, "column": 0, "colspan": 4, "rowspan": 4},
+        {"name": "p1_coverage_dynamic", "row": 49, "column": 4, "colspan": 4, "rowspan": 4},
+        {"name": "p1_age_dynamic", "row": 49, "column": 8, "colspan": 4, "rowspan": 4},
     ]
 
     p2 = nav_row("p2", 8) + [
@@ -2569,6 +2786,9 @@ def build_layout():
             "rowspan": 8,
         },
         {"name": "p3_ch_type_eff", "row": 49, "column": 6, "colspan": 6, "rowspan": 8},
+        # VIZ UPGRADE: Cross-Dimensional Trellis (Small Multiples)
+        {"name": "p3_sec_trellis", "row": 57, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p3_ch_trellis", "row": 58, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     p4 = nav_row("p4", 8) + [
@@ -2584,6 +2804,11 @@ def build_layout():
         {"name": "p4_sec_detail", "row": 18, "column": 0, "colspan": 12, "rowspan": 1},
         {"name": "p4_ch_scatter", "row": 19, "column": 0, "colspan": 12, "rowspan": 10},
         {"name": "p4_ch_table", "row": 29, "column": 0, "colspan": 12, "rowspan": 10},
+        # VIZ UPGRADE: Regional Map Drill-Down Views
+        {"name": "p4_sec_map_us", "row": 39, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p4_ch_map_us", "row": 40, "column": 0, "colspan": 6, "rowspan": 12},
+        {"name": "p4_sec_map_emea", "row": 39, "column": 6, "colspan": 6, "rowspan": 1},
+        {"name": "p4_ch_map_emea", "row": 40, "column": 6, "colspan": 6, "rowspan": 12},
     ]
 
     p5 = nav_row("p5", 8) + [
@@ -2800,6 +3025,16 @@ def build_layout():
         # Area
         {"name": "p7_sec_area", "row": 49, "column": 0, "colspan": 12, "rowspan": 1},
         {"name": "p7_ch_area", "row": 50, "column": 0, "colspan": 12, "rowspan": 8},
+        # VIZ UPGRADE: Stage-to-Stage Deal Flow Sankey
+        {"name": "p7_sec_stage_flow", "row": 58, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p7_ch_stage_flow", "row": 59, "column": 0, "colspan": 12, "rowspan": 10},
+        # VIZ UPGRADE: Win/Loss Reason Analysis
+        {"name": "p7_sec_reasons", "row": 69, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p7_ch_reason_heatmap", "row": 70, "column": 0, "colspan": 6, "rowspan": 10},
+        {"name": "p7_ch_reason_waterfall", "row": 70, "column": 6, "colspan": 6, "rowspan": 10},
+        # VIZ UPGRADE: Time-in-Stage Distribution (trellis)
+        {"name": "p7_sec_stage_time", "row": 80, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p7_ch_stage_time", "row": 81, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     p8 = nav_row("p8", 8) + [

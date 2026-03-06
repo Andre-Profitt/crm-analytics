@@ -2,7 +2,8 @@
 """Build the Lead Management KPI dashboard (AP 1.1).
 
 Features:
-  - 4 pages: MQL Funnel, Channel Mix, Conversion Tracking, Activity & Engagement
+  - 6 pages: MQL Funnel, Channel Mix, Conversion Tracking, Activity & Engagement,
+    Advanced Analytics, Lead Statistics
   - UNION SAQL funnel: Total Leads -> MQL -> Converted -> Won
   - MQL rate gauge, activity rate gauge
   - Channel mix donuts, stacked area, combo charts
@@ -11,6 +12,13 @@ Features:
   - broadcastFacet on chart steps for cross-filtering
   - Global 4-filter bar (Source, Status, Month, Owner) on all pages
   - Phase 3: KPI trend indicators (YoY via CreatedDate substr)
+
+Visualization Upgrade:
+  - Cohort conversion heatmap (created month × weeks since creation)
+  - Channel small multiples (same KPI chart repeated per channel)
+  - SLA time-to-first-touch metrics
+  - Dynamic KPI tiles with threshold-based coloring
+  - Table actions for lead conversion workflow
 """
 
 import csv
@@ -30,6 +38,7 @@ from crm_analytics_helpers import (
     create_dashboard_if_needed,
     sq,
     num,
+    num_dynamic_color,
     num_with_trend,
     trend_step,
     rich_chart,
@@ -52,9 +61,11 @@ from crm_analytics_helpers import (
     bullet_chart,
     treemap_chart,
     bubble_chart,
+    combo_chart,
     create_dataflow,
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
+    add_table_action,
 )
 
 DS = "Lead_Management"
@@ -797,6 +808,74 @@ def build_steps(ds_id):
             + "q = foreach q generate CreatedMonth, monthly_cnt, "
             + "sum(monthly_cnt) over (order by CreatedMonth rows unbounded preceding) as cumulative_cnt;"
         ),
+        # ═══ VIZ UPGRADE: Cohort Conversion Heatmap ═══
+        # Created month × age bucket showing MQL conversion rate
+        "s_cohort_conversion": sq(
+            L
+            + SF
+            + STF
+            + OF
+            + TREND_CURRENT
+            + "q = foreach q generate CreatedMonth, "
+            + "(case "
+            + 'when DaysToConvert < 7 then "a_0-7d" '
+            + 'when DaysToConvert < 14 then "b_7-14d" '
+            + 'when DaysToConvert < 30 then "c_14-30d" '
+            + 'when DaysToConvert < 60 then "d_30-60d" '
+            + 'when DaysToConvert < 90 then "e_60-90d" '
+            + 'else "f_90d+" end) as AgeBucket, '
+            + 'IsMQL, ConvertedFlag;\n'
+            + "q = group q by (CreatedMonth, AgeBucket);\n"
+            + "q = foreach q generate CreatedMonth, AgeBucket, "
+            + 'sum(case when ConvertedFlag == "true" then 1 else 0 end) as converted, '
+            + "count() as total, "
+            + '(sum(case when ConvertedFlag == "true" then 1 else 0 end) / count()) * 100 as conversion_rate;\n'
+            + "q = order q by CreatedMonth asc, AgeBucket asc;"
+        ),
+        # ═══ VIZ UPGRADE: Channel Performance Small Multiples ═══
+        # Conversion rate by channel for trellis view
+        "s_channel_performance": sq(
+            L
+            + STF
+            + MF
+            + OF
+            + TREND_CURRENT
+            + 'q = filter q by LeadSource != "" && LeadSource != "null";\n'
+            + "q = group q by (LeadSource, CreatedMonth);\n"
+            + "q = foreach q generate LeadSource, CreatedMonth, "
+            + "count() as lead_count, "
+            + 'sum(case when IsMQL == "true" then 1 else 0 end) as mql_count, '
+            + '(sum(case when IsMQL == "true" then 1 else 0 end) / count()) * 100 as mql_rate;\n'
+            + "q = order q by LeadSource asc, CreatedMonth asc;"
+        ),
+        # ═══ VIZ UPGRADE: SLA Metrics ═══
+        "s_sla_metrics": sq(
+            L
+            + SF
+            + STF
+            + MF
+            + OF
+            + TREND_CURRENT
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "avg(DaysToFirstTouch) as avg_first_touch, "
+            + "count() as total_leads, "
+            + 'sum(case when DaysToFirstTouch <= 1 then 1 else 0 end) as within_sla, '
+            + '(sum(case when DaysToFirstTouch <= 1 then 1 else 0 end) / count()) * 100 as sla_pct;'
+        ),
+        # ═══ VIZ UPGRADE: Dynamic KPI Thresholds ═══
+        "s_lead_kpi_thresh": sq(
+            L
+            + SF
+            + STF
+            + OF
+            + TREND_CURRENT
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + '(sum(case when IsMQL == "true" then 1 else 0 end) / count()) * 100 as mql_rate, '
+            + '(sum(case when ConvertedFlag == "true" then 1 else 0 end) / count()) * 100 as conversion_rate, '
+            + "avg(DaysToConvert) as avg_days_to_convert;"
+        ),
     }
 
 
@@ -1248,9 +1327,55 @@ def build_widgets():
         w[f"p{px}_nav6"] = nav_link("leadstats", "Statistics")
 
     # ── Phase 7: Embedded table actions ──────────────────────────────────
-    from crm_analytics_helpers import add_table_action
-
     add_table_action(w["p4_no_activity"], "salesforceActions", "Lead", "Id")
+
+    # ═══ VIZ UPGRADE: Cohort Conversion Heatmap ═══
+    w["p1_sec_cohort"] = section_label("Cohort Conversion Heatmap (Month × Age)")
+    w["p1_ch_cohort"] = heatmap_chart(
+        "s_cohort_conversion", "Conversion Rate by Created Month × Time to Convert"
+    )
+
+    # ═══ VIZ UPGRADE: Channel Performance Small Multiples ═══
+    w["p2_sec_channel_sm"] = section_label("MQL Rate by Channel (Small Multiples)")
+    w["p2_ch_channel_sm"] = rich_chart(
+        "s_channel_performance",
+        "column",
+        "MQL Rate by Month (per Channel)",
+        ["CreatedMonth"],
+        ["mql_rate"],
+        trellis=["LeadSource"],
+        show_legend=True,
+        axis_title="MQL Rate %",
+    )
+
+    # ═══ VIZ UPGRADE: SLA Metrics ═══
+    w["p4_sec_sla"] = section_label("SLA: Time-to-First-Touch")
+    w["p4_sla_pct_dynamic"] = num_dynamic_color(
+        "s_sla_metrics",
+        "sla_pct",
+        "% Within SLA (≤1 day)",
+        thresholds=[(50, "#D4504C"), (80, "#FFB75D"), (100, "#04844B")],
+        size=28,
+    )
+    w["p4_avg_first_touch"] = num(
+        "s_sla_metrics", "avg_first_touch", "Avg Days to First Touch", "#0070D2"
+    )
+
+    # ═══ VIZ UPGRADE: Dynamic KPI Tiles ═══
+    w["p1_mql_dynamic"] = num_dynamic_color(
+        "s_lead_kpi_thresh",
+        "mql_rate",
+        "MQL Rate %",
+        thresholds=[(10, "#D4504C"), (25, "#FFB75D"), (100, "#04844B")],
+        size=28,
+    )
+    w["p1_conversion_dynamic"] = num_dynamic_color(
+        "s_lead_kpi_thresh",
+        "conversion_rate",
+        "Conversion Rate %",
+        thresholds=[(5, "#D4504C"), (15, "#FFB75D"), (100, "#04844B")],
+        size=28,
+    )
 
     return w
 
@@ -1282,6 +1407,11 @@ def build_layout():
         {"name": "p1_dq", "row": 17, "column": 6, "colspan": 6, "rowspan": 8},
         # MQL trend
         {"name": "p1_mql_trend", "row": 25, "column": 0, "colspan": 12, "rowspan": 8},
+        # VIZ UPGRADE: Cohort Heatmap + Dynamic KPIs
+        {"name": "p1_sec_cohort", "row": 33, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p1_ch_cohort", "row": 34, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p1_mql_dynamic", "row": 44, "column": 0, "colspan": 6, "rowspan": 4},
+        {"name": "p1_conversion_dynamic", "row": 44, "column": 6, "colspan": 6, "rowspan": 4},
     ]
 
     # ── Page 2: Channel Mix ──
@@ -1299,6 +1429,9 @@ def build_layout():
         {"name": "p2_source_conv", "row": 13, "column": 0, "colspan": 12, "rowspan": 8},
         # Campaigns table
         {"name": "p2_campaigns", "row": 21, "column": 0, "colspan": 12, "rowspan": 10},
+        # VIZ UPGRADE: Channel Small Multiples
+        {"name": "p2_sec_channel_sm", "row": 31, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p2_ch_channel_sm", "row": 32, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     # ── Page 3: Conversion Tracking ──
@@ -1386,6 +1519,10 @@ def build_layout():
             "colspan": 12,
             "rowspan": 10,
         },
+        # SLA metrics
+        {"name": "p4_sec_sla", "row": 42, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p4_sla_pct_dynamic", "row": 43, "column": 0, "colspan": 6, "rowspan": 5},
+        {"name": "p4_avg_first_touch", "row": 43, "column": 6, "colspan": 6, "rowspan": 5},
     ]
 
     p5 = nav_row("p5", 6) + [
