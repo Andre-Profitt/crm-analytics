@@ -40,7 +40,7 @@ Existing dashboards for compliance (`build_sales_compliance.py`) and pipeline hy
 ## Dashboard 1: Pipeline Reporting & Insights
 
 **Builder:** `build_pipeline_reporting.py`
-**Total:** 19 pages, ~106 widgets
+**Total:** 19 pages, ~116 widgets (excluding section labels, filters, nav links)
 
 ### Page 1.0 — Global Pipeline Summary
 
@@ -60,31 +60,31 @@ Existing dashboards for compliance (`build_sales_compliance.py`) and pipeline hy
 
 One page per region: Central Europe, Northern Europe, Southwestern Europe, UK & Ireland, Middle East & Africa, APAC, Americas. Generated in a loop, parameterized by region name. Each page pre-filtered by `SalesRegion = "{region}"`.
 
-| #   | Widget                   | Viz Type       | Dataset                         | SAQL Logic                                                                                                                                                                                 |
-| --- | ------------------------ | -------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Region Open Pipeline ARR | KPI            | Pipeline_Opportunity_Operations | `sum(WeightedOpenARR) filter SalesRegion="{region}", IsClosed="false"`                                                                                                                     |
-| 2   | Region Won ARR (YTD)     | KPI            | Pipeline_Opportunity_Operations | `sum(ActualARR) filter SalesRegion="{region}", FYLabel="FY2026"`                                                                                                                           |
-| 3   | Region Win Rate          | KPI            | Pipeline_Opportunity_Operations | Count-based: `sum(case IsWon="true" then 1 else 0) / count() filter IsClosed="true" * 100`                                                                                                 |
-| 4   | Region At-Risk ARR       | KPI            | Pipeline_Opportunity_Operations | `sum(AtRiskARR) filter SalesRegion="{region}"`                                                                                                                                             |
-| 5   | Pipeline by Stage        | Horizontal bar | Pipeline_Opportunity_Operations | `group by StageBand; sum(ARR) filter SalesRegion="{region}", IsClosed="false"` — Qualify, Shape, Validate, Commit                                                                          |
-| 6   | Pipeline by Motion       | Stacked column | Pipeline_Opportunity_Operations | `group by MotionType; sum(ARR) filter SalesRegion="{region}", IsClosed="false"` — Land/Expand/Renewal/Services                                                                             |
-| 7   | Top 10 Deals             | Compare table  | Pipeline_Opportunity_Operations | `filter SalesRegion="{region}", IsClosed="false"; order by ARR desc; limit 10` — columns: OpportunityName, AccountName, OwnerName, ARR, StageName, ForecastCategory, DaysInStage, RiskBand |
+| #   | Widget                   | Viz Type       | Dataset                         | SAQL Logic                                                                                                                                                                                                                           |
+| --- | ------------------------ | -------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Region Open Pipeline ARR | KPI            | Pipeline_Opportunity_Operations | `sum(WeightedOpenARR) filter SalesRegion="{region}", IsClosed="false"`                                                                                                                                                               |
+| 2   | Region Won ARR (YTD)     | KPI            | Pipeline_Opportunity_Operations | `sum(ActualARR) filter SalesRegion="{region}", FYLabel="FY2026"`                                                                                                                                                                     |
+| 3   | Region Win Rate          | KPI            | Pipeline_Opportunity_Operations | Count-based: `sum(case IsWon="true" then 1 else 0) / count() filter IsClosed="true" * 100`                                                                                                                                           |
+| 4   | Region At-Risk ARR       | KPI            | Pipeline_Opportunity_Operations | `sum(AtRiskARR) filter SalesRegion="{region}"`                                                                                                                                                                                       |
+| 5   | Pipeline by Stage        | Horizontal bar | Pipeline_Opportunity_Operations | `group by StageBand; sum(ARR) filter SalesRegion="{region}", IsClosed="false"` — Qualify, Shape, Validate, Commit                                                                                                                    |
+| 6   | Pipeline by Motion       | Stacked column | Pipeline_Opportunity_Operations | `group by MotionType; sum(ARR) filter SalesRegion="{region}", IsClosed="false"` — Land/Expand/Renewal/Services                                                                                                                       |
+| 7   | Top 10 Deals             | Compare table  | Pipeline_Opportunity_Operations | `filter SalesRegion="{region}", IsClosed="false"; order by ARR desc; limit 10` — columns: OpportunityName (record action → navigateToRecord via Id), AccountName, OwnerName, ARR, StageName, ForecastCategory, DaysInStage, RiskBand |
 
 ### Page 2.0 — Commercial Approval Overview (Global)
 
 Uses two datasets: `Pipeline_Opportunity_Operations` for structural gaps (NeedsApproval), `Forecast_Revenue_Motions` for process bottlenecks (CommercialApprovalFlag, StaleCommercialApprovalFlag).
 
-| #   | Widget                    | Viz Type       | Dataset                         | SAQL Logic                                                                                                             |
-| --- | ------------------------- | -------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 1   | Approved Deals (Count)    | KPI            | Pipeline_Opportunity_Operations | `count() filter IsClosed="false", NeedsApproval="false", StageOrder >= 3`                                              |
-| 2   | Approved Deal ARR         | KPI            | Pipeline_Opportunity_Operations | `sum(ARR) filter IsClosed="false", NeedsApproval="false", StageOrder >= 3`                                             |
-| 3   | Not Submitted (Count)     | KPI            | Forecast_Revenue_Motions        | `count() filter IsClosed="false", NeedsApproval-equivalent AND no SubmitForCommercialApprovalDate` — red highlight     |
-| 4   | Pending Approval (Count)  | KPI            | Forecast_Revenue_Motions        | `sum(CommercialApprovalFlag)` — submitted but not approved                                                             |
-| 5   | Stale >14d (Count)        | KPI            | Forecast_Revenue_Motions        | `sum(StaleCommercialApprovalFlag)` — red highlight, escalation trigger                                                 |
-| 6   | Compliance %              | KPI            | Pipeline_Opportunity_Operations | `count(NeedsApproval="false" and StageOrder>=3) / count(StageOrder>=3) * 100`                                          |
-| 7   | Approval Status by Region | Stacked hbar   | Pipeline_Opportunity_Operations | `group by SalesRegion; count() filter StageOrder >= 3, IsClosed="false"` — split by NeedsApproval (Approved / Missing) |
-| 8   | Approval Status by Motion | Stacked column | Pipeline_Opportunity_Operations | `group by MotionType; count() filter StageOrder >= 3, IsClosed="false"` — split by NeedsApproval                       |
-| 9   | Approval Trend (Monthly)  | Line           | Pipeline_Opportunity_Operations | `group by MonthLabel; sum(MissingApprovalCount)` — trailing 6 months                                                   |
+| #   | Widget                    | Viz Type       | Dataset                         | SAQL Logic                                                                                                                                               |
+| --- | ------------------------- | -------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Approved Deals (Count)    | KPI            | Pipeline_Opportunity_Operations | `count() filter IsClosed="false", NeedsApproval="false", StageOrder >= 3`                                                                                |
+| 2   | Approved Deal ARR         | KPI            | Pipeline_Opportunity_Operations | `sum(ARR) filter IsClosed="false", NeedsApproval="false", StageOrder >= 3`                                                                               |
+| 3   | Not Submitted (Count)     | KPI            | Forecast_Revenue_Motions        | `count() filter IsClosed="false", StageProgression >= "3 Engagement", CommercialApprovalFlag=0, SubmitForCommercialApprovalDate is null` — red highlight |
+| 4   | Pending Approval (Count)  | KPI            | Forecast_Revenue_Motions        | `sum(CommercialApprovalFlag)` — submitted but not approved                                                                                               |
+| 5   | Stale >14d (Count)        | KPI            | Forecast_Revenue_Motions        | `sum(StaleCommercialApprovalFlag)` — red highlight, escalation trigger                                                                                   |
+| 6   | Compliance %              | KPI            | Pipeline_Opportunity_Operations | `count(NeedsApproval="false" and StageOrder>=3) / count(StageOrder>=3) * 100`                                                                            |
+| 7   | Approval Status by Region | Stacked hbar   | Pipeline_Opportunity_Operations | `group by SalesRegion; count() filter StageOrder >= 3, IsClosed="false"` — split by NeedsApproval (Approved / Missing)                                   |
+| 8   | Approval Status by Motion | Stacked column | Pipeline_Opportunity_Operations | `group by MotionType; count() filter StageOrder >= 3, IsClosed="false"` — split by NeedsApproval                                                         |
+| 9   | Approval Trend (Monthly)  | Line           | Pipeline_Opportunity_Operations | `group by MonthLabel; sum(MissingApprovalCount)` — trailing 6 months                                                                                     |
 
 ### Pages 2.1–2.7 — Commercial Approval Candidates (x7 sub-regions)
 
@@ -100,17 +100,17 @@ Each page pre-filtered by `SalesRegion = "{region}"`.
 
 ### Page 3.0 — Renewals Tracking
 
-| #   | Widget                           | Viz Type       | Dataset                  | SAQL Logic                                                                                                                                                                                                                    |
-| --- | -------------------------------- | -------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Open Renewal ARR                 | KPI            | Revenue_Retention_Health | `sum(OpenRenewalValue) filter OppType="Renewal"`                                                                                                                                                                              |
-| 2   | At-Risk Renewal ARR              | KPI            | Revenue_Retention_Health | `sum(AtRiskRenewalValue)` — red if > 30% of open                                                                                                                                                                              |
-| 3   | Renewal Count (This Quarter)     | KPI            | Revenue_Retention_Health | `count() filter OppType="Renewal", IsClosed=0, QuarterLabel="{current_quarter}"`                                                                                                                                              |
-| 4   | Renewal Win Rate (Prior Quarter) | KPI            | Revenue_Retention_Health | `sum(IsWon) / count() filter OppType="Renewal", IsClosed=1, QuarterLabel="{prior_quarter}" * 100`                                                                                                                             |
-| 5   | GRR                              | KPI            | Revenue_Retention_Health | `GRR` from yearly_metric row — target 90%                                                                                                                                                                                     |
-| 6   | Renewals by Risk Level           | Horizontal bar | Revenue_Retention_Health | `group by RiskLevel; sum(OpenRenewalValue) filter OppType="Renewal", IsClosed=0` — ordered by severity (Overdue first)                                                                                                        |
-| 7   | Upcoming Renewals by Quarter     | Stacked column | Revenue_Retention_Health | `group by QuarterLabel, Outcome; sum(RecurringValue) filter OppType="Renewal"` — stacks: Won/Open/Lost/Churned                                                                                                                |
-| 8   | Renewals by Owner                | Horizontal bar | Revenue_Retention_Health | `group by OwnerName; sum(OpenRenewalValue) filter OppType="Renewal", IsClosed=0; order desc; limit 15`                                                                                                                        |
-| 9   | At-Risk Renewals Table           | Compare table  | Revenue_Retention_Health | `filter OppType="Renewal", IsClosed=0, RiskLevel in ("Overdue","Critical","High"); order by DaysUntilClose asc` — columns: OppName, AccountName, OwnerName, RecurringValue, RiskLevel, DaysUntilClose, ProductFamily, Outcome |
+| #   | Widget                           | Viz Type       | Dataset                  | SAQL Logic                                                                                                                                                                                                                                 |
+| --- | -------------------------------- | -------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Open Renewal ARR                 | KPI            | Revenue_Retention_Health | `sum(OpenRenewalValue) filter OppType="Renewal"`                                                                                                                                                                                           |
+| 2   | At-Risk Renewal ARR              | KPI            | Revenue_Retention_Health | `sum(AtRiskRenewalValue)` — red if > 30% of open                                                                                                                                                                                           |
+| 3   | Renewal Count (This Quarter)     | KPI            | Revenue_Retention_Health | `count() filter OppType="Renewal", IsClosed=0, QuarterLabel="{current_quarter}"`                                                                                                                                                           |
+| 4   | Renewal Win Rate (Prior Quarter) | KPI            | Revenue_Retention_Health | `sum(IsWon) / count() filter OppType="Renewal", IsClosed=1, QuarterLabel="{prior_quarter}" * 100`                                                                                                                                          |
+| 5   | GRR                              | KPI            | Revenue_Retention_Health | `filter RecordType="yearly_metric", YearLabel="{current_year}"; foreach generate GRR` — target 90%                                                                                                                                         |
+| 6   | Renewals by Risk Level           | Horizontal bar | Revenue_Retention_Health | `group by RiskLevel; sum(OpenRenewalValue) filter OppType="Renewal", IsClosed=0` — ordered by severity (Overdue first)                                                                                                                     |
+| 7   | Upcoming Renewals by Quarter     | Stacked column | Revenue_Retention_Health | `group by QuarterLabel, Outcome; sum(RecurringValue) filter OppType="Renewal"` — stacks: Won/Open/Lost/Churned                                                                                                                             |
+| 8   | Renewals by Owner                | Horizontal bar | Revenue_Retention_Health | `group by OwnerName; sum(OpenRenewalValue) filter OppType="Renewal", IsClosed=0; order desc; limit 15`                                                                                                                                     |
+| 9   | At-Risk Renewals Table           | Compare table  | Revenue_Retention_Health | `filter OppType="Renewal", IsClosed=0, RiskLevel in ("Overdue","Critical","High"); order by DaysUntilClose asc` — columns: OppName, AccountName, OwnerName, ManagerName, RecurringValue, RiskLevel, DaysUntilClose, ProductFamily, Outcome |
 
 **Value field:** Header-level `APTS_Renewal_ACV__c` — confirmed correct by profiling work. OLI blend is for the churn methodology (different use case).
 
@@ -118,32 +118,33 @@ Each page pre-filtered by `SalesRegion = "{region}"`.
 
 **Requires new dataset:** `Retention_Product_Analysis` (see below).
 
-| #   | Widget                   | Viz Type       | Dataset                    | SAQL Logic                                                                                                                                                                                                        |
-| --- | ------------------------ | -------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Churn ARR (Current Year) | KPI            | Retention_Product_Analysis | `sum(ChurnARR) filter YearLabel="2026"`                                                                                                                                                                           |
-| 2   | Churn Rate               | KPI            | Retention_Product_Analysis | `sum(ChurnARR) / sum(InstalledARR) filter YearLabel="2025" * 100` (prior year base)                                                                                                                               |
-| 3   | NRR                      | KPI            | Retention_Product_Analysis | NRR for current year — green if > 100%                                                                                                                                                                            |
-| 4   | GRR                      | KPI            | Retention_Product_Analysis | GRR for current year — target 90%                                                                                                                                                                                 |
-| 5   | Protected ARR            | KPI            | Retention_Product_Analysis | `sum(ChurnARR) filter EffectiveRetentionFlag="Protected"` — shows "saved" churn                                                                                                                                   |
-| 6   | Churn by Product Family  | Horizontal bar | Retention_Product_Analysis | `group by ProductFamily; sum(ChurnARR); order desc`                                                                                                                                                               |
-| 7   | Churn by Region          | Horizontal bar | Retention_Product_Analysis | `group by SalesRegion; sum(ChurnARR); order desc`                                                                                                                                                                 |
-| 8   | Churn by Industry        | Horizontal bar | Retention_Product_Analysis | `group by IndustryGroup; sum(ChurnARR); order desc` — uses `_industry_group()` normalization (8 groups: Asset Mgmt, Wealth Mgmt, Fund, Pension, Asset Owner, Bank, Asset Servicer, Insurance)                     |
-| 9   | Churn Trend (Quarterly)  | Line           | Retention_Product_Analysis | `group by QuarterLabel; sum(ChurnARR)` — trailing 8 quarters with NRR on secondary axis                                                                                                                           |
-| 10  | Churned Accounts Table   | Compare table  | Retention_Product_Analysis | `filter ChurnARR > 0, YearLabel="2026"; order by ChurnARR desc; limit 20` — columns: AccountName, UnitGroup, SalesRegion, IndustryGroup, ProductFamily, InstalledARR, ChurnARR, ChurnRate, EffectiveRetentionFlag |
+| #   | Widget                   | Viz Type           | Dataset                    | SAQL Logic                                                                                                                                                                                                                                                         |
+| --- | ------------------------ | ------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Churn ARR (Current Year) | KPI                | Retention_Product_Analysis | `sum(ChurnARR) filter YearLabel="2026"`                                                                                                                                                                                                                            |
+| 2   | Churn Rate               | KPI                | Retention_Product_Analysis | `sum(ChurnARR) / sum(InstalledARR) filter YearLabel="2025" * 100` (prior year base)                                                                                                                                                                                |
+| 3   | NRR                      | KPI                | Retention_Product_Analysis | Pre-computed in yearly_metric rows: `(RetainedARR + ExpansionARR) / InstalledARR * 100 filter YearLabel="{current_year}"` — green if > 100%                                                                                                                        |
+| 4   | GRR                      | KPI                | Retention_Product_Analysis | Pre-computed in yearly_metric rows: `RetainedARR / InstalledARR * 100 filter YearLabel="{current_year}"` — target 90%                                                                                                                                              |
+| 5   | Protected ARR            | KPI                | Retention_Product_Analysis | `sum(ChurnARR) filter EffectiveRetentionFlag="Protected"` — shows "saved" churn                                                                                                                                                                                    |
+| 6   | Churn by Product Family  | Horizontal bar     | Retention_Product_Analysis | `group by ProductFamily; sum(ChurnARR); order desc`                                                                                                                                                                                                                |
+| 7   | Churn by Region          | Horizontal bar     | Retention_Product_Analysis | `group by SalesRegion; sum(ChurnARR); order desc`                                                                                                                                                                                                                  |
+| 8   | Churn by Industry        | Horizontal bar     | Retention_Product_Analysis | `group by IndustryGroup; sum(ChurnARR); order desc` — uses `_industry_group()` normalization (8 groups: Asset Mgmt, Wealth Mgmt, Fund, Pension, Asset Owner, Bank, Asset Servicer, Insurance)                                                                      |
+| 9   | Churn Trend (Quarterly)  | Combo (bar + line) | Retention_Product_Analysis | `group by QuarterLabel; bar=sum(ChurnARR), line=NRR%` — trailing 8 quarters, dual axes. Requires quarterly-grain metric rows in dataset                                                                                                                            |
+| 10  | Churned Accounts Table   | Compare table      | Retention_Product_Analysis | `filter ChurnARR > 0, YearLabel="2026"; order by ChurnARR desc; limit 20` — columns: AccountName (record action → navigateToRecord via AccountId), UnitGroup, SalesRegion, IndustryGroup, ProductFamily, InstalledARR, ChurnARR, ChurnRate, EffectiveRetentionFlag |
 
 ### Page 5.0 — Slipped Deals Analysis
 
-| #   | Widget                       | Viz Type       | Dataset                         | SAQL Logic                                                                                                                                                                                                 |
-| --- | ---------------------------- | -------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Slipped Deal Count           | KPI            | Pipeline_Opportunity_Operations | `count() filter PushCount >= 1, IsClosed="false"`                                                                                                                                                          |
-| 2   | Slipped Deal ARR             | KPI            | Pipeline_Opportunity_Operations | `sum(ARR) filter PushCount >= 1, IsClosed="false"`                                                                                                                                                         |
-| 3   | Avg Push Count               | KPI            | Pipeline_Opportunity_Operations | `avg(PushCount) filter PushCount >= 1, IsClosed="false"`                                                                                                                                                   |
-| 4   | Avg Days Pushed              | KPI            | Pipeline_Opportunity_Operations | `avg(PushDays) filter PushCount >= 1, IsClosed="false"`                                                                                                                                                    |
-| 5   | Repeat Offenders (3+ pushes) | KPI            | Pipeline_Opportunity_Operations | `count() filter PushCount >= 3, IsClosed="false"` — red highlight                                                                                                                                          |
-| 6   | Push Count Distribution      | Column         | Pipeline_Opportunity_Operations | `group by PushCount; count() filter PushCount >= 1, IsClosed="false"` — x-axis: 1, 2, 3, 4, 5+                                                                                                             |
-| 7   | Slipped ARR by Region        | Horizontal bar | Pipeline_Opportunity_Operations | `group by SalesRegion; sum(ARR) filter PushCount >= 1, IsClosed="false"; order desc`                                                                                                                       |
-| 8   | Slippage Trend (Monthly)     | Line           | Pipeline_Opportunity_Operations | `group by EventMonth; count() filter RecordType="field_history", EventField="CloseDate"` — trailing 6 months                                                                                               |
-| 9   | Slipped Deals Table          | Compare table  | Pipeline_Opportunity_Operations | `filter PushCount >= 1, IsClosed="false"; order by ARR desc; limit 25` — columns: OpportunityName, AccountName, OwnerName, ARR, StageName, PushCount, PushDays, DaysInStage, RiskBand, RootCauseHypothesis |
+| #   | Widget                       | Viz Type       | Dataset                         | SAQL Logic                                                                                                                                                                                                                                                       |
+| --- | ---------------------------- | -------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Slipped Deal Count           | KPI            | Pipeline_Opportunity_Operations | `count() filter PushCount >= 1, IsClosed="false"`                                                                                                                                                                                                                |
+| 2   | Slipped Deal ARR             | KPI            | Pipeline_Opportunity_Operations | `sum(ARR) filter PushCount >= 1, IsClosed="false"`                                                                                                                                                                                                               |
+| 3   | Avg Push Count               | KPI            | Pipeline_Opportunity_Operations | `avg(PushCount) filter PushCount >= 1, IsClosed="false"`                                                                                                                                                                                                         |
+| 4   | Avg Days Pushed              | KPI            | Pipeline_Opportunity_Operations | `avg(PushDays) filter PushCount >= 1, IsClosed="false"`                                                                                                                                                                                                          |
+| 5   | Repeat Offenders (3+ pushes) | KPI            | Pipeline_Opportunity_Operations | `count() filter PushCount >= 3, IsClosed="false"` — red highlight                                                                                                                                                                                                |
+| 6   | Push Count Distribution      | Column         | Pipeline_Opportunity_Operations | `group by PushCount; count() filter PushCount >= 1, IsClosed="false"` — x-axis: 1, 2, 3, 4, 5+                                                                                                                                                                   |
+| 7   | Slipped ARR by Region        | Horizontal bar | Pipeline_Opportunity_Operations | `group by SalesRegion; sum(ARR) filter PushCount >= 1, IsClosed="false"; order desc`                                                                                                                                                                             |
+| 8   | Slippage Trend (Monthly)     | Line           | Pipeline_Opportunity_Operations | `group by EventMonth; count() filter RecordType="field_history", EventField="CloseDate"` — trailing 6 months                                                                                                                                                     |
+| 9   | Slipped Deals Table          | Compare table  | Pipeline_Opportunity_Operations | `filter PushCount >= 1, IsClosed="false"; order by ARR desc; limit 25` — columns: OpportunityName (record action → navigateToRecord via Id), AccountName, OwnerName, ARR, StageName, MotionType, PushCount, PushDays, DaysInStage, RiskBand, RootCauseHypothesis |
+| 10  | Slipped by Motion Type       | Stacked column | Pipeline_Opportunity_Operations | `group by MotionType; count() filter PushCount >= 1, IsClosed="false"` — Land/Expand/Renewal/Services, shows which motion type is slipping most                                                                                                                  |
 
 **Root Cause Hypothesis:** Computed dimension in the builder. Uses empirical stage dwell thresholds (P50/P75/P90 by MotionType x Stage, computed at build time from closed-won opps). Priority-ordered logic:
 
@@ -163,7 +164,7 @@ Each page pre-filtered by `SalesRegion = "{region}"`.
 ## Dashboard 2: Sales Ops Data Quality & Forecast Accuracy
 
 **Builder:** `build_sales_ops_reporting.py`
-**Total:** 3 pages, ~29 widgets
+**Total:** 3 pages, ~28 widgets (excluding section labels, filters, nav links)
 
 ### Page 1.0 — Account Data Quality
 
@@ -380,5 +381,48 @@ Pages using datasets without certain filter fields will have those filters silen
 
 ### Widget count correction
 
-Dashboard 1: 19 pages, ~116 widgets (excluding section labels, filters, nav links)
+Dashboard 1: 19 pages, ~117 widgets (excluding section labels, filters, nav links)
 Dashboard 2: 3 pages, ~28 widgets (excluding section labels, filters, nav links)
+
+### Filter field name mapping
+
+Datasets use different field names for the same concept. The builder must map filter bindings per dataset:
+
+| Filter  | Pipeline_Opportunity_Operations | Revenue_Retention_Health | Opp_Mgmt_KPIs         | Forecast_Intelligence |
+| ------- | ------------------------------- | ------------------------ | --------------------- | --------------------- |
+| Year    | `FYLabel`                       | `YearLabel`              | `FYLabel`             | `FYLabel`             |
+| Quarter | `CloseQuarter`                  | `QuarterLabel`           | `FiscalQuarter` (int) | `CloseQuarter`        |
+| Month   | `MonthLabel`                    | `MonthLabel`             | `CloseMonth`          | n/a                   |
+
+Each step's SAQL must use the correct field name for its dataset. The filter bar pillbox binds to the step, not the dataset directly.
+
+### Record actions on all actionable tables
+
+Every compare table with opportunity or account data must have a record action on the name column:
+
+- Opportunity tables: `OpportunityName` / `OppName` → `navigateToRecord` via `Id` / `OppId`
+- Account tables: `AccountName` → `navigateToRecord` via `AccountId`
+
+### Section labels
+
+Every page should include `section_label()` widgets to separate KPI strip, chart zone, and table zone — standard pattern from all existing builders.
+
+---
+
+## Upgrade Opportunities (implement if time permits)
+
+### YoY deltas on Global Pipeline KPIs (Page 1.0)
+
+Add a YoY comparison subtitle to KPIs 1-4: `(current - prior_year) / prior_year * 100`. Shows trend direction without a separate chart. Requires SAQL that loads two fiscal years and computes the delta. Pattern exists in `build_dashboard_1.py` (Forecast Accuracy Prior Q benchmark).
+
+### QoQ delta on Data Quality Score (Dashboard 2, Page 1.0)
+
+Add `vs last quarter` delta to widget 1 (Avg Data Quality Score). Uses the portfolio_trend rows already in `Customer_Account_Health`. Provides accountability signal — is data quality improving or not.
+
+### Renewal Coverage % (Page 3.0)
+
+New KPI: "What % of accounts with expiring contracts in the next 90 days have an open Renewal opp?" Ties directly to the contract coverage gap validation item. If validation shows a gap, this becomes a permanent KPI. If not, skip.
+
+### Forecast Accuracy by Unit Group trend (Dashboard 2, Page 2.0)
+
+The trailing accuracy combo chart (widget 7) is global only. Allow the UnitGroup filter to slice it, or add a small multiples breakout showing each region's accuracy trajectory over 4 quarters.
