@@ -40,7 +40,7 @@ Existing dashboards for compliance (`build_sales_compliance.py`) and pipeline hy
 ## Dashboard 1: Pipeline Reporting & Insights
 
 **Builder:** `build_pipeline_reporting.py`
-**Total:** 14 pages, ~120 widgets (excluding section labels, filters, nav links)
+**Total:** 8 pages, ~80 widgets (excluding section labels, filters, nav links)
 
 ### Page 1.0 — Global Pipeline Summary
 
@@ -403,8 +403,9 @@ Pages using datasets without certain filter fields will have those filters silen
 
 ### Widget count correction
 
-Dashboard 1: 14 pages, ~95 widgets (excluding section labels, filters, nav links)
+Dashboard 1: 8 pages, ~80 widgets (excluding section labels, filters, nav links)
 Dashboard 2: 3 pages, ~28 widgets (excluding section labels, filters, nav links)
+Total: 11 pages across 2 dashboards
 
 ### Filter field name mapping
 
