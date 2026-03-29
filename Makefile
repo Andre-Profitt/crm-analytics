@@ -30,7 +30,14 @@ SCRIPT_FILES := \
 .PHONY: verify verify-static lint compile contracts alerts-dry-run \
 	readiness api-smoke security-audit api-version-check \
 	model-drift-dry-run validate-actions telemetry-dry-run \
-	metrics-drift-dry-run
+	metrics-drift-dry-run builder-brain-live-smoke builder-brain-live-smoke-report
+
+BUILDER_BRAIN_LIVE_SMOKE_DIR ?= $(ROOT)/config/builder_brain_live_smoke
+BUILDER_BRAIN_LIVE_SMOKE_TARGET_ORG ?= apro@simcorp.com
+BUILDER_BRAIN_LIVE_SMOKE_TIMEOUT ?= 180
+BUILDER_BRAIN_LIVE_SMOKE_OUTPUT_DIR ?= $(ROOT)/output/builder_brain/live_smoke
+BUILDER_BRAIN_LIVE_SMOKE_REPORT_MANIFEST ?= $(BUILDER_BRAIN_LIVE_SMOKE_DIR)/probe_matrix_report_live_smoke.json
+BUILDER_BRAIN_LIVE_SMOKE_MIXED_MANIFEST ?= $(BUILDER_BRAIN_LIVE_SMOKE_DIR)/probe_matrix_mixed_live_smoke.json
 
 # ─── Phase 0: Static verification ────────────────────────────────────
 verify: verify-static
@@ -48,6 +55,22 @@ compile:
 
 contracts:
 	cd $(ROOT) && $(PYTHON) scripts/contract_lint.py
+
+builder-brain-live-smoke-report:
+	cd $(ROOT) && $(PYTHON) scripts/builder_brain.py probe-matrix \
+		--manifest $(BUILDER_BRAIN_LIVE_SMOKE_REPORT_MANIFEST) \
+		--target-org $(BUILDER_BRAIN_LIVE_SMOKE_TARGET_ORG) \
+		--executor-timeout-seconds $(BUILDER_BRAIN_LIVE_SMOKE_TIMEOUT) \
+		--output-dir $(BUILDER_BRAIN_LIVE_SMOKE_OUTPUT_DIR)/report \
+		--json
+
+builder-brain-live-smoke:
+	cd $(ROOT) && $(PYTHON) scripts/builder_brain.py probe-matrix \
+		--manifest $(BUILDER_BRAIN_LIVE_SMOKE_MIXED_MANIFEST) \
+		--target-org $(BUILDER_BRAIN_LIVE_SMOKE_TARGET_ORG) \
+		--executor-timeout-seconds $(BUILDER_BRAIN_LIVE_SMOKE_TIMEOUT) \
+		--output-dir $(BUILDER_BRAIN_LIVE_SMOKE_OUTPUT_DIR)/mixed \
+		--json
 
 # ─── Phase 0: Org readiness ──────────────────────────────────────────
 readiness:

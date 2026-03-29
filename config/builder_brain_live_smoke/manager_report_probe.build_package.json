@@ -1,0 +1,229 @@
+{
+  "package_version": 1,
+  "package_status": "ready_for_execution",
+  "execution_lane": "salesforce_report_handoff",
+  "repo_execution_fit": "partial",
+  "delivery_mode": "native_report_authoring",
+  "build_brief": {
+    "persona": "manager",
+    "domain": "retention",
+    "decision_statement": "Build a salesforce report for the manager persona to answer: Manager owner list report for renewals needing follow-up this week.",
+    "build_mode": "new_surface",
+    "excellence_target": "owner accountability report",
+    "reference_exemplar": "Commercial Rhythm Control Tower"
+  },
+  "surface_contract": {
+    "surface_type": "salesforce_report",
+    "report_format": "tabular",
+    "group_by": [
+      "Manager",
+      "Owner"
+    ],
+    "columns": [
+      "Owner",
+      "Account",
+      "Renewal Date",
+      "Risk Band",
+      "Product Family",
+      "Actual Ownership Alignment",
+      "Variance Driver: Forecast Hygiene"
+    ],
+    "filters": [
+      "renewal_period",
+      "owner",
+      "product_family",
+      "risk_band"
+    ],
+    "sort_by": [
+      "Action Queue: Handoff Quality",
+      "Owner"
+    ],
+    "handoff_surface": "crma_dashboard",
+    "page_blueprint": [
+      {
+        "page": "Queue / Follow-up",
+        "purpose": "End in an actionable queue or follow-up path.",
+        "emphasis_metric": "Action Queue: Handoff Quality"
+      }
+    ],
+    "handoff_target": {
+      "surface_type": "crma_dashboard",
+      "destination_type": "dashboard",
+      "target_surface_id": null,
+      "target_surface_label": null,
+      "target_destination_name": "crma_dashboard",
+      "resolution_source": null
+    }
+  },
+  "review_gates": [
+    "semantic_truth",
+    "owner_accountability",
+    "filter_vocabulary",
+    "decision_fit",
+    "metric_contract",
+    "visual_fit",
+    "action_layer",
+    "patch_contract"
+  ],
+  "critic_rationale": [
+    {
+      "critic": "surface_planner",
+      "focus": "Surface choice and handoff design",
+      "status_before": "warn",
+      "status_after": "ok",
+      "expectation": "Choose the right surface first, then use handoffs only where they sharpen the action path.",
+      "findings_before": [
+        "The excellence target expects a crma_dashboard handoff."
+      ],
+      "revisions_applied": [],
+      "constraints": [
+        "Keep the build on the chosen primary surface unless the planner is explicitly overridden again.",
+        "Preserve the named handoff only when it sharpens the action path."
+      ],
+      "strengths_after": [
+        "Primary surface matches the builder default for this ask.",
+        "Secondary handoff surface matches the local excellence pattern.",
+        "Draft page model is aligned with a proven local surface pattern."
+      ]
+    },
+    {
+      "critic": "story_critic",
+      "focus": "Story arc and page discipline",
+      "status_before": "ok",
+      "status_after": "ok",
+      "expectation": "Keep the page model compact and make the narrative order obvious to the audience.",
+      "findings_before": [],
+      "revisions_applied": [],
+      "constraints": [
+        "Keep the page model within the planned budget and preserve the narrative order.",
+        "Do not expand the asset into extra pages or summary clutter without a new story review."
+      ],
+      "strengths_after": [
+        "Draft page model is aligned with a proven local surface pattern."
+      ]
+    },
+    {
+      "critic": "action_critic",
+      "focus": "Action path and queue quality",
+      "status_before": "warn",
+      "status_after": "ok",
+      "expectation": "Every operating surface should end in a real queue, handoff, or follow-up path.",
+      "findings_before": [
+        "The excellence target expects a crma_dashboard handoff."
+      ],
+      "revisions_applied": [
+        {
+          "change": "handoff_added",
+          "reason": "Added the preferred secondary handoff surface from the excellence target."
+        },
+        {
+          "change": "action_handoff_enforced",
+          "reason": "Kept the report tied to a richer follow-up surface so the action path stays real."
+        }
+      ],
+      "constraints": [
+        "Preserve the real queue, action layer, or follow-up handoff path.",
+        "Do not remove the explicit operating path from the final surface."
+      ],
+      "strengths_after": [
+        "Secondary handoff surface matches the local excellence pattern.",
+        "Report format is queue-first and aligned to operating use.",
+        "Draft includes an explicit queue or action path for the operating persona."
+      ]
+    },
+    {
+      "critic": "visual_critic",
+      "focus": "Visual grammar and widget fit",
+      "status_before": "ok",
+      "status_after": "ok",
+      "expectation": "Use visual forms that match the surface: scan-fast story for CRMA executive views, queue-first tables for reports, lightweight rollups for native dashboards.",
+      "findings_before": [],
+      "revisions_applied": [
+        {
+          "change": "metric_role_labels",
+          "reason": "Added actual/variance/risk/action labeling to metric roles."
+        }
+      ],
+      "constraints": [
+        "Keep the visual grammar aligned to the audience and surface type.",
+        "Do not reintroduce generic queue-like headline widgets or unlabeled metrics."
+      ],
+      "strengths_after": [
+        "Draft has already been promoted through a critic-driven revision pass."
+      ]
+    }
+  ],
+  "design_constraints": [
+    "Keep the build on the chosen primary surface unless the planner is explicitly overridden again.",
+    "Preserve the named handoff only when it sharpens the action path.",
+    "Keep the page model within the planned budget and preserve the narrative order.",
+    "Do not expand the asset into extra pages or summary clutter without a new story review.",
+    "Preserve the real queue, action layer, or follow-up handoff path.",
+    "Do not remove the explicit operating path from the final surface.",
+    "Keep the visual grammar aligned to the audience and surface type.",
+    "Do not reintroduce generic queue-like headline widgets or unlabeled metrics."
+  ],
+  "execution_plan": {
+    "plan_type": "salesforce_report_authoring_skeleton",
+    "delivery_mode": "native_report_authoring",
+    "phases": [
+      {
+        "phase": "report_core",
+        "objective": "Author the report exactly as packaged.",
+        "actions": [
+          "Use a tabular report.",
+          "Group by: Manager, Owner.",
+          "Expose columns: Owner, Account, Renewal Date, Risk Band, Product Family, Actual Ownership Alignment, Variance Driver: Forecast Hygiene.",
+          "Sort by: Action Queue: Handoff Quality, Owner."
+        ]
+      },
+      {
+        "phase": "handoff_and_validation",
+        "objective": "Preserve the follow-up path and validate the queue.",
+        "review_gates": [
+          "semantic_truth",
+          "owner_accountability",
+          "filter_vocabulary",
+          "decision_fit",
+          "metric_contract",
+          "visual_fit",
+          "action_layer",
+          "patch_contract"
+        ],
+        "actions": [
+          "Preserve the crma_dashboard handoff.",
+          "Validate filter vocabulary, row-level accountability, and screenshot fit before rollout."
+        ],
+        "constraints": [
+          "Keep the build on the chosen primary surface unless the planner is explicitly overridden again.",
+          "Preserve the named handoff only when it sharpens the action path.",
+          "Keep the page model within the planned budget and preserve the narrative order.",
+          "Do not expand the asset into extra pages or summary clutter without a new story review.",
+          "Preserve the real queue, action layer, or follow-up handoff path.",
+          "Do not remove the explicit operating path from the final surface.",
+          "Keep the visual grammar aligned to the audience and surface type.",
+          "Do not reintroduce generic queue-like headline widgets or unlabeled metrics."
+        ]
+      }
+    ]
+  },
+  "acceptance_criteria": [
+    "Primary surface remains salesforce_report and stays aligned to the builder decision.",
+    "Metric roles remain explicitly labeled as actual, variance/driver, risk, and action.",
+    "Handoff path is real and points to crma_dashboard.",
+    "Final surface stays within the planned page/view budget of 1.",
+    "Report remains queue-first and keeps the specified grouping, columns, and sort order.",
+    "Final asset passes live data validation and screenshot review before rollout."
+  ],
+  "revision_summary": [
+    "metric_role_labels",
+    "handoff_added",
+    "action_handoff_enforced"
+  ],
+  "next_steps": [
+    "Author the report with the specified format, grouping, filters, columns, and sort order.",
+    "Keep the report queue-first; do not turn it into an executive story surface.",
+    "Preserve the crma_dashboard handoff for richer follow-up diagnostics.",
+    "Validate the filter vocabulary and row-level action path before rollout."
+  ]
+}

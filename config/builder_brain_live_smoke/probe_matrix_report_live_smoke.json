@@ -1,0 +1,19 @@
+{
+  "suite_name": "builder_brain_live_smoke_report",
+  "provenance": {
+    "source_manifest": "output/builder_brain/probe_matrix_report_live_20260328_v1_manifest.json",
+    "source_package": "output/builder_brain/report_executor_live_preview_20260327/build_package.json"
+  },
+  "defaults": {
+    "target_org": "apro@simcorp.com",
+    "cleanup": true,
+    "executor_timeout_seconds": 180
+  },
+  "probes": [
+    {
+      "name": "manager_report_probe",
+      "package": "./manager_report_probe.build_package.json",
+      "clone_from_report_id": "00OTb000008TZaTMAW"
+    }
+  ]
+}

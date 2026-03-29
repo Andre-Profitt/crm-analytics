@@ -1,0 +1,87 @@
+{
+  "package_version": 1,
+  "package_status": "ready_for_execution",
+  "execution_lane": "salesforce_dashboard_handoff",
+  "repo_execution_fit": "partial",
+  "delivery_mode": "native_dashboard_authoring",
+  "build_brief": {
+    "persona": "manager",
+    "domain": "revenue",
+    "decision_statement": "Build a native Salesforce dashboard for manager forecast inspection.",
+    "build_mode": "new_surface",
+    "excellence_target": "lightweight native dashboard",
+    "reference_exemplar": "Manager Forecast Snapshot"
+  },
+  "surface_contract": {
+    "surface_type": "salesforce_dashboard",
+    "filters": [
+      "fiscal_period",
+      "manager",
+      "forecast_category"
+    ],
+    "handoff_surface": "salesforce_report",
+    "page_model": [
+      "Summary"
+    ],
+    "page_storyboard": [
+      {
+        "page": "Summary",
+        "purpose": "State the current forecast posture and the top exceptions.",
+        "emphasis_metric": "Actual Forecast & Closed Won",
+        "sections": [
+          {
+            "section": "headline_story",
+            "intent": "Show the current position.",
+            "widgets": [
+              {
+                "role": "headline_metric",
+                "widget": "number",
+                "metric": "Actual Forecast & Closed Won"
+              },
+              {
+                "role": "driver_metric",
+                "widget": "line",
+                "metric": "Variance Driver: Pipeline Coverage"
+              }
+            ]
+          },
+          {
+            "section": "action_layer",
+            "intent": "Make the follow-up path explicit.",
+            "widgets": [
+              {
+                "role": "action_metric",
+                "widget": "comparisontable",
+                "metric": "Action Queue: Close-Date Risk"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "handoff_target": {
+      "surface_type": "salesforce_report",
+      "destination_type": "report",
+      "target_surface_id": "00OTb000008TZaTMAW",
+      "target_surface_label": "Forecast & Closed Won",
+      "target_destination_name": "00OTb000008TZaTMAW",
+      "resolution_source": "builder_brain_handoff_targets"
+    }
+  },
+  "review_gates": [
+    "decision_fit",
+    "visual_fit",
+    "action_layer"
+  ],
+  "design_constraints": [
+    "Keep the dashboard lightweight.",
+    "Preserve the report handoff."
+  ],
+  "acceptance_criteria": [
+    "Dashboard stays single-view and scan-fast.",
+    "Follow-up report handoff is real."
+  ],
+  "revision_summary": [
+    "metric_role_labels"
+  ]
+}

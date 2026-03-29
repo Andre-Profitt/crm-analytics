@@ -1,0 +1,26 @@
+{
+  "suite_name": "builder_brain_live_smoke_mixed",
+  "provenance": {
+    "source_manifest": "output/builder_brain/probe_matrix_live_20260328_v2_manifest.json",
+    "source_summary": "output/builder_brain/probe_matrix_live_20260328_v2/probe_matrix_summary.json"
+  },
+  "defaults": {
+    "target_org": "apro@simcorp.com",
+    "cleanup": true,
+    "executor_timeout_seconds": 180,
+    "dashboard_filter_automation_script": "../../scripts/salesforce_dashboard_filter_automation.py"
+  },
+  "probes": [
+    {
+      "name": "manager_report_probe",
+      "package": "./manager_report_probe.build_package.json",
+      "clone_from_report_id": "00OTb000008TZaTMAW"
+    },
+    {
+      "name": "manager_dashboard_probe",
+      "package": "./manager_dashboard_probe.build_package.json",
+      "clone_from_dashboard_id": "01ZTb00000CyYpVMAV",
+      "session": "builder_brain_live_smoke"
+    }
+  ]
+}
