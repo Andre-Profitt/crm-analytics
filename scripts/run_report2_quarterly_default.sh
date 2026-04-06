@@ -17,6 +17,11 @@ WORKSPACE="$ROOT_DIR/output/sales_ops_quarterly_deck_2026-03-31"
 BUILD_SCRIPT="$WORKSPACE/build_sales_ops_quarterly_deck.js"
 SAQL_REFRESH="$ROOT_DIR/scripts/run_report2_saql_refresh.py"
 EXPORT_HELPER="$ROOT_DIR/scripts/export_powerpoint_pdf.py"
+# Note: render_slides.py and create_montage.py currently live under the
+# Report 1 deck workspace. They are reusable PDF rasterization helpers,
+# not Report-1-specific. Restructuring them into a canonical shared
+# scripts/ location is tracked as a follow-up; for now we depend on the
+# existing Report 1 path.
 RENDER_SCRIPT="$ROOT_DIR/output/sales_director_monthly_deck_2026-03-31/scripts/render_slides.py"
 MONTAGE_SCRIPT="$ROOT_DIR/output/sales_director_monthly_deck_2026-03-31/scripts/create_montage.py"
 SLIDES_VENV_PY="$ROOT_DIR/.venv_slides/bin/python"
@@ -94,6 +99,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if ! [[ "$SNAPSHOT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+  echo "ERROR: --snapshot-date must be in YYYY-MM-DD format, got: $SNAPSHOT_DATE" >&2
+  exit 1
+fi
+
 RUN_DATE="$(date -u +%Y-%m-%d)"
 if [[ -z "$OUTPUT_DIR" ]]; then
   OUTPUT_DIR="$ROOT_DIR/output/sales_ops_quarterly_runs/${RUN_DATE}T_refresh_snapshot_${SNAPSHOT_DATE}"
@@ -111,7 +121,7 @@ QL_THUMB_OUT="$OUTPUT_DIR/ql_thumb/sales_ops_quarterly_review_${SNAPSHOT_DATE}.p
 
 PHASE_PKILL_STATUS="ok"
 PHASE_AUTH_STATUS="ok"
-PHASE_SAQL_STATUS="skipped"
+PHASE_SAQL_STATUS="pending"
 PHASE_BUILD_STATUS="pending"
 PHASE_EXPORT_STATUS="pending"
 PHASE_MONTAGE_STATUS="pending"
@@ -128,14 +138,14 @@ if ! sf org display --target-org "$TARGET_ORG" --json > /dev/null 2>&1; then
 fi
 
 # --- Phase 1: SAQL refresh ---
-if [[ "$SKIP_SAQL_REFRESH" -eq 0 ]]; then
-  if python3 "$SAQL_REFRESH" --snapshot-date "$SNAPSHOT_DATE" --target-org "$TARGET_ORG" --json > "$OUTPUT_DIR/saql_refresh_summary.json" 2> "$OUTPUT_DIR/saql_refresh_stderr.log"; then
-    PHASE_SAQL_STATUS="ok"
-  else
-    PHASE_SAQL_STATUS="fail"
-    echo "ERROR: SAQL refresh failed; see $OUTPUT_DIR/saql_refresh_stderr.log" >&2
-    exit 2
-  fi
+if [[ "$SKIP_SAQL_REFRESH" -eq 1 ]]; then
+  PHASE_SAQL_STATUS="skipped"
+elif python3 "$SAQL_REFRESH" --snapshot-date "$SNAPSHOT_DATE" --target-org "$TARGET_ORG" --json > "$OUTPUT_DIR/saql_refresh_summary.json" 2> "$OUTPUT_DIR/saql_refresh_stderr.log"; then
+  PHASE_SAQL_STATUS="ok"
+else
+  PHASE_SAQL_STATUS="fail"
+  echo "ERROR: SAQL refresh failed; see $OUTPUT_DIR/saql_refresh_stderr.log" >&2
+  exit 2
 fi
 
 # --- Phase 2: build deck ---
@@ -204,33 +214,65 @@ else
 fi
 
 # --- Summary ---
-SUMMARY_JSON=$(cat <<EOF
-{
-  "artifact_type": "report2_quarterly_run_summary",
-  "run_date": "$RUN_DATE",
-  "snapshot_date": "$SNAPSHOT_DATE",
-  "target_org": "$TARGET_ORG",
-  "output_dir": "$OUTPUT_DIR",
-  "deck_path": "$DECK_OUT",
-  "deck_summary_path": "$SUMMARY_OUT",
-  "pdf_path": "$PDF_OUT",
-  "montage_path": "$MONTAGE_OUT",
-  "ql_thumb_path": "$QL_THUMB_OUT",
-  "phases": {
-    "preflight_pkill": "$PHASE_PKILL_STATUS",
-    "auth": "$PHASE_AUTH_STATUS",
-    "saql_refresh": "$PHASE_SAQL_STATUS",
-    "deck_build": "$PHASE_BUILD_STATUS",
-    "powerpoint_export": "$PHASE_EXPORT_STATUS",
-    "powerpoint_export_retried": $EXPORT_RETRIED,
-    "powerpoint_montage": "$PHASE_MONTAGE_STATUS",
-    "ql_thumb": "$PHASE_THUMB_STATUS"
-  }
-}
-EOF
-)
+# Build the summary JSON with python3 to safely escape any path or status
+# value that might contain special characters. This avoids the heredoc
+# injection vector where an OUTPUT_DIR or path with embedded quotes /
+# backslashes / newlines would corrupt run_summary.json. We pass values
+# via environment variables (NOT shell interpolation into the python
+# source), so python sees them as plain strings and json.dumps escapes
+# them correctly.
+SUMMARY_PATH="$OUTPUT_DIR/run_summary.json"
+RUN_DATE="$RUN_DATE" \
+SNAPSHOT_DATE="$SNAPSHOT_DATE" \
+TARGET_ORG="$TARGET_ORG" \
+OUTPUT_DIR_VAL="$OUTPUT_DIR" \
+DECK_OUT="$DECK_OUT" \
+SUMMARY_OUT="$SUMMARY_OUT" \
+PDF_OUT="$PDF_OUT" \
+MONTAGE_OUT="$MONTAGE_OUT" \
+QL_THUMB_OUT="$QL_THUMB_OUT" \
+PHASE_PKILL_STATUS="$PHASE_PKILL_STATUS" \
+PHASE_AUTH_STATUS="$PHASE_AUTH_STATUS" \
+PHASE_SAQL_STATUS="$PHASE_SAQL_STATUS" \
+PHASE_BUILD_STATUS="$PHASE_BUILD_STATUS" \
+PHASE_EXPORT_STATUS="$PHASE_EXPORT_STATUS" \
+PHASE_MONTAGE_STATUS="$PHASE_MONTAGE_STATUS" \
+PHASE_THUMB_STATUS="$PHASE_THUMB_STATUS" \
+EXPORT_RETRIED="$EXPORT_RETRIED" \
+SUMMARY_PATH="$SUMMARY_PATH" \
+python3 - <<'PYEOF'
+import json
+import os
 
-echo "$SUMMARY_JSON" > "$OUTPUT_DIR/run_summary.json"
+payload = {
+    "artifact_type": "report2_quarterly_run_summary",
+    "run_date": os.environ["RUN_DATE"],
+    "snapshot_date": os.environ["SNAPSHOT_DATE"],
+    "target_org": os.environ["TARGET_ORG"],
+    "output_dir": os.environ["OUTPUT_DIR_VAL"],
+    "deck_path": os.environ["DECK_OUT"],
+    "deck_summary_path": os.environ["SUMMARY_OUT"],
+    "pdf_path": os.environ["PDF_OUT"],
+    "montage_path": os.environ["MONTAGE_OUT"],
+    "ql_thumb_path": os.environ["QL_THUMB_OUT"],
+    "phases": {
+        "preflight_pkill": os.environ["PHASE_PKILL_STATUS"],
+        "auth": os.environ["PHASE_AUTH_STATUS"],
+        "saql_refresh": os.environ["PHASE_SAQL_STATUS"],
+        "deck_build": os.environ["PHASE_BUILD_STATUS"],
+        "powerpoint_export": os.environ["PHASE_EXPORT_STATUS"],
+        "powerpoint_export_retried": int(os.environ["EXPORT_RETRIED"]),
+        "powerpoint_montage": os.environ["PHASE_MONTAGE_STATUS"],
+        "ql_thumb": os.environ["PHASE_THUMB_STATUS"],
+    },
+}
+out_path = os.environ["SUMMARY_PATH"]
+with open(out_path, "w") as f:
+    json.dump(payload, f, indent=2)
+    f.write("\n")
+PYEOF
+
+SUMMARY_JSON=$(cat "$OUTPUT_DIR/run_summary.json")
 
 if [[ "$WANT_JSON" -eq 1 ]]; then
   echo "$SUMMARY_JSON"
