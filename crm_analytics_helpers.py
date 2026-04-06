@@ -52,7 +52,12 @@ PATCH_COLUMNMAP_REQUIRED_VIZ = {
     "vbar",
 }
 PATCH_COLUMNMAP_NULL_VIZ = {"funnel", "treemap", "waterfall"}
-PATCH_NUMBER_WIDGET_BANNED_FIELDS = {"compact", "numberFormat", "title"}
+PATCH_NUMBER_WIDGET_BANNED_FIELDS = {
+    "compact",
+    "numberFormat",
+    "title",
+    "conditionalFormatting",
+}
 PATCH_NUMBER_WIDGET_INVALID_FIELDS = {"text"}
 PATCH_LINK_WIDGET_DESTINATION_TYPES = {"dashboard", "page"}
 PATCH_QUERY_STEP_REFERENCE_RE = re.compile(
@@ -2153,7 +2158,9 @@ def build_dashboard_state(
 
 def deploy_dashboard(inst, tok, dashboard_id, state):
     """Deploy dashboard state via PATCH to an existing dashboard."""
-    normalized_state = normalize_dashboard_state_for_patch(state)
+    normalized_state = normalize_dashboard_state_for_patch(
+        state, strip_number_widget_patch_fields=True
+    )
     body = json.dumps({"state": normalized_state})
     steps = normalized_state["steps"]
     widgets = normalized_state["widgets"]
