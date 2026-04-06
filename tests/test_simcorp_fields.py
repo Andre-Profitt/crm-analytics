@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-import simcorp_fields
-from simcorp_fields import (
+import simcorp_fields  # pyright: ignore[reportMissingImports]
+from simcorp_fields import (  # pyright: ignore[reportMissingImports]
     OPPORTUNITY_FIELDS,
     SCHEMA,
     SchemaDriftError,
@@ -47,6 +47,7 @@ def test_schema_dict_covers_every_constant_tuple():
 
 def test_assert_org_schema_passes_when_all_fields_present(monkeypatch):
     def fake_describe(instance_url, access_token, obj):
+        del instance_url, access_token
         return {f: {} for f in SCHEMA[obj]}
 
     monkeypatch.setattr(simcorp_fields, "_describe_object", fake_describe)
@@ -61,6 +62,7 @@ def test_assert_org_schema_raises_on_single_missing_field(monkeypatch):
     fake_org_fields = set(OPPORTUNITY_FIELDS) - {missing_field}
 
     def fake_describe(instance_url, access_token, obj):
+        del instance_url, access_token, obj
         return {f: {} for f in fake_org_fields}
 
     monkeypatch.setattr(simcorp_fields, "_describe_object", fake_describe)
@@ -73,6 +75,7 @@ def test_assert_org_schema_lists_all_missing_fields_in_one_error(monkeypatch):
     fake_org_fields = set(OPPORTUNITY_FIELDS) - missing
 
     def fake_describe(instance_url, access_token, obj):
+        del instance_url, access_token, obj
         return {f: {} for f in fake_org_fields}
 
     monkeypatch.setattr(simcorp_fields, "_describe_object", fake_describe)
@@ -87,6 +90,7 @@ def test_assert_org_schema_walks_multiple_objects(monkeypatch):
     seen = []
 
     def fake_describe(instance_url, access_token, obj):
+        del instance_url, access_token
         seen.append(obj)
         return {f: {} for f in SCHEMA[obj]}
 
@@ -99,6 +103,7 @@ def test_assert_org_schema_default_objects_is_full_schema(monkeypatch):
     seen = []
 
     def fake_describe(instance_url, access_token, obj):
+        del instance_url, access_token
         seen.append(obj)
         return {f: {} for f in SCHEMA[obj]}
 
@@ -114,6 +119,7 @@ def test_schema_drift_error_message_names_the_constant_tuple(monkeypatch):
     fake_org_fields = set(OPPORTUNITY_FIELDS) - {missing_field}
 
     def fake_describe(instance_url, access_token, obj):
+        del instance_url, access_token, obj
         return {f: {} for f in fake_org_fields}
 
     monkeypatch.setattr(simcorp_fields, "_describe_object", fake_describe)
