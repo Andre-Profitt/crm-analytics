@@ -12,7 +12,7 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from run_report2_saql_refresh import merge_query_results, load_validation_json
+from run_report2_saql_refresh import merge_query_results, load_validation_json  # pyright: ignore[reportMissingImports]
 
 FIXTURE_PATH = (
     REPO_ROOT / "tests" / "fixtures" / "sales_ops_live_saql_validation_sample.json"
