@@ -15,6 +15,7 @@ Datasets:
 
 import csv
 import io
+import logging
 import sys
 
 from crm_analytics_helpers import (
@@ -39,7 +40,6 @@ from crm_analytics_helpers import (
     section_label,
     nav_link,
     pg,
-    nav_row,
     build_dashboard_state,
     deploy_dashboard,
     coalesce_filter,
@@ -53,13 +53,28 @@ from crm_analytics_helpers import (
     create_dataflow,
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
+    compare_table,
+    line_chart,
+    KPI_CARD_STYLE,
 )
+from crm_analytics_runtime import builder_run  # noqa: F401  # pyright: ignore[reportMissingImports]
+from simcorp_fields import assert_org_schema  # noqa: F401  # pyright: ignore[reportMissingImports]
+
+logger = logging.getLogger(__name__)
 
 DS = "Account_Intelligence"
 DS_LABEL = "Account Intelligence"
 CONTACT_DS = "Contact_Coverage"
 CONTACT_DS_LABEL = "Contact Coverage"
 DASHBOARD_LABEL = "Account Intelligence KPIs"
+
+# ── Consulting-grade constants ──
+KPI_FACET_SCOPE = {
+    "receiveFacetSource": {
+        "mode": "include",
+        "steps": ["f_unit", "f_industry", "f_risk", "f_kyc"],
+    },
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -69,7 +84,7 @@ DASHBOARD_LABEL = "Account Intelligence KPIs"
 
 def create_account_dataset(inst, tok):
     """Build Account_Intelligence from Account SOQL with computed fields."""
-    print("\n=== Building Account Intelligence dataset ===")
+    logger.info("\n=== Building Account Intelligence dataset ===")
 
     accounts = _soql(
         inst,
@@ -83,7 +98,7 @@ def create_account_dataset(inst, tok):
         "FROM Account "
         "WHERE CreatedDate >= 2022-01-01T00:00:00Z",
     )
-    print(f"  Queried {len(accounts)} accounts")
+    logger.info("  Queried %d accounts", len(accounts))
 
     # ── Build CSV ──
     fields = [
@@ -253,8 +268,8 @@ def create_account_dataset(inst, tok):
         seg_counts[segment] = seg_counts.get(segment, 0) + 1
         writer2.writerow(row)
     csv_bytes = buf2.getvalue().encode("utf-8")
-    print(f"  CSV: {len(csv_bytes):,} bytes, {len(accounts)} rows (with Segment)")
-    print(f"  Segments: {seg_counts}")
+    logger.info("  CSV: %d bytes, %d rows (with Segment)", len(csv_bytes), len(accounts))
+    logger.info("  Segments: %s", seg_counts)
 
     # ── Metadata ──
     fields_meta = [
@@ -286,12 +301,13 @@ def create_account_dataset(inst, tok):
         _dim("Segment", "Account Segment"),
     ]
 
-    return upload_dataset(inst, tok, DS, DS_LABEL, fields_meta, csv_bytes)
+    _upload_ok = upload_dataset(inst, tok, DS, DS_LABEL, fields_meta, csv_bytes)
+    return _upload_ok, len(accounts)
 
 
 def create_contact_dataset(inst, tok):
     """Build Contact_Coverage from Contact SOQL with computed fields."""
-    print("\n=== Building Contact Coverage dataset ===")
+    logger.info("\n=== Building Contact Coverage dataset ===")
 
     contacts = _soql(
         inst,
@@ -300,7 +316,7 @@ def create_contact_dataset(inst, tok):
         "Department__c, LastActivityDate "
         "FROM Contact WHERE CreatedDate >= 2024-01-01T00:00:00Z",
     )
-    print(f"  Queried {len(contacts)} contacts")
+    logger.info("  Queried %d contacts", len(contacts))
 
     # ── Build CSV ──
     fields = [
@@ -356,7 +372,7 @@ def create_contact_dataset(inst, tok):
         )
 
     csv_bytes = buf.getvalue().encode("utf-8")
-    print(f"  CSV: {len(csv_bytes):,} bytes, {len(contacts)} rows")
+    logger.info("  CSV: %d bytes, %d rows", len(csv_bytes), len(contacts))
 
     # ── Metadata ──
     fields_meta = [
@@ -1078,6 +1094,8 @@ def build_widgets():
         "p1_f_industry": pillbox("f_industry", "Industry"),
         "p1_f_risk": pillbox("f_risk", "Risk Level"),
         "p1_f_kyc": pillbox("f_kyc", "KYC Status"),
+        # Section: fill rates
+        "p1_sec_fill_rates": section_label("Field Completeness Gauges"),
         # Gauges: fill rates
         "p1_g_duns": gauge(
             "s_duns_rate",
@@ -1115,14 +1133,14 @@ def build_widgets():
                 {"start": 60, "stop": 100, "color": "#04844B"},
             ],
         ),
-        # Line: DQ trend
-        "p1_ch_trend": rich_chart(
+        # Line: DQ trend (with target reference line)
+        "p1_ch_trend": line_chart(
             "s_dq_trend",
-            "line",
             "Data Quality Trend (Avg Score by Month)",
-            ["CreatedMonth"],
-            ["avg_score"],
             axis_title="Avg Score (0-5)",
+            reference_lines=[
+                {"value": 3.5, "label": "Target", "color": "#04844B"},
+            ],
         ),
         # Column: Accounts created monthly
         "p1_ch_created": rich_chart(
@@ -1132,14 +1150,14 @@ def build_widgets():
             ["CreatedMonth"],
             ["cnt"],
             axis_title="Count",
+            show_values=True,
         ),
         # Comparisontable: Missing fields detail
         "p1_sec_detail": section_label("Missing Fields Detail"),
-        "p1_tbl_poor": rich_chart(
+        "p1_tbl_poor": compare_table(
             "s_dq_poor_list",
-            "comparisontable",
             "Accounts with Data Quality Score < 3 (Top 25)",
-            [
+            columns=[
                 "Name",
                 "OwnerName",
                 "UnitGroup",
@@ -1147,8 +1165,18 @@ def build_widgets():
                 "HasDUNS",
                 "HasUnitGroup",
                 "HasAxiomaId",
+                "DataQualityScore",
             ],
-            ["DataQualityScore"],
+            format_rules=[
+                {
+                    "type": "threshold",
+                    "field": "DataQualityScore",
+                    "rules": [
+                        {"value": 1, "color": "#D4504C", "operator": "lte"},
+                        {"value": 2, "color": "#FFB75D", "operator": "lte"},
+                    ],
+                },
+            ],
         ),
         # Donut: Overall data quality distribution
         "p1_ch_band": rich_chart(
@@ -1203,15 +1231,21 @@ def build_widgets():
             split=["KYCStatus"],
             show_legend=True,
             axis_title="Count",
+            show_values=True,
         ),
         # Comparisontable: KYC detail list
         "p2_sec_detail": section_label("KYC Account Detail"),
-        "p2_tbl_kyc": rich_chart(
+        "p2_tbl_kyc": compare_table(
             "s_kyc_detail",
-            "comparisontable",
             "KYC Account Detail (Top 25)",
-            ["Name", "OwnerName", "UnitGroup", "KYCStatus", "Type", "BillingCountry"],
-            [],
+            columns=[
+                "Name",
+                "OwnerName",
+                "UnitGroup",
+                "KYCStatus",
+                "Type",
+                "BillingCountry",
+            ],
         ),
         # ═══════════════════════════════════════════════════════════════════
         #  PAGE 3 — Customer Health
@@ -1230,6 +1264,8 @@ def build_widgets():
         "p3_f_industry": pillbox("f_industry", "Industry"),
         "p3_f_risk": pillbox("f_risk", "Risk Level"),
         "p3_f_kyc": pillbox("f_kyc", "KYC Status"),
+        # Section: Risk & Churn KPIs
+        "p3_sec_risk_kpis": section_label("Risk & Churn Overview"),
         # Donut: Risk distribution
         "p3_ch_risk": rich_chart(
             "s_risk_dist",
@@ -1281,14 +1317,14 @@ def build_widgets():
             split=["RiskLevel"],
             show_legend=True,
             axis_title="Count",
+            show_values=True,
         ),
         # Comparisontable: High-risk accounts
         "p3_sec_detail": section_label("At-Risk Account Detail"),
-        "p3_tbl_risk": rich_chart(
+        "p3_tbl_risk": compare_table(
             "s_risk_list",
-            "comparisontable",
             "High & Medium Risk Accounts (Top 25)",
-            [
+            columns=[
                 "Name",
                 "RiskLevel",
                 "UnitGroup",
@@ -1296,7 +1332,16 @@ def build_widgets():
                 "ExpectedTerminationDate",
                 "TerminationReason",
             ],
-            [],
+            format_rules=[
+                {
+                    "type": "threshold",
+                    "field": "RiskLevel",
+                    "rules": [
+                        {"value": "High", "color": "#D4504C", "operator": "equal"},
+                        {"value": "Medium", "color": "#FFB75D", "operator": "equal"},
+                    ],
+                },
+            ],
         ),
         # Hbar: Partner engagement levels
         "p3_ch_partner": rich_chart(
@@ -1306,6 +1351,7 @@ def build_widgets():
             ["PartnerLevel"],
             ["cnt"],
             axis_title="Count",
+            show_values=True,
         ),
         # ═══════════════════════════════════════════════════════════════════
         #  PAGE 4 — Cross-sell & Contact
@@ -1324,9 +1370,17 @@ def build_widgets():
         "p4_f_industry": pillbox("f_industry", "Industry"),
         "p4_f_risk": pillbox("f_risk", "Risk Level"),
         "p4_f_kyc": pillbox("f_kyc", "KYC Status"),
+        # Section: Axioma & SaaS KPIs
+        "p4_sec_axioma_kpis": section_label("Axioma & SaaS Adoption"),
         # Number: Axioma accounts
         "p4_n_axioma": num(
-            "s_axioma_count", "cnt", "Axioma Accounts", "#04844B", False, 28
+            "s_axioma_count",
+            "cnt",
+            "Axioma Accounts",
+            "#04844B",
+            compact=False,
+            tier="primary",
+            widget_style=KPI_CARD_STYLE,
         ),
         # Gauge: Axioma penetration
         "p4_g_axioma_pct": gauge(
@@ -1358,6 +1412,7 @@ def build_widgets():
             ["ContactBand"],
             ["cnt"],
             axis_title="Accounts",
+            show_values=True,
         ),
         # Donut: Contact level distribution (Contact_Coverage)
         "p4_ch_level": rich_chart(
@@ -1414,24 +1469,55 @@ def build_widgets():
             split=["Industry"],
             show_legend=True,
             axis_title="Account Count",
+            show_values=True,
         ),
         "p4_sec_ws_opps": section_label(
             "Cross-Sell Opportunities (Non-Axioma Accounts)"
         ),
-        "p4_tbl_ws_opps": rich_chart(
+        "p4_tbl_ws_opps": compare_table(
             "s_whitespace_low_coverage",
-            "comparisontable",
             "Top 25 Non-Axioma Accounts by AuM",
-            ["Name", "OwnerName", "UnitGroup", "Industry", "RiskLevel"],
-            ["AuM", "DataQualityScore"],
+            columns=[
+                "Name",
+                "OwnerName",
+                "UnitGroup",
+                "Industry",
+                "RiskLevel",
+                "AuM",
+                "DataQualityScore",
+            ],
+            format_rules=[
+                {
+                    "type": "threshold",
+                    "field": "DataQualityScore",
+                    "rules": [
+                        {"value": 1, "color": "#D4504C", "operator": "lte"},
+                        {"value": 2, "color": "#FFB75D", "operator": "lte"},
+                    ],
+                },
+            ],
         ),
         "p4_sec_ws_summary": section_label("Unit Group Penetration Summary"),
-        "p4_tbl_ws_summary": rich_chart(
+        "p4_tbl_ws_summary": compare_table(
             "s_whitespace_unit_summary",
-            "comparisontable",
             "Axioma Penetration by Unit Group",
-            ["UnitGroup"],
-            ["total_accts", "axioma_accts", "axioma_pct", "total_aum"],
+            columns=[
+                "UnitGroup",
+                "total_accts",
+                "axioma_accts",
+                "axioma_pct",
+                "total_aum",
+            ],
+            format_rules=[
+                {
+                    "type": "threshold",
+                    "field": "axioma_pct",
+                    "rules": [
+                        {"value": 20, "color": "#D4504C", "operator": "lte"},
+                        {"value": 40, "color": "#FFB75D", "operator": "lte"},
+                    ],
+                },
+            ],
         ),
         # ═══════════════════════════════════════════════════════════════════
         #  PAGE 5 — Segment Analysis
@@ -1471,13 +1557,11 @@ def build_widgets():
             show_legend=True,
             axis_title="Count",
         ),
-        # Comparisontable: AuM by Unit Group
-        "p5_ch_aum": rich_chart(
+        # Compare table: AuM by Unit Group
+        "p5_ch_aum": compare_table(
             "s_aum_by_unit",
-            "comparisontable",
             "AuM by Unit Group",
-            ["UnitGroup"],
-            ["total_aum", "cnt", "avg_aum"],
+            columns=["UnitGroup", "total_aum", "cnt", "avg_aum"],
         ),
         # Donut: Size band distribution
         "p5_ch_size": rich_chart(
@@ -1497,6 +1581,7 @@ def build_widgets():
             ["BillingCountry"],
             ["cnt"],
             axis_title="Count",
+            show_values=True,
         ),
         # Stackhbar: Industry × KYC Status
         "p5_ch_ind_kyc": rich_chart(
@@ -1508,16 +1593,18 @@ def build_widgets():
             split=["KYCStatus"],
             show_legend=True,
             axis_title="Count",
+            show_values=True,
         ),
-        # ── Revenue Concentration (Additive CRO) ──
-        "p5_sec_concentration": section_label("Revenue Concentration (Pareto)"),
+        # ── Client concentration by size (AuM) ──
+        "p5_sec_concentration": section_label("Client Concentration by AuM"),
         "p5_ch_concentration": rich_chart(
             "s_rev_concentration",
             "hbar",
-            "Top 20 Accounts by AuM (Revenue Concentration)",
+            "Top 20 Accounts by AuM",
             ["Name"],
             ["total_aum"],
             axis_title="AuM",
+            show_values=True,
         ),
     }
 
@@ -1530,6 +1617,7 @@ def build_widgets():
         ["VintageYear"],
         ["acct_cnt"],
         axis_title="Count",
+        show_values=True,
     )
     w["p5_ch_vintage_aum"] = rich_chart(
         "s_vintage_cohort",
@@ -1538,6 +1626,7 @@ def build_widgets():
         ["VintageYear"],
         ["total_aum"],
         axis_title="AuM (m)",
+        show_values=True,
     )
     w["p5_ch_vintage_risk"] = rich_chart(
         "s_vintage_risk",
@@ -1548,14 +1637,15 @@ def build_widgets():
         split=["RiskLevel"],
         show_legend=True,
         axis_title="Count",
+        show_values=True,
     )
-    w["p5_ch_vintage_ret"] = rich_chart(
+    w["p5_ch_vintage_ret"] = line_chart(
         "s_vintage_retention",
-        "line",
         "Retention Rate by Vintage Year",
-        ["VintageYear"],
-        ["retention_rate"],
         axis_title="Retention %",
+        reference_lines=[
+            {"value": 90, "label": "90% Target", "color": "#04844B"},
+        ],
     )
 
     # ── Phase 7: Embedded table actions ──────────────────────────────────
@@ -1637,12 +1727,10 @@ def build_widgets():
     )
     # Stats: DQ percentile distribution
     w["p7_sec_dq_dist"] = section_label("Data Quality Score Distribution")
-    w["p7_stat_dq_dist"] = rich_chart(
+    w["p7_stat_dq_dist"] = compare_table(
         "s_stat_dq_dist",
-        "comparisontable",
         "Data Quality Percentiles (P25/Median/P75/Max)",
-        [],
-        [
+        columns=[
             "min_dq",
             "p25",
             "median_dq",
@@ -1652,15 +1740,24 @@ def build_widgets():
             "std_dev",
             "acct_count",
         ],
+        show_totals=False,
     )
     # Stats: Industry AuM analysis
     w["p7_sec_industry"] = section_label("Industry AuM & Quality Analysis")
-    w["p7_stat_industry"] = rich_chart(
+    w["p7_stat_industry"] = compare_table(
         "s_stat_industry_aum",
-        "comparisontable",
         "Top 20 Industries by AuM (with Avg Data Quality)",
-        ["Industry"],
-        ["total_aum", "cnt", "avg_dq"],
+        columns=["Industry", "total_aum", "cnt", "avg_dq"],
+        format_rules=[
+            {
+                "type": "threshold",
+                "field": "avg_dq",
+                "rules": [
+                    {"value": 2, "color": "#D4504C", "operator": "lte"},
+                    {"value": 3, "color": "#FFB75D", "operator": "lte"},
+                ],
+            },
+        ],
     )
 
     # Phase 9: Python-precomputed Segment visualization
@@ -1679,6 +1776,7 @@ def build_widgets():
         ["Segment", "Industry"],
         ["total_aum"],
         axis_title="AuM (Billions)",
+        show_values=True,
     )
     # Cumulative AuM running total
     w["p7_sec_running"] = section_label("Cumulative AuM Over Time")
@@ -1688,14 +1786,12 @@ def build_widgets():
         axis_title="AuM (m)",
     )
 
-    # Add nav6 (Advanced) to pages 1-5
-    for px in range(1, 6):
-        w[f"p{px}_nav6"] = nav_link("advanalytics", "Advanced")
-    # Add nav7 (Statistics) to pages 1-6
-    for px in range(1, 7):
-        w[f"p{px}_nav7"] = nav_link("acctstats", "Statistics")
-
-    return w
+    # The manager-facing account surface should not carry the analyst shell.
+    return {
+        name: widget
+        for name, widget in w.items()
+        if "_nav" not in name and not name.startswith(("p6_", "p7_"))
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1705,97 +1801,97 @@ def build_widgets():
 
 def build_layout():
     # ── Page 1: Data Quality ──
-    p1 = nav_row("p1", 7) + [
-        {"name": "p1_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+    p1 = [
+        {"name": "p1_hdr", "row": 0, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar (4 pillbox filters)
-        {"name": "p1_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
-        {"name": "p1_f_industry", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
-        {"name": "p1_f_risk", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
-        {"name": "p1_f_kyc", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
+        {"name": "p1_f_unit", "row": 2, "column": 0, "colspan": 3, "rowspan": 2},
+        {"name": "p1_f_industry", "row": 2, "column": 3, "colspan": 3, "rowspan": 2},
+        {"name": "p1_f_risk", "row": 2, "column": 6, "colspan": 3, "rowspan": 2},
+        {"name": "p1_f_kyc", "row": 2, "column": 9, "colspan": 3, "rowspan": 2},
         # Gauges (3 across)
-        {"name": "p1_g_duns", "row": 7, "column": 0, "colspan": 4, "rowspan": 4},
-        {"name": "p1_g_unit", "row": 7, "column": 4, "colspan": 4, "rowspan": 4},
-        {"name": "p1_g_axioma", "row": 7, "column": 8, "colspan": 4, "rowspan": 4},
+        {"name": "p1_g_duns", "row": 6, "column": 0, "colspan": 4, "rowspan": 4},
+        {"name": "p1_g_unit", "row": 6, "column": 4, "colspan": 4, "rowspan": 4},
+        {"name": "p1_g_axioma", "row": 6, "column": 8, "colspan": 4, "rowspan": 4},
         # Line + Column side-by-side
-        {"name": "p1_ch_trend", "row": 11, "column": 0, "colspan": 6, "rowspan": 8},
-        {"name": "p1_ch_created", "row": 11, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p1_ch_trend", "row": 10, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p1_ch_created", "row": 10, "column": 6, "colspan": 6, "rowspan": 8},
         # Donut: quality band
-        {"name": "p1_ch_band", "row": 19, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p1_ch_band", "row": 18, "column": 0, "colspan": 6, "rowspan": 8},
         # Section + Table
-        {"name": "p1_sec_detail", "row": 19, "column": 6, "colspan": 6, "rowspan": 1},
-        {"name": "p1_tbl_poor", "row": 27, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p1_sec_detail", "row": 18, "column": 6, "colspan": 6, "rowspan": 1},
+        {"name": "p1_tbl_poor", "row": 26, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     # ── Page 2: KYC Pipeline ──
-    p2 = nav_row("p2", 7) + [
-        {"name": "p2_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+    p2 = [
+        {"name": "p2_hdr", "row": 0, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar (4 pillbox filters)
-        {"name": "p2_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
-        {"name": "p2_f_industry", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
-        {"name": "p2_f_risk", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
-        {"name": "p2_f_kyc", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
+        {"name": "p2_f_unit", "row": 2, "column": 0, "colspan": 3, "rowspan": 2},
+        {"name": "p2_f_industry", "row": 2, "column": 3, "colspan": 3, "rowspan": 2},
+        {"name": "p2_f_risk", "row": 2, "column": 6, "colspan": 3, "rowspan": 2},
+        {"name": "p2_f_kyc", "row": 2, "column": 9, "colspan": 3, "rowspan": 2},
         # Funnel + Number side-by-side
-        {"name": "p2_ch_funnel", "row": 5, "column": 0, "colspan": 8, "rowspan": 8},
-        {"name": "p2_n_not_started", "row": 5, "column": 8, "colspan": 4, "rowspan": 4},
+        {"name": "p2_ch_funnel", "row": 4, "column": 0, "colspan": 8, "rowspan": 8},
+        {"name": "p2_n_not_started", "row": 4, "column": 8, "colspan": 4, "rowspan": 4},
         # Stackhbar: KYC by UnitGroup
-        {"name": "p2_ch_kyc_unit", "row": 13, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p2_ch_kyc_unit", "row": 12, "column": 0, "colspan": 12, "rowspan": 8},
         # Detail section
-        {"name": "p2_sec_detail", "row": 21, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p2_tbl_kyc", "row": 22, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p2_sec_detail", "row": 20, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p2_tbl_kyc", "row": 21, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     # ── Page 3: Customer Health ──
-    p3 = nav_row("p3", 7) + [
-        {"name": "p3_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+    p3 = [
+        {"name": "p3_hdr", "row": 0, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar (4 pillbox filters)
-        {"name": "p3_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
-        {"name": "p3_f_industry", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
-        {"name": "p3_f_risk", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
-        {"name": "p3_f_kyc", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
+        {"name": "p3_f_unit", "row": 2, "column": 0, "colspan": 3, "rowspan": 2},
+        {"name": "p3_f_industry", "row": 2, "column": 3, "colspan": 3, "rowspan": 2},
+        {"name": "p3_f_risk", "row": 2, "column": 6, "colspan": 3, "rowspan": 2},
+        {"name": "p3_f_kyc", "row": 2, "column": 9, "colspan": 3, "rowspan": 2},
         # Top row: Donut + Numbers + Gauge
-        {"name": "p3_ch_risk", "row": 5, "column": 0, "colspan": 4, "rowspan": 6},
-        {"name": "p3_n_at_risk", "row": 5, "column": 4, "colspan": 2, "rowspan": 3},
-        {"name": "p3_n_total", "row": 5, "column": 6, "colspan": 2, "rowspan": 3},
-        {"name": "p3_g_churn", "row": 5, "column": 8, "colspan": 4, "rowspan": 6},
+        {"name": "p3_ch_risk", "row": 4, "column": 0, "colspan": 4, "rowspan": 6},
+        {"name": "p3_n_at_risk", "row": 4, "column": 4, "colspan": 2, "rowspan": 3},
+        {"name": "p3_n_total", "row": 4, "column": 6, "colspan": 2, "rowspan": 3},
+        {"name": "p3_g_churn", "row": 4, "column": 8, "colspan": 4, "rowspan": 6},
         # Risk by UnitGroup
-        {"name": "p3_ch_risk_unit", "row": 11, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p3_ch_risk_unit", "row": 10, "column": 0, "colspan": 6, "rowspan": 8},
         # Partner engagement
-        {"name": "p3_ch_partner", "row": 11, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p3_ch_partner", "row": 10, "column": 6, "colspan": 6, "rowspan": 8},
         # Detail section
-        {"name": "p3_sec_detail", "row": 19, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p3_tbl_risk", "row": 20, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p3_sec_detail", "row": 18, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p3_tbl_risk", "row": 19, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     # ── Page 4: Cross-sell & Contact ──
-    p4 = nav_row("p4", 7) + [
-        {"name": "p4_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+    p4 = [
+        {"name": "p4_hdr", "row": 0, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar (4 pillbox filters)
-        {"name": "p4_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
-        {"name": "p4_f_industry", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
-        {"name": "p4_f_risk", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
-        {"name": "p4_f_kyc", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
+        {"name": "p4_f_unit", "row": 2, "column": 0, "colspan": 3, "rowspan": 2},
+        {"name": "p4_f_industry", "row": 2, "column": 3, "colspan": 3, "rowspan": 2},
+        {"name": "p4_f_risk", "row": 2, "column": 6, "colspan": 3, "rowspan": 2},
+        {"name": "p4_f_kyc", "row": 2, "column": 9, "colspan": 3, "rowspan": 2},
         # Top row: Number + Gauge
-        {"name": "p4_n_axioma", "row": 5, "column": 0, "colspan": 4, "rowspan": 4},
-        {"name": "p4_g_axioma_pct", "row": 5, "column": 4, "colspan": 4, "rowspan": 4},
+        {"name": "p4_n_axioma", "row": 4, "column": 0, "colspan": 4, "rowspan": 4},
+        {"name": "p4_g_axioma_pct", "row": 4, "column": 4, "colspan": 4, "rowspan": 4},
         # Waterfall: SaaS quarterly
-        {"name": "p4_ch_saas", "row": 9, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p4_ch_saas", "row": 8, "column": 0, "colspan": 12, "rowspan": 8},
         # Contact Coverage section
-        {"name": "p4_sec_contact", "row": 17, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p4_ch_contacts", "row": 18, "column": 0, "colspan": 6, "rowspan": 8},
-        {"name": "p4_ch_level", "row": 18, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p4_sec_contact", "row": 16, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p4_ch_contacts", "row": 17, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p4_ch_level", "row": 17, "column": 6, "colspan": 6, "rowspan": 8},
         # Contact Metrics & NRR Proxy
-        {"name": "p4_sec_metrics", "row": 26, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p4_sec_metrics", "row": 25, "column": 0, "colspan": 12, "rowspan": 1},
         {
             "name": "p4_g_contact_act",
-            "row": 27,
+            "row": 26,
             "column": 0,
             "colspan": 6,
             "rowspan": 4,
         },
-        {"name": "p4_g_retention", "row": 27, "column": 6, "colspan": 6, "rowspan": 4},
+        {"name": "p4_g_retention", "row": 26, "column": 6, "colspan": 6, "rowspan": 4},
         {
             "name": "p4_ch_contact_monthly",
-            "row": 31,
+            "row": 30,
             "column": 0,
             "colspan": 12,
             "rowspan": 8,
@@ -1803,30 +1899,30 @@ def build_layout():
         # Whitespace Cross-Sell Matrix
         {
             "name": "p4_sec_whitespace",
-            "row": 39,
+            "row": 38,
             "column": 0,
             "colspan": 12,
             "rowspan": 1,
         },
         {
             "name": "p4_ch_whitespace",
-            "row": 40,
+            "row": 39,
             "column": 0,
             "colspan": 12,
             "rowspan": 8,
         },
-        {"name": "p4_sec_ws_opps", "row": 48, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p4_tbl_ws_opps", "row": 49, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p4_sec_ws_opps", "row": 47, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p4_tbl_ws_opps", "row": 48, "column": 0, "colspan": 12, "rowspan": 8},
         {
             "name": "p4_sec_ws_summary",
-            "row": 57,
+            "row": 56,
             "column": 0,
             "colspan": 12,
             "rowspan": 1,
         },
         {
             "name": "p4_tbl_ws_summary",
-            "row": 58,
+            "row": 57,
             "column": 0,
             "colspan": 12,
             "rowspan": 8,
@@ -1834,132 +1930,61 @@ def build_layout():
     ]
 
     # ── Page 5: Segment Analysis ──
-    p5 = nav_row("p5", 7) + [
-        {"name": "p5_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
+    p5 = [
+        {"name": "p5_hdr", "row": 0, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar (4 pillbox filters)
-        {"name": "p5_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
-        {"name": "p5_f_industry", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
-        {"name": "p5_f_risk", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
-        {"name": "p5_f_kyc", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
+        {"name": "p5_f_unit", "row": 2, "column": 0, "colspan": 3, "rowspan": 2},
+        {"name": "p5_f_industry", "row": 2, "column": 3, "colspan": 3, "rowspan": 2},
+        {"name": "p5_f_risk", "row": 2, "column": 6, "colspan": 3, "rowspan": 2},
+        {"name": "p5_f_kyc", "row": 2, "column": 9, "colspan": 3, "rowspan": 2},
         # Row 1: Industry donut + Industry × Risk stackhbar
-        {"name": "p5_ch_industry", "row": 5, "column": 0, "colspan": 5, "rowspan": 8},
-        {"name": "p5_ch_ind_risk", "row": 5, "column": 5, "colspan": 7, "rowspan": 8},
+        {"name": "p5_ch_industry", "row": 4, "column": 0, "colspan": 5, "rowspan": 8},
+        {"name": "p5_ch_ind_risk", "row": 4, "column": 5, "colspan": 7, "rowspan": 8},
         # Row 2: AuM table + Size band donut
-        {"name": "p5_ch_aum", "row": 13, "column": 0, "colspan": 7, "rowspan": 8},
-        {"name": "p5_ch_size", "row": 13, "column": 7, "colspan": 5, "rowspan": 8},
+        {"name": "p5_ch_aum", "row": 12, "column": 0, "colspan": 7, "rowspan": 8},
+        {"name": "p5_ch_size", "row": 12, "column": 7, "colspan": 5, "rowspan": 8},
         # Row 3: Country hbar + Industry × KYC stackhbar
-        {"name": "p5_ch_country", "row": 21, "column": 0, "colspan": 6, "rowspan": 8},
-        {"name": "p5_ch_ind_kyc", "row": 21, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p5_ch_country", "row": 20, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p5_ch_ind_kyc", "row": 20, "column": 6, "colspan": 6, "rowspan": 8},
         # Revenue Concentration (Additive CRO)
         {
             "name": "p5_sec_concentration",
-            "row": 29,
+            "row": 28,
             "column": 0,
             "colspan": 12,
             "rowspan": 1,
         },
         {
             "name": "p5_ch_concentration",
-            "row": 30,
+            "row": 29,
             "column": 0,
             "colspan": 12,
             "rowspan": 10,
         },
         # Iteration 3: Customer Vintage Cohort (Additive CRO #4)
-        {"name": "p5_sec_vintage", "row": 40, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p5_ch_vintage", "row": 41, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p5_sec_vintage", "row": 39, "column": 0, "colspan": 12, "rowspan": 1},
+        {"name": "p5_ch_vintage", "row": 40, "column": 0, "colspan": 6, "rowspan": 8},
         {
             "name": "p5_ch_vintage_aum",
-            "row": 41,
+            "row": 40,
             "column": 6,
             "colspan": 6,
             "rowspan": 8,
         },
         {
             "name": "p5_ch_vintage_risk",
-            "row": 49,
+            "row": 48,
             "column": 0,
             "colspan": 6,
             "rowspan": 8,
         },
         {
             "name": "p5_ch_vintage_ret",
-            "row": 49,
+            "row": 48,
             "column": 6,
             "colspan": 6,
             "rowspan": 8,
         },
-    ]
-
-    p6 = nav_row("p6", 7) + [
-        {"name": "p6_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
-        {"name": "p6_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
-        {"name": "p6_f_industry", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
-        {"name": "p6_f_risk", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
-        {"name": "p6_f_kyc", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
-        # Treemap
-        {"name": "p6_sec_treemap", "row": 5, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p6_ch_treemap", "row": 6, "column": 0, "colspan": 12, "rowspan": 10},
-        # Heatmap
-        {"name": "p6_sec_heatmap", "row": 16, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p6_ch_heatmap", "row": 17, "column": 0, "colspan": 12, "rowspan": 10},
-        # Bubble
-        {"name": "p6_sec_bubble", "row": 27, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p6_ch_bubble", "row": 28, "column": 0, "colspan": 12, "rowspan": 10},
-        # Sankey: KYC → Risk
-        {"name": "p6_sec_sankey", "row": 38, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p6_ch_sankey", "row": 39, "column": 0, "colspan": 12, "rowspan": 10},
-        # Area: DQ Trend
-        {"name": "p6_sec_area", "row": 49, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p6_ch_area", "row": 50, "column": 0, "colspan": 12, "rowspan": 8},
-    ]
-
-    p7 = nav_row("p7", 7) + [
-        {"name": "p7_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
-        {"name": "p7_f_unit", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
-        {"name": "p7_f_industry", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
-        {"name": "p7_f_risk", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
-        {"name": "p7_f_kyc", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
-        # Bullet
-        {"name": "p7_sec_bullet", "row": 5, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p7_bullet_dq", "row": 6, "column": 0, "colspan": 12, "rowspan": 5},
-        # DQ percentile table
-        {"name": "p7_sec_dq_dist", "row": 11, "column": 0, "colspan": 12, "rowspan": 1},
-        {
-            "name": "p7_stat_dq_dist",
-            "row": 12,
-            "column": 0,
-            "colspan": 12,
-            "rowspan": 5,
-        },
-        # Industry AuM table
-        {
-            "name": "p7_sec_industry",
-            "row": 17,
-            "column": 0,
-            "colspan": 12,
-            "rowspan": 1,
-        },
-        {
-            "name": "p7_stat_industry",
-            "row": 18,
-            "column": 0,
-            "colspan": 12,
-            "rowspan": 8,
-        },
-        # Phase 9: Segment visualization
-        {"name": "p7_sec_segment", "row": 26, "column": 0, "colspan": 12, "rowspan": 1},
-        {
-            "name": "p7_segment_donut",
-            "row": 27,
-            "column": 0,
-            "colspan": 5,
-            "rowspan": 8,
-        },
-        {"name": "p7_segment_bar", "row": 27, "column": 5, "colspan": 7, "rowspan": 8},
-        # Cumulative AuM
-        {"name": "p7_sec_running", "row": 35, "column": 0, "colspan": 12, "rowspan": 1},
-        {"name": "p7_ch_running", "row": 36, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
     return {
@@ -1971,8 +1996,6 @@ def build_layout():
             pg("health", "Customer Health", p3),
             pg("crosssell", "Cross-sell & Contact", p4),
             pg("segments", "Segment Analysis", p5),
-            pg("advanalytics", "Advanced Analytics", p6),
-            pg("acctstats", "Statistical Analysis", p7),
         ],
     }
 
@@ -2076,69 +2099,107 @@ def create_dataflow_definition():
     }
 
 
-def main():
-    instance_url, token = get_auth()
+def main() -> None:
+    with builder_run("Account_Intelligence", __file__) as summary:
+        instance_url, token = get_auth()
 
-    if "--create-dataflow" in sys.argv:
-        print("\n=== Creating/updating dataflow ===")
-        df_def = create_dataflow_definition()
-        df_id = create_dataflow(instance_url, token, "DF_Account_Intelligence", df_def)
-        if df_id and "--run-dataflow" in sys.argv:
-            run_dataflow(instance_url, token, df_id)
-        return
-
-    # ── 1. Build & upload Account Intelligence dataset ──
-    acct_ok = create_account_dataset(instance_url, token)
-    if not acct_ok:
-        print("ERROR: Account dataset upload failed -- aborting")
-        return
-
-    # Set record navigation links via XMD
-    set_record_links_xmd(
-        instance_url,
-        token,
-        DS,
-        [
-            {"field": "AccountName", "sobject": "Account", "id_field": "Id"},
-        ],
-    )
-
-    # ── 2. Build & upload Contact Coverage dataset ──
-    contact_ok = create_contact_dataset(instance_url, token)
-    if not contact_ok:
-        print(
-            "WARNING: Contact dataset upload failed -- page 4 contact charts may be empty"
+        assert_org_schema(
+            instance_url,
+            token,
+            objects=[
+                "Account",
+                "Contact",
+                "Contract",
+                "ForecastingItem",
+                "Opportunity",
+                "OpportunityFieldHistory",
+                "OpportunityHistory",
+                "User",
+            ],
         )
 
-    # ── 3. Look up dataset IDs ──
-    ds_id = get_dataset_id(instance_url, token, DS)
-    if not ds_id:
-        print(f"ERROR: Could not find dataset ID for {DS}")
-        return
-    print(f"  {DS} ID: {ds_id}")
+        if "--create-dataflow" in sys.argv:
+            logger.info("\n=== Creating/updating dataflow ===")
+            df_def = create_dataflow_definition()
+            df_id = create_dataflow(instance_url, token, "DF_Account_Intelligence", df_def)
+            if df_id and "--run-dataflow" in sys.argv:
+                run_dataflow(instance_url, token, df_id)
+            return
 
-    contact_ds_id = get_dataset_id(instance_url, token, CONTACT_DS)
-    if contact_ds_id:
-        print(f"  {CONTACT_DS} ID: {contact_ds_id}")
-    else:
-        print(f"WARNING: Could not find dataset ID for {CONTACT_DS}")
+        # ── 1. Build & upload Account Intelligence dataset ──
+        acct_ok, row_count = create_account_dataset(instance_url, token)
+        summary.row_count = row_count
+        if not acct_ok:
+            logger.error("ERROR: Account dataset upload failed -- aborting")
+            raise SystemExit("Account dataset upload failed")
 
-    ds_meta = [{"id": ds_id, "name": DS}]
-    contact_ds_meta = (
-        [{"id": contact_ds_id, "name": CONTACT_DS}] if contact_ds_id else []
-    )
+        # Set record navigation links via XMD
+        set_record_links_xmd(
+            instance_url,
+            token,
+            DS,
+            [
+                {"field": "Name", "sobject": "Account", "id_field": "Id"},
+            ],
+        )
 
-    # ── 4. Create or find dashboard ──
-    dashboard_id = create_dashboard_if_needed(instance_url, token, DASHBOARD_LABEL)
-    print(f"  Dashboard ID: {dashboard_id}")
+        # ── 2. Build & upload Contact Coverage dataset ──
+        contact_ok = create_contact_dataset(instance_url, token)
+        if not contact_ok:
+            logger.warning("WARNING: Contact dataset upload failed -- page 4 contact charts may be empty")
 
-    # ── 5. Build & deploy ──
-    steps = build_steps(ds_meta, contact_ds_meta)
-    widgets = build_widgets()
-    layout = build_layout()
+        # ── 3. Look up dataset IDs ──
+        ds_id = get_dataset_id(instance_url, token, DS)
+        if not ds_id:
+            logger.error("ERROR: Could not find dataset ID for %s", DS)
+            raise SystemExit(f"Could not find dataset ID for {DS}")
+        summary.dataset_id = ds_id
+        logger.info("  %s ID: %s", DS, ds_id)
 
-    state = build_dashboard_state(steps, widgets, layout)
-    deploy_dashboard(instance_url, token, dashboard_id, state)
+        contact_ds_id = get_dataset_id(instance_url, token, CONTACT_DS)
+        if contact_ds_id:
+            logger.info("  %s ID: %s", CONTACT_DS, contact_ds_id)
+        else:
+            logger.warning("WARNING: Could not find dataset ID for %s", CONTACT_DS)
+
+        ds_meta = [{"id": ds_id, "name": DS}]
+        contact_ds_meta = (
+            [{"id": contact_ds_id, "name": CONTACT_DS}] if contact_ds_id else []
+        )
+
+        # ── 4. Create or find dashboard ──
+        dashboard_id = create_dashboard_if_needed(instance_url, token, DASHBOARD_LABEL)
+        logger.info("  Dashboard ID: %s", dashboard_id)
+
+        # ── 5. Build & deploy ──
+        steps = build_steps(ds_meta, contact_ds_meta)
+
+        # Apply KPI facet scoping — KPIs respond only to filter pillboxes
+        _kpi_step_names = [
+            "s_kyc_not_started",
+            "s_kyc_not_started_trend",
+            "s_at_risk",
+            "s_at_risk_trend",
+            "s_total_accounts",
+            "s_total_accounts_trend",
+            "s_axioma_count",
+        ]
+        for s_name in _kpi_step_names:
+            if s_name in steps:
+                steps[s_name].update(KPI_FACET_SCOPE)
+
+        widgets = build_widgets()
+        layout = build_layout()
+
+        state = build_dashboard_state(
+            steps,
+            widgets,
+            layout,
+            bg_color="#F4F6F9",
+            cell_spacing=8,
+            row_height="normal",
+        )
+        deploy_dashboard(instance_url, token, dashboard_id, state)
 
 
 if __name__ == "__main__":
