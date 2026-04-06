@@ -6,3 +6,4 @@ output/
 exports/
 snapshots/
 .DS_Store
+.worktrees/
