@@ -1,0 +1,22 @@
+{
+  "artifact_type": "sales_ops_test_live_saql_validation",
+  "validated_at": "2026-03-31",
+  "results": [
+    {
+      "step_alias": "test_kpi_one",
+      "metric": "Test KPI One",
+      "status": "ok",
+      "query": "q = load \"Account_Intelligence\";\nq = group q by all;\nq = foreach q generate count() as total;",
+      "row_count": 1,
+      "sample_records": [{ "total": 100 }]
+    },
+    {
+      "step_alias": "test_kpi_two",
+      "metric": "Test KPI Two",
+      "status": "ok",
+      "query": "q = load \"Account_Intelligence\";\nq = filter q by HasDUNS == \"true\";\nq = group q by all;\nq = foreach q generate count() as duns_count;",
+      "row_count": 1,
+      "sample_records": [{ "duns_count": 50 }]
+    }
+  ]
+}
