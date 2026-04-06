@@ -16,6 +16,10 @@ Dataset: Forecast_Intelligence
 
 import csv
 import io
+import logging
+
+from crm_analytics_runtime import builder_run  # pyright: ignore[reportMissingImports]
+from simcorp_fields import assert_org_schema  # pyright: ignore[reportMissingImports]
 
 from crm_analytics_helpers import (
     get_auth,
@@ -44,9 +48,14 @@ from crm_analytics_helpers import (
     treemap_chart,
     heatmap_chart,
     bubble_chart,
-    area_chart,
     bullet_chart,
+    compare_table,
+    KPI_CARD_STYLE,
+    line_chart,
+    combo_chart,
 )
+
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Constants
@@ -55,6 +64,14 @@ from crm_analytics_helpers import (
 DS = "Forecast_Intelligence"
 DS_LABEL = "Forecast Intelligence"
 DASHBOARD_LABEL = "Forecast Intelligence"
+
+# Consulting-grade faceting: KPIs respond to filter pillboxes only
+KPI_FACET_SCOPE = {
+    "receiveFacetSource": {
+        "mode": "include",
+        "steps": ["f_unit", "f_qtr"],
+    },
+}
 
 # Weights for weighted forecast calculation
 COMMIT_WEIGHT = 0.9
@@ -76,8 +93,10 @@ def create_dataset(inst, tok):
 
     Since ForecastingItem may not be populated, we build from Opportunity data
     grouped by owner + forecast category with weighted forecast computation.
+
+    Returns (upload_ok, row_count).
     """
-    print("\n=== Building Forecast Intelligence dataset ===")
+    logger.info("\n=== Building Forecast Intelligence dataset ===")
 
     # Query open pipeline by owner and forecast category
     opps = _soql(
@@ -91,7 +110,7 @@ def create_dataset(inst, tok):
         "FROM Opportunity "
         "WHERE FiscalYear IN (2025, 2026)",
     )
-    print(f"  Queried {len(opps)} opportunities")
+    logger.info("  Queried %d opportunities", len(opps))
 
     # Also try ForecastingItem if available
     forecast_items = []
@@ -104,9 +123,9 @@ def create_dataset(inst, tok):
             "FROM ForecastingItem "
             "WHERE FiscalYear IN (2025, 2026) LIMIT 1000",
         )
-        print(f"  Queried {len(forecast_items)} forecast items")
+        logger.info("  Queried %d forecast items", len(forecast_items))
     except Exception as e:
-        print(f"  ForecastingItem not available: {e}")
+        logger.warning("  ForecastingItem not available: %s", e)
 
     # Build per-rep, per-quarter, per-category aggregation
     rep_data = {}
@@ -155,7 +174,7 @@ def create_dataset(inst, tok):
                 d["CommitARR"] += arr
             elif fcat in ("Best Case", "BestCase"):
                 d["BestCaseARR"] += arr
-            else:
+            elif fcat == "Pipeline":
                 d["PipelineARR"] += arr
 
         # Keep latest UnitGroup and quota
@@ -216,8 +235,9 @@ def create_dataset(inst, tok):
             }
         )
 
+    row_count = len(rep_data)
     csv_bytes = buf.getvalue().encode("utf-8")
-    print(f"  CSV: {len(csv_bytes):,} bytes, {len(rep_data)} rows")
+    logger.info("  CSV: %s bytes, %d rows", f"{len(csv_bytes):,}", row_count)
 
     fields_meta = [
         _dim("OwnerName", "Owner"),
@@ -237,7 +257,8 @@ def create_dataset(inst, tok):
         _dim("FYLabel", "Fiscal Year Label"),
     ]
 
-    return upload_dataset(inst, tok, DS, DS_LABEL, fields_meta, csv_bytes)
+    upload_ok = upload_dataset(inst, tok, DS, DS_LABEL, fields_meta, csv_bytes)
+    return upload_ok, row_count
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -250,7 +271,7 @@ def build_steps(ds_id):
     L = f'q = load "{DS}";\n'
     FY26 = "q = filter q by FiscalYear == 2026;\n"
 
-    return {
+    steps = {
         # ── Filter steps ──
         "f_unit": af("UnitGroup", DS_META),
         "f_qtr": af("CloseQuarter", DS_META),
@@ -410,6 +431,7 @@ def build_steps(ds_id):
         # Pipeline coverage ratio — Total pipeline / Quota
         "s_pipe_coverage": sq(
             L
+            + FY26
             + UF
             + QF
             + "q = group q by all;\n"
@@ -420,6 +442,7 @@ def build_steps(ds_id):
         # Gap to quota by rep
         "s_gap_to_quota": sq(
             L
+            + FY26
             + UF
             + QF
             + "q = group q by OwnerName;\n"
@@ -511,6 +534,7 @@ def build_steps(ds_id):
         # ═══ V2 Phase 10: Advanced Analytics steps ═══
         "s_sankey_cat": sq(
             L
+            + FY26
             + UF
             + QF
             + "q = group q by (UnitGroup, CloseQuarter);\n"
@@ -549,6 +573,7 @@ def build_steps(ds_id):
         ),
         "s_area_cumul": sq(
             L
+            + FY26
             + UF
             + QF
             + "q = group q by CloseQuarter;\n"
@@ -561,6 +586,7 @@ def build_steps(ds_id):
         # ═══ V2 Phase 10: Statistical Analysis steps ═══
         "s_bullet_commit": sq(
             L
+            + FY26
             + UF
             + QF
             + "q = group q by all;\n"
@@ -569,6 +595,7 @@ def build_steps(ds_id):
         ),
         "s_bullet_weighted": sq(
             L
+            + FY26
             + UF
             + QF
             + "q = group q by all;\n"
@@ -603,6 +630,20 @@ def build_steps(ds_id):
         ),
     }
 
+    # Apply facet scope so KPI summary steps respond to filter pillboxes
+    for key in (
+        "s_commit",
+        "s_bestcase",
+        "s_weighted",
+        "s_quota",
+        "s_commit_pct",
+        "s_attain",
+        "s_pipe_coverage",
+    ):
+        steps[key].update(KPI_FACET_SCOPE)
+
+    return steps
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Widgets
@@ -631,15 +672,45 @@ def build_widgets():
         "p1_f_qtr": pillbox("f_qtr", "Quarter"),
         # Hero KPIs
         "p1_commit": num(
-            "s_commit", "total_commit", "Commit ARR", "#04844B", compact=True
+            "s_commit",
+            "total_commit",
+            "Commit ARR",
+            "#04844B",
+            compact=True,
+            tier="primary",
+            prefix="€",
+            widget_style=KPI_CARD_STYLE,
         ),
         "p1_bestcase": num(
-            "s_bestcase", "total_bestcase", "Best Case ARR", "#0070D2", compact=True
+            "s_bestcase",
+            "total_bestcase",
+            "Best Case ARR",
+            "#0070D2",
+            compact=True,
+            tier="primary",
+            prefix="€",
+            widget_style=KPI_CARD_STYLE,
         ),
         "p1_weighted": num(
-            "s_weighted", "total_weighted", "Weighted Forecast", "#091A3E", compact=True
+            "s_weighted",
+            "total_weighted",
+            "Weighted Forecast",
+            "#091A3E",
+            compact=True,
+            tier="primary",
+            prefix="€",
+            widget_style=KPI_CARD_STYLE,
         ),
-        "p1_quota": num("s_quota", "total_quota", "Quota", "#54698D", compact=True),
+        "p1_quota": num(
+            "s_quota",
+            "total_quota",
+            "Quota",
+            "#54698D",
+            compact=True,
+            tier="secondary",
+            prefix="€",
+            widget_style=KPI_CARD_STYLE,
+        ),
         # Gauges
         "p1_commit_gauge": gauge(
             "s_commit_pct",
@@ -667,14 +738,17 @@ def build_widgets():
         ),
         # Charts
         "p1_sec_qtr": section_label("Quarterly Forecast vs Actual"),
-        "p1_ch_qtr": rich_chart(
+        "p1_ch_qtr": combo_chart(
             "s_qtr_forecast",
-            "column",
             "Forecast Categories by Quarter",
             ["CloseQuarter"],
-            ["commit_arr", "bestcase_arr", "pipeline_arr", "won_arr"],
+            bar_measures=["commit_arr", "bestcase_arr", "pipeline_arr"],
+            line_measures=["won_arr"],
             show_legend=True,
             axis_title="ARR (EUR)",
+            axis2_title="Closed Won ARR",
+            axis1_format="#,##0",
+            axis2_format="#,##0",
         ),
         "p1_ch_fcat": rich_chart(
             "s_fcat_split",
@@ -715,6 +789,7 @@ def build_widgets():
             ["OwnerName"],
             ["weighted"],
             axis_title="Weighted ARR (EUR)",
+            show_values=True,
         ),
         "p2_ch_unit": rich_chart(
             "s_unit_forecast",
@@ -724,14 +799,14 @@ def build_widgets():
             ["weighted", "commit_arr", "won_arr"],
             show_legend=True,
             axis_title="ARR (EUR)",
+            show_values=True,
         ),
         "p2_sec_detail": section_label("Rep Forecast Table"),
-        "p2_tbl_rep": rich_chart(
+        "p2_tbl_rep": compare_table(
             "s_rep_forecast",
-            "comparisontable",
             "Rep Forecast Detail",
-            ["OwnerName"],
-            [
+            columns=[
+                "OwnerName",
                 "commit_arr",
                 "bestcase_arr",
                 "pipeline_arr",
@@ -739,6 +814,16 @@ def build_widgets():
                 "won_arr",
                 "quota",
                 "attain_pct",
+            ],
+            format_rules=[
+                {
+                    "measure": "attain_pct",
+                    "ranges": [
+                        {"min": 0, "max": 50, "color": "#D4504C"},
+                        {"min": 50, "max": 80, "color": "#FFB75D"},
+                        {"min": 80, "max": 999, "color": "#04844B"},
+                    ],
+                }
             ],
         ),
         "p2_sec_movement": section_label("Forecast Movement"),
@@ -751,12 +836,19 @@ def build_widgets():
         ),
         # Gap-to-quota table
         "p2_sec_gap": section_label("Gap to Quota Analysis"),
-        "p2_tbl_gap": rich_chart(
+        "p2_tbl_gap": compare_table(
             "s_gap_to_quota",
-            "comparisontable",
             "Gap to Quota by Rep",
-            ["OwnerName"],
-            ["won", "commit_arr", "quota", "pipeline", "gap"],
+            columns=["OwnerName", "won", "commit_arr", "quota", "pipeline", "gap"],
+            format_rules=[
+                {
+                    "measure": "gap",
+                    "ranges": [
+                        {"min": -999999999, "max": 0, "color": "#04844B"},
+                        {"min": 0, "max": 999999999, "color": "#D4504C"},
+                    ],
+                }
+            ],
         ),
         # Win rate chart
         "p2_sec_wr": section_label("Win Rate Analysis"),
@@ -767,6 +859,16 @@ def build_widgets():
             ["OwnerName"],
             ["win_rate"],
             axis_title="Win Rate %",
+            show_values=True,
+            reference_lines=[
+                {
+                    "label": "50% Benchmark",
+                    "type": "constant",
+                    "value": 50,
+                    "axis": "measureAxis1",
+                    "style": {"color": "#0070D2", "dashLength": 4, "width": 1},
+                }
+            ],
         ),
         # ═══ PAGE 3: Quota & Coverage Analytics ═══
         **{
@@ -792,6 +894,7 @@ def build_widgets():
             ["AttainBand"],
             ["rep_count"],
             axis_title="Number of Reps",
+            show_values=True,
         ),
         # Pipeline Coverage by Segment
         "p3_sec_coverage": section_label("Pipeline Coverage by Segment"),
@@ -802,26 +905,71 @@ def build_widgets():
             ["UnitGroup"],
             ["coverage"],
             axis_title="Coverage Ratio (Pipeline / Quota)",
+            show_values=True,
+            reference_lines=[
+                {
+                    "label": "3x Target",
+                    "type": "constant",
+                    "value": 3,
+                    "axis": "measureAxis1",
+                    "style": {"color": "#04844B", "dashLength": 4, "width": 1},
+                }
+            ],
         ),
         # Human vs AI Forecast Comparison
         "p3_sec_compare": section_label("Human vs AI Forecast Comparison"),
-        "p3_ch_compare": rich_chart(
+        "p3_ch_compare": combo_chart(
             "s_forecast_compare",
-            "column",
             "Commit (Human) vs Weighted (AI) vs Actual Won",
             ["CloseQuarter"],
-            ["human_forecast", "ai_forecast", "actual_won"],
+            bar_measures=["human_forecast", "ai_forecast"],
+            line_measures=["actual_won"],
             show_legend=True,
             axis_title="ARR (EUR)",
+            axis2_title="Actual Won ARR",
+            axis1_format="#,##0",
+            axis2_format="#,##0",
+            reference_lines=[
+                {
+                    "label": "Forecast Accuracy Target",
+                    "type": "constant",
+                    "value": 0,
+                    "axis": "measureAxis2",
+                    "style": {"color": "#D4504C", "dashLength": 4, "width": 1},
+                }
+            ],
         ),
         # Attainment Detail Table
         "p3_sec_detail": section_label("Attainment Detail by Rep"),
-        "p3_tbl_attain": rich_chart(
+        "p3_tbl_attain": compare_table(
             "s_attain_by_rep",
-            "comparisontable",
             "Quota Attainment by Rep",
-            ["OwnerName"],
-            ["won_arr", "quota", "attain_pct", "pipe_arr", "coverage"],
+            columns=[
+                "OwnerName",
+                "won_arr",
+                "quota",
+                "attain_pct",
+                "pipe_arr",
+                "coverage",
+            ],
+            format_rules=[
+                {
+                    "measure": "attain_pct",
+                    "ranges": [
+                        {"min": 0, "max": 50, "color": "#D4504C"},
+                        {"min": 50, "max": 80, "color": "#FFB75D"},
+                        {"min": 80, "max": 999, "color": "#04844B"},
+                    ],
+                },
+                {
+                    "measure": "coverage",
+                    "ranges": [
+                        {"min": 0, "max": 2, "color": "#D4504C"},
+                        {"min": 2, "max": 3, "color": "#FFB75D"},
+                        {"min": 3, "max": 999, "color": "#04844B"},
+                    ],
+                },
+            ],
         ),
     }
 
@@ -861,12 +1009,20 @@ def build_widgets():
     )
     # Area: Cumulative Won ARR
     w["p4_sec_area"] = section_label("Cumulative Won ARR Over Time")
-    w["p4_ch_area"] = area_chart(
+    w["p4_ch_area"] = line_chart(
         "s_area_cumul",
         "Cumulative Won ARR (Running Total)",
-        ["CloseQuarter"],
-        ["cumul_won"],
+        show_legend=True,
         axis_title="Cumulative ARR (EUR)",
+        reference_lines=[
+            {
+                "label": "Quota Run-Rate",
+                "type": "constant",
+                "value": 0,
+                "axis": "measureAxis1",
+                "style": {"color": "#D4504C", "dashLength": 4, "width": 1},
+            }
+        ],
     )
 
     # ═══ PAGE 5: Statistical Analysis ═══
@@ -886,21 +1042,27 @@ def build_widgets():
     )
     # Forecast percentiles table
     w["p5_sec_wf_pct"] = section_label("Weighted Forecast Distribution")
-    w["p5_tbl_wf_pct"] = rich_chart(
+    w["p5_tbl_wf_pct"] = compare_table(
         "s_stat_wf_percentiles",
-        "comparisonTable",
         "Forecast Percentiles",
-        ["cnt", "mean_wf", "std_wf", "p25", "median_wf", "p75"],
-        [],
+        columns=["cnt", "mean_wf", "std_wf", "p25", "median_wf", "p75"],
     )
     # Attainment stats by unit
     w["p5_sec_attain_unit"] = section_label("Quota Attainment by Unit Group")
-    w["p5_tbl_attain_unit"] = rich_chart(
+    w["p5_tbl_attain_unit"] = compare_table(
         "s_stat_attain_by_unit",
-        "comparisonTable",
         "Attainment Statistics by Unit",
-        ["UnitGroup", "cnt", "avg_attain", "std_attain", "median_attain"],
-        [],
+        columns=["UnitGroup", "cnt", "avg_attain", "std_attain", "median_attain"],
+        format_rules=[
+            {
+                "measure": "avg_attain",
+                "ranges": [
+                    {"min": 0, "max": 50, "color": "#D4504C"},
+                    {"min": 50, "max": 80, "color": "#FFB75D"},
+                    {"min": 80, "max": 999, "color": "#04844B"},
+                ],
+            }
+        ],
     )
 
     return w
@@ -1089,25 +1251,45 @@ def build_layout():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def main():
-    inst, tok = get_auth()
+def main() -> None:
+    with builder_run("Forecast_Intelligence", __file__) as summary:
+        inst, tok = get_auth()
+        assert_org_schema(
+            inst,
+            tok,
+            objects=[
+                "Account",
+                "Contact",
+                "Contract",
+                "ForecastingItem",
+                "Opportunity",
+                "OpportunityFieldHistory",
+                "OpportunityHistory",
+                "User",
+            ],
+        )
 
-    # Build dataset
-    ds_ok = create_dataset(inst, tok)
-    if not ds_ok:
-        print("ERROR: Forecast dataset failed — aborting")
-        return
+        upload_ok, row_count = create_dataset(inst, tok)
+        summary.row_count = row_count
+        if not upload_ok:
+            raise SystemExit("Dataset upload failed")
 
-    # Get dataset ID for af() steps
-    ds_id = get_dataset_id(inst, tok, DS)
-    if not ds_id:
-        print("ERROR: Could not find dataset ID — aborting")
-        return
+        ds_id = get_dataset_id(inst, tok, DS)
+        if not ds_id:
+            raise SystemExit(f"Could not resolve dataset id for {DS}")
+        summary.dataset_id = ds_id
 
-    # Deploy dashboard
-    dash_id = create_dashboard_if_needed(inst, tok, DASHBOARD_LABEL)
-    state = build_dashboard_state(build_steps(ds_id), build_widgets(), build_layout())
-    deploy_dashboard(inst, tok, dash_id, state)
+        # Deploy dashboard
+        dash_id = create_dashboard_if_needed(inst, tok, DASHBOARD_LABEL)
+        state = build_dashboard_state(
+            build_steps(ds_id),
+            build_widgets(),
+            build_layout(),
+            bg_color="#F4F6F9",
+            cell_spacing=8,
+            row_height="normal",
+        )
+        deploy_dashboard(inst, tok, dash_id, state)
 
 
 if __name__ == "__main__":
