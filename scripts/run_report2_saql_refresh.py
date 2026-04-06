@@ -80,6 +80,8 @@ def merge_query_results(
     Does NOT mutate the input dict.
     """
     merged = copy.deepcopy(original)
+    if not isinstance(merged.get("results"), list):
+        raise ValueError("expected 'results' key with a list value")
     merged["validated_at"] = validated_at
     for entry in merged["results"]:
         alias = entry["step_alias"]
@@ -100,6 +102,7 @@ def get_auth(target_org: str) -> tuple[str, str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=30,
     )
     payload = json.loads(proc.stdout)
     result = payload.get("result", {})
@@ -113,7 +116,11 @@ def get_auth(target_org: str) -> tuple[str, str]:
 
 
 def execute_saql(
-    query: str, *, access_token: str, instance_url: str
+    query: str,
+    *,
+    session: requests.Session,
+    access_token: str,
+    instance_url: str,
 ) -> list[dict[str, Any]]:
     """Execute one SAQL query via Wave API and return its records."""
     url = f"{instance_url}/services/data/{WAVE_API_VERSION}/wave/query"
@@ -121,7 +128,7 @@ def execute_saql(
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
-    response = requests.post(url, headers=headers, json={"query": query}, timeout=120)
+    response = session.post(url, headers=headers, json={"query": query}, timeout=120)
     response.raise_for_status()
     payload = response.json()
     return payload.get("results", {}).get("records", [])
@@ -147,20 +154,29 @@ def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 def refresh_one_file(
     path: Path,
     *,
+    session: requests.Session,
     access_token: str,
     instance_url: str,
     validated_at: str,
 ) -> dict[str, Any]:
     """Refresh a single live_saql_validation.json. Returns a per-file summary."""
     original = load_validation_json(path)
+    if not isinstance(original.get("results"), list):
+        raise ValueError(f"{path}: expected top-level 'results' key with a list value")
     new_by_alias: dict[str, list[dict[str, Any]]] = {}
     failures: list[dict[str, str]] = []
     for entry in original["results"]:
         alias = entry["step_alias"]
-        query = entry["query"]
+        query = entry.get("query")
+        if not query:
+            failures.append({"step_alias": alias, "error": "empty or missing query"})
+            continue
         try:
             records = execute_saql(
-                query, access_token=access_token, instance_url=instance_url
+                query,
+                session=session,
+                access_token=access_token,
+                instance_url=instance_url,
             )
             new_by_alias[alias] = records
         except Exception as e:
@@ -207,15 +223,17 @@ def main() -> int:
     access_token, instance_url = get_auth(args.target_org)
     summaries: list[dict[str, Any]] = []
     overall_failures = 0
-    for path in inputs:
-        summary = refresh_one_file(
-            path,
-            access_token=access_token,
-            instance_url=instance_url,
-            validated_at=args.snapshot_date,
-        )
-        summaries.append(summary)
-        overall_failures += summary["failure_count"]
+    with requests.Session() as session:
+        for path in inputs:
+            summary = refresh_one_file(
+                path,
+                session=session,
+                access_token=access_token,
+                instance_url=instance_url,
+                validated_at=args.snapshot_date,
+            )
+            summaries.append(summary)
+            overall_failures += summary["failure_count"]
     result = {
         "artifact_type": "report2_saql_refresh_summary",
         "snapshot_date": args.snapshot_date,

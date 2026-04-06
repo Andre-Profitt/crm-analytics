@@ -81,3 +81,21 @@ def test_merge_query_results_does_not_mutate_input():
         original, {"test_kpi_one": [{"total": 1}]}, validated_at="2026-04-01"
     )
     assert original == original_copy
+
+
+def test_merge_query_results_empty_records_list_is_still_ok():
+    """An empty list from Wave API (zero rows returned) is a successful query, not an error."""
+    original = load_validation_json(FIXTURE_PATH)
+    new_results_by_alias = {
+        "test_kpi_one": [],
+        "test_kpi_two": [{"duns_count": 1}],
+    }
+    merged = merge_query_results(
+        original, new_results_by_alias, validated_at="2026-04-01"
+    )
+
+    assert merged["results"][0]["status"] == "ok"
+    assert merged["results"][0]["sample_records"] == []
+    assert merged["results"][0]["row_count"] == 0
+    assert merged["results"][1]["status"] == "ok"
+    assert merged["results"][1]["row_count"] == 1
