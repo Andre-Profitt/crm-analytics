@@ -11,15 +11,53 @@ Provides reusable functions for:
 """
 
 import base64
+import copy
+import html
 import json
+import re
 import subprocess
 import time
 import urllib.request
 import urllib.error
 from datetime import datetime
+from typing import Any
+
+# --- Logging config (Builder Modernization 1A) ---------------------------
+# basicConfig at module load so any builder importing this module gets
+# logging configured automatically. crm_analytics_helpers.py is the de
+# facto runtime entry point for the 8 KPI builders, so basicConfig
+# belongs here despite stdlib warnings against it in general libraries.
+import logging
+import os
+
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 TARGET_ORG = "apro@simcorp.com"
 APP_NAME = "B2B_MA"
+TRANSIENT_HTTP_CODES = {429, 500, 502, 503, 504}
+PATCH_COLUMNMAP_REQUIRED_KEYS = ("dimensionAxis", "plots", "trellis", "split")
+PATCH_COLUMNMAP_REQUIRED_VIZ = {
+    "hbar",
+    "column",
+    "donut",
+    "pie",
+    "stackcolumn",
+    "stackhbar",
+    "stackvbar",
+    "vbar",
+}
+PATCH_COLUMNMAP_NULL_VIZ = {"funnel", "treemap", "waterfall"}
+PATCH_NUMBER_WIDGET_BANNED_FIELDS = {"compact", "numberFormat", "title"}
+PATCH_NUMBER_WIDGET_INVALID_FIELDS = {"text"}
+PATCH_LINK_WIDGET_DESTINATION_TYPES = {"dashboard", "page"}
+PATCH_QUERY_STEP_REFERENCE_RE = re.compile(
+    r"(?:column|cell)\((?P<step>[A-Za-z0-9_]+)\.(?:selection|result)\s*,"
+)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Utilities
@@ -41,6 +79,358 @@ def _date_diff(d1, d2):
         return 0
 
 
+def _deep_html_unescape(value):
+    """Recursively unescape HTML entities in API-fetched dashboard state.
+
+    Wave dashboard GET responses encode SAQL with entities like &quot; and &amp;&amp;.
+    If that state is patched back without normalization, the dashboard stores
+    poisoned queries that fail at runtime.
+    """
+    if isinstance(value, str):
+        prev = value
+        while True:
+            curr = html.unescape(prev)
+            if curr == prev:
+                return curr
+            prev = curr
+    if isinstance(value, dict):
+        return {k: _deep_html_unescape(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_deep_html_unescape(v) for v in value]
+    return value
+
+
+def _clean_dashboard_state_for_patch(
+    state,
+    *,
+    strip_page_labels=False,
+    strip_number_widget_patch_fields=False,
+):
+    """Strip read-only fields from API-fetched dashboard state before PATCH."""
+    if not isinstance(state, dict):
+        return state
+
+    state.pop("layouts", None)
+
+    for grid in state.get("gridLayouts", []):
+        if isinstance(grid, dict):
+            grid.pop("selectors", None)
+            grid.pop("numColumns", None)
+            for page in grid.get("pages", []):
+                if isinstance(page, dict):
+                    if strip_page_labels:
+                        page.pop("label", None)
+                    page.pop("navigationHidden", None)
+
+    for step in state.get("steps", {}).values():
+        if not isinstance(step, dict):
+            continue
+
+        if step.get("type") == "aggregateflex":
+            step.pop("isFacet", None)
+            for ds in step.get("datasets", []):
+                if isinstance(ds, dict):
+                    ds.pop("label", None)
+                    ds.pop("url", None)
+            query = step.get("query")
+            if isinstance(query, dict):
+                for ds in query.get("datasets", []):
+                    if isinstance(ds, dict):
+                        ds.pop("label", None)
+                        ds.pop("url", None)
+
+        for ds in step.get("datasets", []):
+            if isinstance(ds, dict):
+                ds.pop("label", None)
+                ds.pop("url", None)
+
+    if strip_number_widget_patch_fields:
+        for widget in state.get("widgets", {}).values():
+            if not isinstance(widget, dict) or widget.get("type") != "number":
+                continue
+            params = widget.get("parameters")
+            if not isinstance(params, dict):
+                continue
+            for field_name in PATCH_NUMBER_WIDGET_BANNED_FIELDS:
+                params.pop(field_name, None)
+
+    return state
+
+
+def normalize_dashboard_state_for_patch(
+    state: dict[str, Any],
+    *,
+    strip_page_labels: bool = True,
+    strip_number_widget_patch_fields: bool = False,
+) -> dict[str, Any]:
+    """Return a deep-copied dashboard state normalized for Wave PATCH.
+
+    This helper intentionally defaults to conservative cleanup:
+    - fully unescape GET payload strings
+    - strip read-only page metadata and dataset label/url fields
+    - keep number widget fields unless the caller explicitly opts in
+    """
+    normalized_state = copy.deepcopy(_deep_html_unescape(state))
+    return _clean_dashboard_state_for_patch(
+        normalized_state,
+        strip_page_labels=strip_page_labels,
+        strip_number_widget_patch_fields=strip_number_widget_patch_fields,
+    )
+
+
+def find_dashboard_patch_contract_violations(
+    state: dict[str, Any],
+) -> list[dict[str, str]]:
+    """Return Wave PATCH contract violations found in a dashboard state."""
+    if not isinstance(state, dict):
+        return [
+            {
+                "code": "invalid_state",
+                "path": "state",
+                "message": "Dashboard state must be a dict.",
+            }
+        ]
+
+    violations: list[dict[str, str]] = []
+    page_names: set[str] = set()
+    widget_names = {
+        widget_name
+        for widget_name, widget in (state.get("widgets", {}) or {}).items()
+        if isinstance(widget_name, str) and widget_name and isinstance(widget, dict)
+    }
+    step_names = {
+        step_name
+        for step_name, step in (state.get("steps", {}) or {}).items()
+        if isinstance(step_name, str) and step_name and isinstance(step, dict)
+    }
+
+    for grid in state.get("gridLayouts", []) or []:
+        if not isinstance(grid, dict):
+            continue
+        for page in grid.get("pages", []) or []:
+            if not isinstance(page, dict):
+                continue
+            page_name = page.get("name")
+            if isinstance(page_name, str) and page_name:
+                page_names.add(page_name)
+            for index, page_widget in enumerate(page.get("widgets", []) or []):
+                if not isinstance(page_widget, dict):
+                    continue
+                widget_name = page_widget.get("name")
+                if (
+                    isinstance(widget_name, str)
+                    and widget_name
+                    and widget_name not in widget_names
+                ):
+                    violations.append(
+                        {
+                            "code": "page_widget_missing",
+                            "path": f"gridLayouts.pages.{page_name}.widgets[{index}]",
+                            "message": (
+                                f"Page {page_name!r} references widget {widget_name!r}, "
+                                "but no widget definition exists in state.widgets."
+                            ),
+                        }
+                    )
+
+    for step_name, step in (state.get("steps", {}) or {}).items():
+        if not isinstance(step, dict):
+            continue
+
+        if step.get("type") == "aggregateflex" and "isFacet" in step:
+            violations.append(
+                {
+                    "code": "aggregateflex_isfacet",
+                    "path": f"steps.{step_name}.isFacet",
+                    "message": "aggregateflex steps must not include isFacet on PATCH.",
+                }
+            )
+
+        dataset_locations: list[tuple[str, list[Any]]] = []
+        datasets = step.get("datasets")
+        if isinstance(datasets, list):
+            dataset_locations.append((f"steps.{step_name}.datasets", datasets))
+        query = step.get("query")
+        if isinstance(query, dict) and isinstance(query.get("datasets"), list):
+            dataset_locations.append(
+                (f"steps.{step_name}.query.datasets", query["datasets"])
+            )
+
+        for base_path, dataset_list in dataset_locations:
+            for index, dataset in enumerate(dataset_list):
+                if not isinstance(dataset, dict):
+                    continue
+                banned_keys = sorted(key for key in ("label", "url") if key in dataset)
+                if banned_keys:
+                    violations.append(
+                        {
+                            "code": "dataset_readonly_fields",
+                            "path": f"{base_path}[{index}]",
+                            "message": (
+                                "Dataset entries must not include read-only "
+                                f"fields on PATCH: {', '.join(banned_keys)}."
+                            ),
+                        }
+                    )
+
+        if isinstance(query, str):
+            referenced_steps = sorted(
+                {
+                    match.group("step")
+                    for match in PATCH_QUERY_STEP_REFERENCE_RE.finditer(query)
+                    if match.group("step") not in step_names
+                }
+            )
+            for missing_step_name in referenced_steps:
+                violations.append(
+                    {
+                        "code": "step_reference_missing",
+                        "path": f"steps.{step_name}.query",
+                        "message": (
+                            f"Step query references {missing_step_name!r} via column()/cell(), "
+                            "but that step is not defined in state.steps."
+                        ),
+                    }
+                )
+
+    for widget_name, widget in (state.get("widgets", {}) or {}).items():
+        if not isinstance(widget, dict):
+            continue
+
+        params = widget.get("parameters")
+        if not isinstance(params, dict):
+            continue
+
+        viz = params.get("visualizationType") or widget.get("type")
+        column_map = params.get("columnMap")
+
+        if viz in PATCH_COLUMNMAP_REQUIRED_VIZ and column_map is not None:
+            if not isinstance(column_map, dict):
+                violations.append(
+                    {
+                        "code": "columnmap_invalid_type",
+                        "path": f"widgets.{widget_name}.parameters.columnMap",
+                        "message": (
+                            f"{viz} widgets must use a 4-key columnMap dict or omit it."
+                        ),
+                    }
+                )
+            else:
+                missing_keys = [
+                    key
+                    for key in PATCH_COLUMNMAP_REQUIRED_KEYS
+                    if key not in column_map
+                ]
+                if missing_keys:
+                    violations.append(
+                        {
+                            "code": "columnmap_missing_keys",
+                            "path": f"widgets.{widget_name}.parameters.columnMap",
+                            "message": (
+                                f"{viz} widgets require columnMap keys: "
+                                f"{', '.join(missing_keys)}."
+                            ),
+                        }
+                    )
+
+        if viz in PATCH_COLUMNMAP_NULL_VIZ and column_map is not None:
+            violations.append(
+                {
+                    "code": "columnmap_must_be_null",
+                    "path": f"widgets.{widget_name}.parameters.columnMap",
+                    "message": f"{viz} widgets must use columnMap: null.",
+                }
+            )
+
+        if widget.get("type") == "number":
+            banned_fields = sorted(
+                field_name
+                for field_name in PATCH_NUMBER_WIDGET_BANNED_FIELDS
+                if field_name in params
+            )
+            if banned_fields:
+                violations.append(
+                    {
+                        "code": "number_widget_banned_fields",
+                        "path": f"widgets.{widget_name}.parameters",
+                        "message": (
+                            "Number widgets must not include PATCH-banned fields: "
+                            f"{', '.join(banned_fields)}."
+                        ),
+                    }
+                )
+            invalid_fields = sorted(
+                field_name
+                for field_name in PATCH_NUMBER_WIDGET_INVALID_FIELDS
+                if field_name in params
+            )
+            if invalid_fields:
+                violations.append(
+                    {
+                        "code": "number_widget_invalid_fields",
+                        "path": f"widgets.{widget_name}.parameters",
+                        "message": (
+                            "Number widgets must not include unsupported PATCH fields: "
+                            f"{', '.join(invalid_fields)}."
+                        ),
+                    }
+                )
+
+        if widget.get("type") == "link":
+            destination_type = params.get("destinationType")
+            if (
+                isinstance(destination_type, str)
+                and destination_type
+                and destination_type not in PATCH_LINK_WIDGET_DESTINATION_TYPES
+            ):
+                violations.append(
+                    {
+                        "code": "link_widget_invalid_destination_type",
+                        "path": f"widgets.{widget_name}.parameters.destinationType",
+                        "message": (
+                            "Link widgets must use a supported destinationType: "
+                            f"{', '.join(sorted(PATCH_LINK_WIDGET_DESTINATION_TYPES))}."
+                        ),
+                    }
+                )
+
+        step_name = params.get("step")
+        if isinstance(step_name, str) and step_name and step_name not in step_names:
+            violations.append(
+                {
+                    "code": "widget_step_missing",
+                    "path": f"widgets.{widget_name}.parameters.step",
+                    "message": (
+                        f"Widget {widget_name!r} references step {step_name!r}, "
+                        "but that step is not defined in state.steps."
+                    ),
+                }
+            )
+
+        destination_link = params.get("destinationLink")
+        if isinstance(destination_link, dict):
+            destination_type = params.get("destinationType")
+            destination_name = destination_link.get("name")
+            if (
+                destination_type != "dashboard"
+                and isinstance(destination_name, str)
+                and destination_name
+                and destination_name not in page_names
+            ):
+                violations.append(
+                    {
+                        "code": "destination_link_name_mismatch",
+                        "path": f"widgets.{widget_name}.parameters.destinationLink.name",
+                        "message": (
+                            "destinationLink.name must match a gridLayouts page name; "
+                            f"found {destination_name!r}."
+                        ),
+                    }
+                )
+
+    return violations
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Auth & API
 # ═══════════════════════════════════════════════════════════════════════════
@@ -58,6 +448,49 @@ def get_auth():
     return d["instanceUrl"], d["accessToken"]
 
 
+def _urlopen_json(req, *, retry_label="request", max_attempts=4, initial_delay=1.5):
+    """Open a Salesforce HTTP request and retry transient failures."""
+    delay = initial_delay
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with urllib.request.urlopen(req) as resp:
+                if getattr(resp, "status", None) == 204:
+                    return {}
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode()
+            if e.code in TRANSIENT_HTTP_CODES and attempt < max_attempts:
+                logger.warning(
+                    "%s: transient HTTP %s on attempt %d/%d; retrying in %.1fs",
+                    retry_label,
+                    e.code,
+                    attempt,
+                    max_attempts,
+                    delay,
+                )
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise RuntimeError(
+                f"{retry_label} → HTTP {e.code}: {err_body[:500]}"
+            ) from e
+        except (urllib.error.URLError, ConnectionResetError, TimeoutError) as e:
+            if attempt < max_attempts:
+                logger.warning(
+                    "%s: transient network error on attempt %d/%d; retrying in %.1fs",
+                    retry_label,
+                    attempt,
+                    max_attempts,
+                    delay,
+                )
+                time.sleep(delay)
+                delay *= 2
+                continue
+            raise RuntimeError(
+                f"{retry_label} failed after {max_attempts} attempts: {e}"
+            ) from e
+
+
 def _sf_api(inst, tok, method, path, body=None):
     """Make a Salesforce REST API call."""
     data = json.dumps(body).encode() if body else None
@@ -70,14 +503,7 @@ def _sf_api(inst, tok, method, path, body=None):
             "Content-Type": "application/json",
         },
     )
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read().decode()) if resp.status != 204 else {}
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode()
-        raise RuntimeError(
-            f"API {method} {path} → HTTP {e.code}: {err_body[:500]}"
-        ) from e
+    return _urlopen_json(req, retry_label=f"API {method} {path}")
 
 
 def _soql(inst, tok, query):
@@ -87,8 +513,7 @@ def _soql(inst, tok, query):
     records = []
     while url:
         req = urllib.request.Request(url, headers={"Authorization": f"Bearer {tok}"})
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read().decode())
+        data = _urlopen_json(req, retry_label="SOQL query")
         records.extend(data.get("records", []))
         next_url = data.get("nextRecordsUrl")
         url = f"{inst}{next_url}" if next_url else None
@@ -148,7 +573,7 @@ def upload_dataset(
     fields_meta,
     csv_bytes,
     app_name=APP_NAME,
-    poll_attempts=30,
+    poll_attempts=80,
     poll_interval=3,
 ):
     """Upload a CSV dataset to CRM Analytics via InsightsExternalData API.
@@ -190,7 +615,7 @@ def upload_dataset(
         },
     )
     header_id = header["id"]
-    print(f"  Upload header: {header_id}")
+    logger.info("  Upload header: %s", header_id)
 
     chunk_size = 10 * 1024 * 1024
     part = 1
@@ -208,7 +633,7 @@ def upload_dataset(
             },
         )
         part += 1
-    print(f"  Uploaded {len(csv_bytes):,} bytes in {part - 1} part(s)")
+    logger.info("  Uploaded %d bytes in %d part(s)", len(csv_bytes), part - 1)
 
     _sf_api(
         inst,
@@ -217,7 +642,7 @@ def upload_dataset(
         f"/services/data/v66.0/sobjects/InsightsExternalData/{header_id}",
         {"Action": "Process"},
     )
-    print("  Processing started...")
+    logger.info("  Processing started...")
 
     for _i in range(poll_attempts):
         time.sleep(poll_interval)
@@ -231,13 +656,13 @@ def upload_dataset(
             s = status[0].get("Status", "")
             msg = status[0].get("StatusMessage", "")
             if s in ("Completed", "CompletedWithWarnings"):
-                print(f"  Dataset ready! ({s})")
+                logger.info("  Dataset ready! (%s)", s)
                 return True
             if s == "Failed":
-                print(f"  FAILED: {msg}")
+                logger.error("  FAILED: %s", msg)
                 return False
-            print(f"  ... {s}")
-    print("  Timed out waiting for dataset processing")
+            logger.info("  ... %s", s)
+    logger.warning("  Timed out waiting for dataset processing")
     return False
 
 
@@ -265,13 +690,14 @@ def sq(query, broadcast=True):
     return {"type": "saql", "query": query, "broadcastFacet": broadcast}
 
 
-def af(field, ds_meta, select_mode="multi"):
+def af(field, ds_meta, select_mode="multi", start=None):
     """Build an aggregateflex step for filter selectors.
 
     Args:
         field: Field name to aggregate on
         ds_meta: Dataset metadata list, e.g. [{"id": "...", "name": "DS_Name"}]
         select_mode: "multi" or "single"
+        start: optional JSON-array string of default selected values
     """
     return {
         "type": "aggregateflex",
@@ -283,7 +709,7 @@ def af(field, ds_meta, select_mode="multi"):
             "version": -1.0,
         },
         "receiveFacetSource": {"mode": "all", "steps": []},
-        "start": "[]",
+        "start": start or "[]",
         "useGlobal": True,
         "useExternalFilters": True,
     }
@@ -294,24 +720,165 @@ def af(field, ds_meta, select_mode="multi"):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def num(step, field, title, color, compact=False, size=24):
-    """Build a number (KPI tile) widget."""
-    return {
-        "type": "number",
-        "parameters": {
-            "step": step,
-            "measureField": field,
-            "compact": compact,
-            "title": title,
-            "titleColor": "#54698D",
-            "titleSize": 12,
-            "numberColor": color,
-            "numberSize": size,
-            "textAlignment": "center",
-            "exploreLink": True,
-            "interactions": [],
-        },
+def num(
+    step,
+    field,
+    title,
+    color,
+    compact=False,
+    size=None,
+    tier=None,
+    prefix="",
+    suffix="",
+    subtitle="",
+    subtitle_size=11,
+    subtitle_color="#54698D",
+    title_color="#54698D",
+    title_size=None,
+    text_alignment="center",
+    icon=None,
+    icon_color=None,
+    sentiment_color=False,
+    conditional_ranges=None,
+    widget_style=None,
+):
+    """Build a number (KPI tile) widget with consulting-grade formatting.
+
+    Tier system (auto-sets sizes if `size` and `title_size` are not specified):
+        "primary"   → numberSize=40, titleSize=10  (hero KPIs, 4-col wide)
+        "secondary" → numberSize=32, titleSize=10  (supporting KPIs, 3-col wide)
+        "tertiary"  → numberSize=24, titleSize=10  (detail KPIs, 2-col wide)
+
+    NOTE: Wave API PATCH rejects 'numberFormat' and 'compactForm'. Formatting
+    comes from compact=True, dataset XMD, or SAQL number_to_string().
+
+    Args:
+        step: Step name providing the measure
+        field: measureField (e.g. "sum_Amount", "avg_Win_Rate")
+        title: Primary label text
+        color: Number value color (hex)
+        compact: Abbreviate large numbers (1.2M instead of 1,200,000)
+        size: Override numberSize in points (default: auto from tier)
+        tier: "primary", "secondary", or "tertiary" (auto-sizes)
+        prefix: Text before value (e.g. "$")
+        suffix: Text after value (e.g. "%")
+        subtitle: Secondary label (e.g. "+12.4% QoQ")
+        subtitle_size: Subtitle font size (default 11)
+        subtitle_color: Subtitle color (default #54698D)
+        title_color: Title label color (default #54698D)
+        title_size: Title font size (default: auto from tier)
+        text_alignment: "left", "center", or "right"
+        icon: SLDS icon name (e.g. "utility:money", "utility:trending")
+        icon_color: Icon color (hex)
+        sentiment_color: Auto green/red based on value sign
+        conditional_ranges: List of {color, value, label} for threshold coloring
+        widget_style: Per-widget style override dict
+    """
+    # Tier-based auto-sizing (3:1 ratio rule)
+    TIER_SIZES = {
+        "primary": (40, 10),
+        "secondary": (32, 10),
+        "tertiary": (24, 10),
     }
+    if tier and tier in TIER_SIZES:
+        default_num_size, default_title_size = TIER_SIZES[tier]
+    else:
+        default_num_size, default_title_size = 24, 12
+
+    num_size = size if size is not None else default_num_size
+    t_size = title_size if title_size is not None else default_title_size
+
+    params = {
+        "step": step,
+        "measureField": field,
+        "compact": compact,
+        "title": title,
+        "titleColor": title_color,
+        "titleSize": t_size,
+        "numberColor": color,
+        "numberSize": num_size,
+        "textAlignment": text_alignment,
+        "exploreLink": True,
+        "interactions": [],
+    }
+
+    if prefix:
+        unit = str(prefix).strip()
+        if unit and unit not in params["title"]:
+            if unit in {"$", "€", "£"}:
+                params["title"] = f"{params['title']} ({unit})"
+            else:
+                params["title"] = f"{unit} {params['title']}"
+    if suffix:
+        unit = str(suffix).strip()
+        if unit and unit not in params["title"]:
+            if unit in {"%", "x", "/day"}:
+                params["title"] = f"{params['title']} {unit}"
+            else:
+                params["title"] = f"{params['title']} ({unit})"
+    if subtitle:
+        params["subtitle"] = subtitle
+        params["subtitleFontSize"] = subtitle_size
+    if subtitle_color != "#54698D":
+        params["subtitleColor"] = subtitle_color
+    if icon:
+        params["icon"] = icon
+        if icon_color:
+            params["iconColor"] = icon_color
+    if sentiment_color or conditional_ranges:
+        cf = {}
+        if sentiment_color:
+            cf["sentimentColor"] = True
+        if conditional_ranges:
+            cf["ranges"] = conditional_ranges
+        params["conditionalFormatting"] = cf
+
+    return {"type": "number", "parameters": params}
+
+
+# Consulting-grade KPI card widget styles
+KPI_CARD_STYLE = {
+    "backgroundColor": "#FFFFFF",
+    "borderColor": "#E0E5EE",
+    "borderEdges": ["top", "right", "bottom", "left"],
+    "borderRadius": 8,
+    "borderWidth": 1,
+}
+
+KPI_ACCENT_LEFT_STYLE = {
+    "backgroundColor": "#FFFFFF",
+    "borderColor": "#0070D2",
+    "borderEdges": ["left"],
+    "borderRadius": 0,
+    "borderWidth": 4,
+}
+
+KPI_NO_BORDER_STYLE = {
+    "backgroundColor": "transparent",
+    "borderColor": "#FFFFFF",
+    "borderEdges": [],
+    "borderRadius": 0,
+    "borderWidth": 0,
+}
+
+
+def kpi_style(variant="card", accent_color=None):
+    """Return a widgetStyle dict for KPI number widgets.
+
+    Variants:
+        "card"   → Rounded card with subtle border (consulting standard)
+        "accent" → Left-accent bar (Revenue Intelligence style)
+        "none"   → No border/background (for dense layouts)
+    """
+    styles = {
+        "card": dict(KPI_CARD_STYLE),
+        "accent": dict(KPI_ACCENT_LEFT_STYLE),
+        "none": dict(KPI_NO_BORDER_STYLE),
+    }
+    style = styles.get(variant, dict(KPI_CARD_STYLE))
+    if accent_color:
+        style["borderColor"] = accent_color
+    return style
 
 
 def rich_chart(
@@ -330,13 +897,40 @@ def rich_chart(
     normalize=False,
     show_values=False,
     reference_lines=None,
+    subtitle="",
+    number_format=None,
+    format_rules=None,
 ):
     """Build a chart widget with full CRM Analytics configuration.
 
     normalize: True for 100% stacked charts (all bars sum to 100%).
     show_values: True to show data labels on bars/slices.
     reference_lines: list of {value, label, color} dicts for threshold lines.
+    number_format: str — format for measureAxis1 (e.g. "$#,##0", "0.0%", "#,##0").
+        If None, auto-inferred from axis_title/title.
+    format_rules: list of dicts — conditional formatting rules for compare tables.
+        e.g. [{"type":"threshold","field":"risk_score","rules":[{"value":70,"color":"#D4504C","operator":"gte"}]}]
     """
+    import re
+
+    # Auto-infer numberFormat if not provided
+    if number_format is None:
+        combined = f"{axis_title} {title}".lower()
+        if re.search(
+            r"(%|rate|coverage|confidence|pacing|yoy|conversion|win|attainment)",
+            combined,
+        ):
+            number_format = "0.0%"
+        elif re.search(
+            r"(\$|arr|revenue|amount|quota|plan|gap|acv|mrr|pipeline|forecast|value)",
+            combined,
+        ):
+            number_format = "$#,##0"
+        elif re.search(r"(days|hours|duration|cycle|dwell|velocity|age)", combined):
+            number_format = "#,##0.0"
+        else:
+            number_format = "#,##0"
+
     COLUMNMAP_TYPES = {
         "hbar",
         "column",
@@ -359,7 +953,7 @@ def rich_chart(
             "fontSize": 14,
             "subtitleFontSize": 11,
             "align": "center",
-            "subtitleLabel": "",
+            "subtitleLabel": subtitle,
         },
         "dimensionAxis": {
             "showTitle": True,
@@ -377,6 +971,7 @@ def rich_chart(
             "title": axis_title,
             "sqrtScale": False,
             "customDomain": {"showDomain": False},
+            "numberFormat": number_format,
         },
         "legend": {
             "show": show_legend,
@@ -388,6 +983,8 @@ def rich_chart(
         "applyConditionalFormatting": True,
         "interactions": [],
     }
+    if format_rules:
+        params["formatRules"] = format_rules
     if viz in COLUMNMAP_TYPES:
         params["columnMap"] = {
             "dimensionAxis": dim_fields,
@@ -401,8 +998,6 @@ def rich_chart(
         params["normalize"] = True
     if show_values:
         params["showValues"] = True
-    if reference_lines:
-        params["referenceLines"] = reference_lines
     return {"type": "chart", "parameters": params}
 
 
@@ -506,39 +1101,88 @@ def waterfall_chart(
         },
         "interactions": [],
     }
-    if reference_lines:
-        params["referenceLines"] = reference_lines
     return {"type": "chart", "parameters": params}
 
 
 def choropleth_chart(step, title, geo_field, measure_field):
-    """Build a choropleth (world map) chart widget."""
+    """Build a choropleth chart widget using the lens-compatible map config."""
     return {
         "type": "chart",
         "parameters": {
+            "applyConditionalFormatting": True,
+            "autoZoom": False,
+            "bins": {
+                "bands": {
+                    "high": {"color": "#008000", "label": ""},
+                    "low": {"color": "#B22222", "label": ""},
+                    "medium": {"color": "#ffa500", "label": ""},
+                },
+                "breakpoints": {"high": 100, "low": 0},
+            },
             "step": step,
             "visualizationType": "choropleth",
-            "map": "World",
+            "map": "World Countries",
+            "projectionType": "Mercator",
             "binValues": False,
-            "lowColor": "#C6DBEF",
-            "highColor": "#08519C",
+            "lowColor": "#C5DBF7",
+            "highColor": "#1674D9",
             "columnMap": {
-                "locations": [geo_field],
                 "color": [measure_field],
+                "plots": [geo_field],
                 "trellis": [],
-                "dimensionAxis": [geo_field],
-                "plots": [measure_field],
             },
-            "title": {"label": title, "fontSize": 14},
+            "title": {
+                "label": title,
+                "fontSize": 14,
+                "subtitleFontSize": 11,
+                "align": "center",
+                "subtitleLabel": "",
+            },
             "theme": "wave",
-            "legend": {"show": True, "position": "right-bottom"},
+            "legend": {
+                "show": True,
+                "showHeader": True,
+                "position": "right-top",
+                "inside": False,
+                "customSize": "auto",
+                "descOrder": False,
+            },
+            "trellis": {
+                "chartsPerLine": 4,
+                "enable": False,
+                "flipLabels": False,
+                "showGridLines": True,
+                "size": [100, 100],
+                "type": "x",
+            },
+            "tooltip": {
+                "content": {
+                    "legend": {
+                        "customizeLegend": False,
+                        "dimensions": [],
+                        "measures": [],
+                        "showBinLabel": True,
+                        "showDimensions": True,
+                        "showMeasures": True,
+                        "showNullValues": True,
+                        "showPercentage": True,
+                    }
+                }
+            },
+            "exploreLink": True,
+            "showActionMenu": True,
             "interactions": [],
         },
     }
 
 
 def sankey_chart(
-    step, title, source_field="source", target_field="target", measure_field="cnt"
+    step,
+    title,
+    source_field="source",
+    target_field="target",
+    measure_field="cnt",
+    subtitle="",
 ):
     """Build a sankey diagram widget. Data must have source, target, and measure columns.
 
@@ -555,7 +1199,7 @@ def sankey_chart(
                 "fontSize": 14,
                 "subtitleFontSize": 11,
                 "align": "center",
-                "subtitleLabel": "",
+                "subtitleLabel": subtitle,
             },
             "theme": "wave",
             "exploreLink": True,
@@ -743,16 +1387,21 @@ def combo_chart(
     show_legend=True,
     axis_title="",
     axis2_title="",
+    subtitle="",
+    reference_lines=None,
+    axis1_format=None,
+    axis2_format=None,
 ):
     """Build a combo (bar + line) chart widget.
 
     Uses columnMap + plotConfiguration array (production-verified format).
+    axis1_format/axis2_format: ICU number format strings, e.g. "$#,##0" or "0.0%".
     Each bar measure renders as column, each line measure renders as line.
     """
     plot_config = [{"series": m, "chartType": "column"} for m in bar_measures] + [
         {"series": m, "chartType": "line"} for m in line_measures
     ]
-    return {
+    w = {
         "type": "chart",
         "parameters": {
             "step": step,
@@ -762,7 +1411,7 @@ def combo_chart(
                 "fontSize": 14,
                 "subtitleFontSize": 11,
                 "align": "center",
-                "subtitleLabel": "",
+                "subtitleLabel": subtitle,
             },
             "theme": "wave",
             "exploreLink": True,
@@ -791,6 +1440,7 @@ def combo_chart(
                 "title": axis_title,
                 "sqrtScale": False,
                 "customDomain": {"showDomain": False},
+                **({"numberFormat": axis1_format} if axis1_format else {}),
             },
             "measureAxis2": {
                 "showTitle": bool(axis2_title),
@@ -798,6 +1448,7 @@ def combo_chart(
                 "title": axis2_title,
                 "sqrtScale": False,
                 "customDomain": {"showDomain": False},
+                **({"numberFormat": axis2_format} if axis2_format else {}),
             },
             "legend": {
                 "show": show_legend,
@@ -810,6 +1461,7 @@ def combo_chart(
             "interactions": [],
         },
     }
+    return w
 
 
 def scatter_chart(step, title, x_title="", y_title="", show_legend=True):
@@ -860,12 +1512,14 @@ def scatter_chart(step, title, x_title="", y_title="", show_legend=True):
     }
 
 
-def line_chart(step, title, show_legend=True, axis_title=""):
+def line_chart(
+    step, title, show_legend=True, axis_title="", reference_lines=None, subtitle=""
+):
     """Build a line chart widget. Auto-detect columnMap.
 
     SAQL must produce: dimension, one or more measures.
     """
-    return {
+    w = {
         "type": "chart",
         "parameters": {
             "step": step,
@@ -875,7 +1529,7 @@ def line_chart(step, title, show_legend=True, axis_title=""):
                 "fontSize": 14,
                 "subtitleFontSize": 11,
                 "align": "center",
-                "subtitleLabel": "",
+                "subtitleLabel": subtitle,
             },
             "theme": "wave",
             "exploreLink": True,
@@ -899,6 +1553,7 @@ def line_chart(step, title, show_legend=True, axis_title=""):
             "interactions": [],
         },
     }
+    return w
 
 
 def heatmap_chart(step, title, show_legend=True):
@@ -972,6 +1627,89 @@ def bullet_chart(step, title, axis_title=""):
                 "title": axis_title,
                 "showAxis": True,
             },
+            "tooltip": {
+                "content": {
+                    "legend": {
+                        "customizeLegend": False,
+                        "dimensions": [],
+                        "measures": [],
+                        "showBinLabel": True,
+                        "showDimensions": True,
+                        "showMeasures": True,
+                        "showNullValues": True,
+                        "showPercentage": False,
+                    }
+                }
+            },
+            "widgetStyle": {
+                "backgroundColor": "#FAFBFC",
+                "borderColor": "#E4E7EB",
+                "borderEdges": ["all"],
+                "borderRadius": 6,
+                "borderWidth": 1,
+            },
+            "interactions": [],
+        },
+    }
+
+
+def flat_gauge(step, field, title, min_val=0, max_val=100, bands=None):
+    """Build a flat gauge widget for target-vs-actual KPIs.
+
+    Use this when the runtime does not support legacy bullet charts.
+    """
+    if bands is None:
+        bands = [
+            {"start": 0, "stop": 50, "color": "#D4504C"},
+            {"start": 50, "stop": 80, "color": "#FFB75D"},
+            {"start": 80, "stop": 100, "color": "#04844B"},
+        ]
+    return {
+        "type": "chart",
+        "parameters": {
+            "step": step,
+            "visualizationType": "flatgauge",
+            "title": {
+                "label": title,
+                "fontSize": 14,
+                "subtitleFontSize": 11,
+                "align": "center",
+                "subtitleLabel": "",
+            },
+            "theme": "wave",
+            "exploreLink": True,
+            "showActionMenu": True,
+            "autoFitMode": "fit",
+            "gauge": {
+                "min": min_val,
+                "max": max_val,
+                "bands": bands,
+            },
+            "columnMap": {
+                "trellis": [],
+                "plots": [field],
+            },
+            "tooltip": {
+                "content": {
+                    "legend": {
+                        "customizeLegend": False,
+                        "dimensions": [],
+                        "measures": [],
+                        "showBinLabel": True,
+                        "showDimensions": True,
+                        "showMeasures": True,
+                        "showNullValues": True,
+                        "showPercentage": False,
+                    }
+                }
+            },
+            "widgetStyle": {
+                "backgroundColor": "#FAFBFC",
+                "borderColor": "#E4E7EB",
+                "borderEdges": ["all"],
+                "borderRadius": 6,
+                "borderWidth": 1,
+            },
             "interactions": [],
         },
     }
@@ -1043,6 +1781,134 @@ def hdr(line1, line2=""):
     }
 
 
+def compare_table(
+    step,
+    title,
+    columns=None,
+    column_properties=None,
+    row_limit=25,
+    header_bg="#F4F6F9",
+    header_color="#16325C",
+    header_size=12,
+    cell_bg="#FFFFFF",
+    cell_color="#16325C",
+    cell_size=12,
+    border_color="#E0E5EE",
+    inner_border_color="#E0E5EE",
+    show_totals=True,
+    show_row_index=False,
+    vertical_padding=8,
+    mode="variable",
+    min_col_width=40,
+    max_col_width=300,
+    format_rules=None,
+    actions=None,
+    subtitle="",
+):
+    """Build a consulting-grade compare table widget.
+
+    Args:
+        step: Step name providing the data
+        title: Chart title (string or title object)
+        columns: Ordered list of column aliases to display (controls visibility/order)
+        column_properties: Dict keyed by field name with per-column config:
+            {"Amount": {"width": 120, "alignment": "right", "format": "$,.0f"}}
+        row_limit: Max rows displayed (25 detail, 10 summary)
+        header_bg/header_color/header_size: Header row styling
+        cell_bg/cell_color/cell_size: Data cell styling
+        border_color: Outer border color
+        inner_border_color: Inner grid line color
+        show_totals: Show totals row at bottom
+        show_row_index: Show row number column
+        vertical_padding: Cell padding in px
+        mode: "variable" (resizable) or "fixed"
+        min_col_width/max_col_width: Column width bounds
+        format_rules: Conditional formatting rules
+        actions: List of custom bulk action configs
+        subtitle: Subtitle text
+    """
+    title_obj = (
+        title
+        if isinstance(title, dict)
+        else {
+            "label": title,
+            "fontSize": 14,
+            "subtitleFontSize": 11,
+            "align": "center",
+            "subtitleLabel": subtitle,
+        }
+    )
+
+    params = {
+        "step": step,
+        "visualizationType": "comparisontable",
+        "title": title_obj,
+        "theme": "wave",
+        "exploreLink": True,
+        "showActionMenu": True,
+        "autoFitMode": "fit",
+        "borderColor": border_color,
+        "borderWidth": 1,
+        "cell": {
+            "backgroundColor": cell_bg,
+            "fontColor": cell_color,
+            "fontSize": cell_size,
+        },
+        "header": {
+            "backgroundColor": header_bg,
+            "fontColor": header_color,
+            "fontSize": header_size,
+        },
+        "innerMajorBorderColor": "#A8B7C7",
+        "innerMinorBorderColor": inner_border_color,
+        "maxColumnWidth": max_col_width,
+        "minColumnWidth": min_col_width,
+        "mode": mode,
+        "numberOfLines": 1,
+        "rowLimit": row_limit,
+        "showRowIndexColumn": show_row_index,
+        "totals": show_totals,
+        "verticalPadding": vertical_padding,
+        "applyConditionalFormatting": True,
+        "interactions": [],
+    }
+
+    if columns:
+        params["columns"] = columns
+    if column_properties:
+        params["columnProperties"] = column_properties
+    if format_rules:
+        params["formatRules"] = format_rules
+    if actions:
+        params["customBulkActions"] = actions
+
+    return {"type": "chart", "parameters": params}
+
+
+def nav_link_external(dashboard_id, text, include_state=True, font_size=14):
+    """Build a link widget for cross-dashboard navigation.
+
+    Args:
+        dashboard_id: Target dashboard ID (0FK...)
+        text: Display text
+        include_state: Carry filter context to destination (default True)
+        font_size: Font size in points
+    """
+    return {
+        "type": "link",
+        "parameters": {
+            "destination": dashboard_id,
+            "destinationType": "dashboard",
+            "destinationLink": {"name": dashboard_id},
+            "includeState": include_state,
+            "fontSize": font_size,
+            "text": text,
+            "textAlignment": "center",
+            "textColor": "#0070D2",
+        },
+    }
+
+
 def section_label(text):
     """Build a section label text widget."""
     return {
@@ -1109,12 +1975,14 @@ def set_record_links_xmd(inst, tok, dataset_name, link_configs):
             ds = d
             break
     if not ds:
-        print(f"  XMD: dataset '{dataset_name}' not found — skipping record links")
+        logger.warning(
+            "  XMD: dataset '%s' not found — skipping record links", dataset_name
+        )
         return
     ds_id = ds["id"]
     vid = ds.get("currentVersionId", "")
     if not vid:
-        print(f"  XMD: no current version for '{dataset_name}' — skipping")
+        logger.warning("  XMD: no current version for '%s' — skipping", dataset_name)
         return
 
     # 2. Read existing XMD to preserve measures/other dimensions
@@ -1172,9 +2040,11 @@ def set_record_links_xmd(inst, tok, dataset_name, link_configs):
     try:
         _sf_api(inst, tok, "PUT", xmd_write, body)
         fields_str = ", ".join(c["field"] for c in link_configs)
-        print(f"  XMD: record actions applied on {dataset_name} [{fields_str}]")
+        logger.info(
+            "  XMD: record actions applied on %s [%s]", dataset_name, fields_str
+        )
     except RuntimeError as e:
-        print(f"  XMD WARNING ({dataset_name}): {e}")
+        logger.warning("  XMD WARNING (%s): %s", dataset_name, e)
 
 
 def pg(name, lbl, widgets):
@@ -1222,30 +2092,76 @@ def nav_row(prefix, count):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def build_dashboard_state(steps, widgets, layout):
-    """Build the complete dashboard state dict."""
-    return {
+def build_dashboard_state(
+    steps,
+    widgets,
+    layout,
+    bg_color="#F4F6F9",
+    cell_spacing=8,
+    row_height="normal",
+    widget_style=None,
+    data_source_links=None,
+    filters=None,
+):
+    """Build the complete dashboard state dict with consulting-grade theming.
+
+    Args:
+        steps: Step definitions dict
+        widgets: Widget definitions dict
+        layout: gridLayouts page layout
+        bg_color: Dashboard background color (default #F4F6F9 light gray)
+        cell_spacing: Widget spacing in px (default 8, consulting standard)
+        row_height: "normal" or "fine" (fine = denser Bloomberg-style grids)
+        widget_style: Default widget style for all widgets (overridable per-widget)
+        data_source_links: Cross-dataset field links for faceting
+        filters: Global filter definitions
+    """
+    if widget_style is None:
+        widget_style = {
+            "backgroundColor": "#FFFFFF",
+            "borderColor": "#E0E5EE",
+            "borderEdges": ["top", "right", "bottom", "left"],
+            "borderRadius": 4,
+            "borderWidth": 1,
+        }
+
+    # Apply dashboard-level theming to gridLayout
+    if isinstance(layout, dict):
+        layout.setdefault("style", {})
+        layout["style"]["backgroundColor"] = bg_color
+        layout["style"]["cellSpacingX"] = cell_spacing
+        layout["style"]["cellSpacingY"] = cell_spacing
+        layout["style"]["gutterColor"] = "transparent"
+        layout["style"]["fit"] = "original"
+        if row_height != "normal":
+            layout["rowHeight"] = row_height
+
+    state = {
         "steps": steps,
         "widgets": widgets,
         "gridLayouts": [layout],
-        "widgetStyle": {
-            "backgroundColor": "#FFFFFF",
-            "borderColor": "#E6ECF2",
-            "borderEdges": [],
-            "borderRadius": 2,
-            "borderWidth": 1,
-        },
+        "widgetStyle": widget_style,
     }
+
+    if data_source_links:
+        state["dataSourceLinks"] = data_source_links
+    if filters:
+        state["filters"] = filters
+
+    return state
 
 
 def deploy_dashboard(inst, tok, dashboard_id, state):
     """Deploy dashboard state via PATCH to an existing dashboard."""
-    body = json.dumps({"state": state})
-    steps = state["steps"]
-    widgets = state["widgets"]
-    pages = state["gridLayouts"][0]["pages"]
-    print(f"Payload: {len(body):,} bytes")
-    print(f"  {len(steps)} steps | {len(widgets)} widgets | {len(pages)} pages")
+    normalized_state = normalize_dashboard_state_for_patch(state)
+    body = json.dumps({"state": normalized_state})
+    steps = normalized_state["steps"]
+    widgets = normalized_state["widgets"]
+    pages = normalized_state["gridLayouts"][0]["pages"]
+    logger.info("Payload: %d bytes", len(body))
+    logger.info(
+        "  %d steps | %d widgets | %d pages", len(steps), len(widgets), len(pages)
+    )
 
     url = f"{inst}/services/data/v66.0/wave/dashboards/{dashboard_id}"
     req = urllib.request.Request(
@@ -1258,18 +2174,20 @@ def deploy_dashboard(inst, tok, dashboard_id, state):
         },
     )
     try:
-        with urllib.request.urlopen(req) as resp:
-            r = json.loads(resp.read().decode())
-            print(f"\nOK — {r.get('name')} updated")
-            st = r.get("state", {})
-            print(f"  Steps: {len(st.get('steps', {}))}")
-            print(f"  Widgets: {len(st.get('widgets', {}))}")
-            gl = st.get("gridLayouts", [{}])[0]
-            for p in gl.get("pages", []):
-                print(f"  Page '{p.get('label')}': {len(p.get('widgets', []))} widgets")
-    except urllib.error.HTTPError as e:
-        err = e.read().decode()
-        print(f"FAIL (HTTP {e.code}): {err[:2000]}")
+        r = _urlopen_json(req, retry_label=f"Dashboard deploy {dashboard_id}")
+        logger.info("OK — %s updated", r.get("name"))
+        st = r.get("state", {})
+        logger.info("  Steps: %d", len(st.get("steps", {})))
+        logger.info("  Widgets: %d", len(st.get("widgets", {})))
+        gl = st.get("gridLayouts", [{}])[0]
+        for p in gl.get("pages", []):
+            logger.info(
+                "  Page '%s': %d widgets", p.get("label"), len(p.get("widgets", []))
+            )
+        return r
+    except RuntimeError as e:
+        logger.error("FAIL: %s", str(e)[:2000])
+        raise
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1647,7 +2565,7 @@ def create_dataflow(inst, tok, name, definition, app_name=APP_NAME):
                 f"/services/data/v66.0/wave/dataflows/{df_id}",
                 {"definition": definition},
             )
-            print(f"  Updated dataflow: {df_id} ({name})")
+            logger.info("  Updated dataflow: %s (%s)", df_id, name)
             return df_id
 
     # Create new
@@ -1660,7 +2578,7 @@ def create_dataflow(inst, tok, name, definition, app_name=APP_NAME):
 
     result = _sf_api(inst, tok, "POST", "/services/data/v66.0/wave/dataflows", body)
     df_id = result["id"]
-    print(f"  Created dataflow: {df_id} ({name})")
+    logger.info("  Created dataflow: %s (%s)", df_id, name)
     return df_id
 
 
@@ -1678,9 +2596,9 @@ def run_dataflow(inst, tok, dataflow_id, poll_attempts=60, poll_interval=10):
     )
     job_id = result.get("id")
     if not job_id:
-        print("  Failed to start dataflow job")
+        logger.error("  Failed to start dataflow job")
         return False
-    print(f"  Dataflow job started: {job_id}")
+    logger.info("  Dataflow job started: %s", job_id)
 
     for _ in range(poll_attempts):
         time.sleep(poll_interval)
@@ -1689,15 +2607,15 @@ def run_dataflow(inst, tok, dataflow_id, poll_attempts=60, poll_interval=10):
         )
         status = job.get("status", "")
         if status == "Success":
-            print("  Dataflow job completed successfully")
+            logger.info("  Dataflow job completed successfully")
             return True
         if status in ("Failure", "Error"):
             msg = job.get("message", "Unknown error")
-            print(f"  Dataflow job FAILED: {msg}")
+            logger.error("  Dataflow job FAILED: %s", msg)
             return False
-        print(f"  ... {status}")
+        logger.info("  ... %s", status)
 
-    print("  Timed out waiting for dataflow job")
+    logger.warning("  Timed out waiting for dataflow job")
     return False
 
 
@@ -1713,10 +2631,40 @@ def create_dashboard_if_needed(inst, tok, label, app_name=APP_NAME):
         "GET",
         f"/services/data/v66.0/wave/dashboards?q={encoded_label}",
     )
-    for d in result.get("dashboards", []):
-        if d.get("label") == label:
-            print(f"  Found existing dashboard: {d['id']} ({label})")
-            return d["id"]
+    exact_matches = [
+        d
+        for d in result.get("dashboards", [])
+        if html.unescape(d.get("label", "")) == label
+    ]
+    if exact_matches:
+        exact_matches.sort(
+            key=lambda item: item.get("lastModifiedDate", ""), reverse=True
+        )
+        dashboard = exact_matches[0]
+        logger.info("  Found existing dashboard: %s (%s)", dashboard["id"], label)
+        return dashboard["id"]
+
+    # Search index can lag immediately after dashboard creation. Fall back to
+    # a full list scan to avoid creating duplicates when an earlier create
+    # succeeded but hasn't shown up in q= search yet.
+    full_result = _sf_api(
+        inst,
+        tok,
+        "GET",
+        "/services/data/v66.0/wave/dashboards?pageSize=200",
+    )
+    matches = [
+        d
+        for d in full_result.get("dashboards", [])
+        if html.unescape(d.get("label", "")) == label
+    ]
+    if matches:
+        matches.sort(key=lambda item: item.get("lastModifiedDate", ""), reverse=True)
+        dashboard = matches[0]
+        logger.info(
+            "  Found existing dashboard via full scan: %s (%s)", dashboard["id"], label
+        )
+        return dashboard["id"]
 
     # Look up the app folder (list all — q= search doesn't match underscores)
     folder_result = _sf_api(
@@ -1750,7 +2698,7 @@ def create_dashboard_if_needed(inst, tok, label, app_name=APP_NAME):
         body,
     )
     dashboard_id = result["id"]
-    print(f"  Created new dashboard: {dashboard_id} ({label})")
+    logger.info("  Created new dashboard: %s (%s)", dashboard_id, label)
     return dashboard_id
 
 
@@ -1779,9 +2727,29 @@ def get_dashboard_id(inst, tok, label):
         "GET",
         f"/services/data/v66.0/wave/dashboards?q={encoded}",
     )
-    for d in result.get("dashboards", []):
-        if d.get("label") == label:
-            return d["id"]
+    matches = [
+        d
+        for d in result.get("dashboards", [])
+        if html.unescape(d.get("label", "")) == label
+    ]
+    if matches:
+        matches.sort(key=lambda item: item.get("lastModifiedDate", ""), reverse=True)
+        return matches[0]["id"]
+
+    full_result = _sf_api(
+        inst,
+        tok,
+        "GET",
+        "/services/data/v66.0/wave/dashboards?pageSize=200",
+    )
+    matches = [
+        d
+        for d in full_result.get("dashboards", [])
+        if html.unescape(d.get("label", "")) == label
+    ]
+    if matches:
+        matches.sort(key=lambda item: item.get("lastModifiedDate", ""), reverse=True)
+        return matches[0]["id"]
     return None
 
 
