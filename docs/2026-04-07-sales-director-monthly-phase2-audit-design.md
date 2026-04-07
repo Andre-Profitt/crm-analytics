@@ -1,3 +1,20 @@
+# SUPERSEDED 2026-04-07 - Sales Director Monthly - Phase 2 CRMA Audit Design
+
+> **SUPERSEDED 2026-04-07.** This design was committed earlier on 2026-04-07 (commit `dc418b9`) but was abandoned within the same session after a rediscussion with Andre. The CRMA-coverage approach was replaced by a SF Reports + Pipeline Inspection two-report source-contract approach. The reasons:
+>
+> 1. **Direction change.** Andre clarified that the Sales Director Monthly workstream should source from standard Salesforce Dashboards + Reports (with Pipeline Inspection for forecast accuracy and slipped-deals views), NOT from CRMA. The point is "turnkey standardization, layer of protection" - PI native gives definitions that don't drift; CRMA mirrors do.
+> 2. **Scope expansion.** The work is now scoped as TWO PowerPoint deliverables, not one: Report 1 (Pipeline Reporting & Insights, monthly, Sales Directors, fed by `01ZTb00000FSP7hMAH`) and Report 2 (Sales Ops Quarterly Report, quarterly, Sales Ops, fed by `01ZTb00000FSP9JMAX`).
+> 3. **Handbook anchoring.** Cross-checking against the SimCorp Sales Handbook V4 reinforced that the canonical surface is standard SF Reports + Dashboards (slide 22). CRMA was a bespoke layer that sat above this canonical surface.
+> 4. **Real bug found in this design's cell 4.** A live-org probe of `0FKTb0000000KwPOAU` revealed that saql-typed CRMA steps return `datasets: None` at the step level - the dataset name lives only inside the SAQL string as `q = load "Name"`. This design's `extract_crma_widgets` reads `step["datasets"][0]["name"]`, which would have been `None` for every saql widget. The bug never shipped because the script was never written.
+>
+> **Replacement:** see `docs/2026-04-07-sales-director-monthly-phase2-sf-reports-design.md` for the new approach.
+>
+> **What stays valid from this doc:** the cell-by-cell architecture pattern (auth, picklist freshness, spec loader, dashboard fetch, static rules, compare wrapper, markdown render, composition) and the inline-`assert` test pattern. These survive the pivot - they apply equally to SF Report audits as they did to CRMA step audits. The Phase 1 audit script at `scripts/audit_sales_director_monthly_dashboard.py` is the actual reusable artifact (uncommitted by convention).
+>
+> **The original design content below is preserved for provenance. Do not implement it.**
+
+---
+
 # Sales Director Monthly - Phase 2 CRMA Audit Design
 
 > Design doc for Phase 2 of the Sales Director Monthly deck workstream. Phase 1 audited the standard SF dashboard `01ZTb00000FSP7hMAH` and decided to treat it as legacy. Phase 2 audits the 9 B2B_MA CRMA dashboards collectively against the same 14-widget spec, producing the input contract for the Phase 4 Option D deck rebuild. This doc is the output of a brainstorm session on 2026-04-07 and the input for `superpowers:writing-plans`.

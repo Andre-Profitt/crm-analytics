@@ -1,3 +1,19 @@
+# SUPERSEDED 2026-04-07 - Sales Director Monthly - Phase 2 CRMA Audit Implementation Plan
+
+> **SUPERSEDED 2026-04-07.** This plan was committed earlier on 2026-04-07 (commit `31c15ea`) but was abandoned within the same session after a rediscussion with Andre. None of the 13 tasks were executed. The CRMA-coverage approach was replaced by a SF Reports + Pipeline Inspection two-report source-contract approach.
+>
+> **DO NOT EXECUTE this plan.** The 13 tasks build a CRMA audit script that is no longer the right tool. The Phase 1 audit script at `scripts/audit_sales_director_monthly_dashboard.py` (which already grades SF reports against a spec) is the right seed for the new Phase 2 work.
+>
+> **Why superseded:** see the SUPERSEDED header on the paired design doc at `docs/2026-04-07-sales-director-monthly-phase2-audit-design.md` for the full rationale.
+>
+> **Replacement plan:** see `docs/2026-04-07-sales-director-monthly-phase2-sf-reports-plan.md`.
+>
+> **For agentic workers reading this in the future:** STOP. Do not start any task in this plan. Open the replacement plan instead.
+>
+> **The original plan content below is preserved for provenance. Do not implement it.**
+
+---
+
 # Sales Director Monthly - Phase 2 CRMA Audit Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
