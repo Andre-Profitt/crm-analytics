@@ -321,6 +321,11 @@ REPORT_RUN_TIMEOUT_SECONDS = 30
 EXPECTED_PICKLIST_FIELD = "APTS_Primary_Quote_Type__c"
 EXPECTED_PICKLIST_VALUES_PRESENT = {"SBL", "MBL", "PPL"}
 EXPECTED_PICKLIST_VALUES_ABSENT = {"Quote", "Renewal"}
+
+# Severity ranking (ordered most severe to least severe).
+# Used everywhere we need to pick "the worst severity" or sort by severity.
+# Lexicographic max/min on these strings would be WRONG - always go through this list.
+SEVERITY_ORDER = ["BLOCKING", "WRONG-DATA", "ORPHAN", "COSMETIC", "OK"]
 ```
 
 - [ ] **Step 2: Verify the file parses**
@@ -745,9 +750,14 @@ Expected: every report has `OK` status and a report format (`TABULAR` / `SUMMARY
 # %% Cell 6: Run reports
 
 def run_report(inst: str, tok: str, report_id: str) -> dict[str, Any]:
-    """POST to the reports/{id}/instances endpoint in synchronous mode.
+    """Run a report synchronously via GET /analytics/reports/{id}.
 
-    Returns a dict with `_failed`, `_timeout`, and the top-line value if the run succeeded.
+    Salesforce Analytics REST has two modes:
+    - GET /analytics/reports/{id}?includeDetails=true   - synchronous, one call
+    - POST /analytics/reports/{id}/instances            - asynchronous, then poll
+
+    We use the synchronous GET for simplicity. Returns a dict with `_failed`,
+    `_timeout`, and the top-line value if the run succeeded.
     """
     url = f"{inst}/services/data/{API_VERSION}/analytics/reports/{report_id}?includeDetails=true"
     try:
@@ -1007,7 +1017,10 @@ def compare(
             issue = "Dashboard widget does not map to any spec entry"
             fix = "Decision needed: keep (add to spec), drop, or fold into an existing spec row"
         elif static:
-            severity = max(i["severity"] for i in static)  # crude: lexicographic, BLOCKING wins
+            # Pick the most severe static issue. Do NOT use max() on the strings -
+            # that is lexicographic and would return WRONG-DATA over BLOCKING.
+            worst = min(static, key=lambda i: SEVERITY_ORDER.index(i["severity"]))
+            severity = worst["severity"]
             issue = "; ".join(i["detail"] for i in static)
             fix = "See static rule detail"
         elif run.get("_failed") or run.get("_timeout"):
@@ -1128,7 +1141,7 @@ Expected: `Cell 8 tests: PASS` and an audit tally summarizing the real run.
 
 # %% Cell 9: Markdown rendering
 
-SEVERITY_ORDER = ["BLOCKING", "WRONG-DATA", "ORPHAN", "COSMETIC", "OK"]
+# SEVERITY_ORDER is defined once in the Constants section at the top of the script.
 
 
 def render_markdown(
