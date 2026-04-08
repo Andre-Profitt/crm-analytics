@@ -5,11 +5,11 @@
 - **Dashboard ID:** `01ZTb00000FSP9JMAX`
 - **Dashboard name:** Sales Ops Quarterly KPI Dashboard
 - **Lightning URL:** https://simcorp.my.salesforce.com/lightning/r/Dashboard/01ZTb00000FSP9JMAX/view
-- **Dashboard lastModifiedDate:** 2026-04-08T16:09:36Z
+- **Dashboard lastModifiedDate:** 2026-04-08T21:04:41Z
 - **Audit run date:** 2026-04-08
 - **Spec graded against:** `docs/specs/sales-ops-quarterly-dashboard-spec.md` (commit `25cc03d`)
 - **Audit script:** `scripts/audit_sales_director_monthly_dashboard.py` (uncommitted by convention)
-- **Tally:** 40 entries . 23 BLOCKING . 1 WRONG-DATA . 15 ORPHAN . 1 OK
+- **Tally:** 24 entries . 7 BLOCKING . 1 WRONG-DATA . 16 OK
 
 ## Table 1: Executive summary
 
@@ -17,46 +17,30 @@ Sorted by severity then KPI bullet. Read this table first. Fix every BLOCKING it
 
 | Severity | Widget | KPI bullet | Issue | Recommended fix |
 |---|---|---|---|---|
-| BLOCKING | Missing Quote Type | (orphan) | (also orphan: widget does not map to any spec entry). Filter on APTS_Primary_Quote_Type__c is structurally obsolete (picklist is empty in the org). Switch to Type field (Land/Expand/Renewal).; Widget is 'Missing quote type' but the field is not in the detail columns | Fix the static rule issue AND decide keep/drop/fold. See static rule detail. |
-| BLOCKING | (MISSING) dq_kyc_not_completed | CRM data quality (accuracy) | Spec requires this widget; dashboard does not have it | Add widget dq_kyc_not_completed with filters:  |
-| BLOCKING | (MISSING) dq_missing_amount | CRM data quality (completeness) | Spec requires this widget; dashboard does not have it | Add widget dq_missing_amount with filters:  |
-| BLOCKING | (MISSING) dq_missing_decision_reason | CRM data quality (completeness) | Spec requires this widget; dashboard does not have it | Add widget dq_missing_decision_reason with filters:  |
-| BLOCKING | (MISSING) dq_missing_quote_type | CRM data quality (completeness) | Spec requires this widget; dashboard does not have it | Add widget dq_missing_quote_type with filters:  |
-| BLOCKING | (MISSING) dq_missing_won_loss_cfq | CRM data quality (completeness) | Spec requires this widget; dashboard does not have it | Add widget dq_missing_won_loss_cfq with filters:  |
+| BLOCKING | Missing Quote Type | CRM data quality (completeness) | Filter on APTS_Primary_Quote_Type__c is structurally obsolete (picklist is empty in the org). Switch to Type field (Land/Expand/Renewal).; Widget is 'Missing quote type' but the field is not in the detail columns | See static rule detail |
 | BLOCKING | (MISSING) fa_forecast_change_volatility | Forecast accuracy | Spec requires this widget; dashboard does not have it | Add widget fa_forecast_change_volatility with filters:  |
 | BLOCKING | (MISSING) fa_quarterly_realized_vs_bestcase | Forecast accuracy | Spec requires this widget; dashboard does not have it | Add widget fa_quarterly_realized_vs_bestcase with filters:  |
 | BLOCKING | (MISSING) fa_quarterly_realized_vs_commit | Forecast accuracy | Spec requires this widget; dashboard does not have it | Add widget fa_quarterly_realized_vs_commit with filters:  |
 | BLOCKING | (MISSING) fa_slipped_count_quarterly | Forecast accuracy | Spec requires this widget; dashboard does not have it | Add widget fa_slipped_count_quarterly with filters:  |
 | BLOCKING | (MISSING) Widget ID | KPI bullet | Spec requires this widget; dashboard does not have it | Add widget Widget ID with filters:  |
-| BLOCKING | (MISSING) ph_low_probability_in_quarter | Pipeline hygiene | Spec requires this widget; dashboard does not have it | Add widget ph_low_probability_in_quarter with filters:  |
-| BLOCKING | (MISSING) ph_no_activity_30_plus | Pipeline hygiene | Spec requires this widget; dashboard does not have it | Add widget ph_no_activity_30_plus with filters:  |
-| BLOCKING | (MISSING) ph_overdue_close_date_list | Pipeline hygiene | Spec requires this widget; dashboard does not have it | Add widget ph_overdue_close_date_list with filters:  |
-| BLOCKING | (MISSING) ph_overdue_opportunities | Pipeline hygiene | Spec requires this widget; dashboard does not have it | Add widget ph_overdue_opportunities with filters:  |
-| BLOCKING | (MISSING) ph_probability_mismatch_by_stage | Pipeline hygiene | Spec requires this widget; dashboard does not have it | Add widget ph_probability_mismatch_by_stage with filters:  |
-| BLOCKING | (MISSING) ph_high_value_stale_deals | Pipeline hygiene (aging) | Spec requires this widget; dashboard does not have it | Add widget ph_high_value_stale_deals with filters:  |
 | BLOCKING | (MISSING) ph_stale_opportunities | Pipeline hygiene (aging) | Spec requires this widget; dashboard does not have it | Add widget ph_stale_opportunities with filters:  |
-| BLOCKING | (MISSING) pc_land_commercial_approval_flow | Process compliance rates | Spec requires this widget; dashboard does not have it | Add widget pc_land_commercial_approval_flow with filters:  |
-| BLOCKING | (MISSING) pc_next_step_documented | Process compliance rates | Spec requires this widget; dashboard does not have it | Add widget pc_next_step_documented with filters:  |
-| BLOCKING | (MISSING) pc_recent_activity_logged | Process compliance rates | Spec requires this widget; dashboard does not have it | Add widget pc_recent_activity_logged with filters:  |
-| BLOCKING | (MISSING) pc_stage_age_within_threshold | Process compliance rates | Spec requires this widget; dashboard does not have it | Add widget pc_stage_age_within_threshold with filters:  |
-| BLOCKING | (MISSING) pc_won_loss_reason_documented | Process compliance rates | Spec requires this widget; dashboard does not have it | Add widget pc_won_loss_reason_documented with filters:  |
-| WRONG-DATA | Missing Decision Reason | (orphan) | (also orphan: widget does not map to any spec entry). Widget is 'Missing decision reason' but the field is not in the detail columns | Fix the static rule issue AND decide keep/drop/fold. See static rule detail. |
-| ORPHAN | Active Opps With No Activity Logged | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Closed Opps This Quarter Lacking Reason | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | High Value Stale Deals | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | KYC Not Completed | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Land Deals Lacking Commercial Approval Flow | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Low Probability In Quarter | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Mid-Stage Opps Exceeding 60-Day Age | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Mid-Stage Opps Lacking NextStep | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Missing Amount on Open Opps | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | No Activity 30 Plus Days | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Overdue Close Date Open Opps | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Overdue Opportunities | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Stale Opportunities | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Under Construction: Probability Mismatch by Stage | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
-| ORPHAN | Won Loss Info Missing CFQ | (orphan) | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). | Decision needed: keep (add to spec), drop, or fold into an existing spec row. |
+| WRONG-DATA | Missing Won/Loss Reason | CRM data quality (completeness) | Widget is 'Missing won/loss reason' but the field is not in the detail columns | See static rule detail |
+| OK | KYC Not Completed | CRM data quality (accuracy) | Matches spec and passes static rules | n/a |
+| OK | Missing Amount on Open Opps | CRM data quality (completeness) | Matches spec and passes static rules | n/a |
+| OK | Won Loss Info Missing CFQ | CRM data quality (completeness) | Matches spec and passes static rules | n/a |
+| OK | Low Probability In Quarter | Pipeline hygiene | Matches spec and passes static rules | n/a |
+| OK | No Activity 30 Plus Days | Pipeline hygiene | Matches spec and passes static rules | n/a |
+| OK | Overdue Close Date Open Opps | Pipeline hygiene | Matches spec and passes static rules | n/a |
+| OK | Overdue Opportunities | Pipeline hygiene | Matches spec and passes static rules | n/a |
+| OK | Under Construction: Probability Mismatch by Stage | Pipeline hygiene | Matches spec and passes static rules | n/a |
 | OK | Aging Pipeline 365 Plus Days | Pipeline hygiene (aging) | Matches spec and passes static rules | n/a |
+| OK | High Value Stale Deals | Pipeline hygiene (aging) | Matches spec and passes static rules | n/a |
+| OK | Active Opps With No Activity Logged | Process compliance rates | Matches spec and passes static rules | n/a |
+| OK | Closed Opps This Quarter Lacking Reason | Process compliance rates | Matches spec and passes static rules | n/a |
+| OK | Land Deals Lacking Commercial Approval Flow | Process compliance rates | Matches spec and passes static rules | n/a |
+| OK | Mid-Stage Opps Exceeding 60-Day Age | Process compliance rates | Matches spec and passes static rules | n/a |
+| OK | Mid-Stage Opps Lacking NextStep | Process compliance rates | Matches spec and passes static rules | n/a |
+| OK | Stale Opportunities | Process compliance rates | Matches spec and passes static rules | n/a |
 
 ### Severity meaning
 
@@ -72,46 +56,30 @@ Every entry, all metadata columns. Greppable for any specific widget.
 
 | # | Widget | Type | Component | Report ID | Report name | Format | Date filter | Current value | Matched spec ID | KPI bullet | Severity | Issue |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Missing Quote Type | Report | 01aTb00000CmjwrIAB | 00OTb000008ekynMAA | Missing Quote Type | SUMMARY | CUSTOM | 0 |  | (orphan) | BLOCKING | (also orphan: widget does not map to any spec entry). Filter on APTS_Primary_Quote_Type__c is structurally obsolete (picklist is empty in the org). Switch to Type field (Land/Expand/Renewal).; Widget is 'Missing quote type' but the field is not in the detail columns |
-| 2 | (MISSING) dq_kyc_not_completed | summary |  |  |  |  |  |  | dq_kyc_not_completed | CRM data quality (accuracy) | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 3 | (MISSING) dq_missing_amount | tabular |  |  |  |  |  |  | dq_missing_amount | CRM data quality (completeness) | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 4 | (MISSING) dq_missing_decision_reason | summary |  |  |  |  |  |  | dq_missing_decision_reason | CRM data quality (completeness) | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 5 | (MISSING) dq_missing_quote_type | summary |  |  |  |  |  |  | dq_missing_quote_type | CRM data quality (completeness) | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 6 | (MISSING) dq_missing_won_loss_cfq | summary |  |  |  |  |  |  | dq_missing_won_loss_cfq | CRM data quality (completeness) | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 7 | (MISSING) fa_forecast_change_volatility | chart |  |  |  |  |  |  | fa_forecast_change_volatility | Forecast accuracy | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 8 | (MISSING) fa_quarterly_realized_vs_bestcase | metric |  |  |  |  |  |  | fa_quarterly_realized_vs_bestcase | Forecast accuracy | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 9 | (MISSING) fa_quarterly_realized_vs_commit | metric |  |  |  |  |  |  | fa_quarterly_realized_vs_commit | Forecast accuracy | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 10 | (MISSING) fa_slipped_count_quarterly | chart |  |  |  |  |  |  | fa_slipped_count_quarterly | Forecast accuracy | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 11 | (MISSING) Widget ID | Type |  |  |  |  |  |  | Widget ID | KPI bullet | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 12 | (MISSING) ph_low_probability_in_quarter | summary |  |  |  |  |  |  | ph_low_probability_in_quarter | Pipeline hygiene | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 13 | (MISSING) ph_no_activity_30_plus | summary |  |  |  |  |  |  | ph_no_activity_30_plus | Pipeline hygiene | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 14 | (MISSING) ph_overdue_close_date_list | tabular |  |  |  |  |  |  | ph_overdue_close_date_list | Pipeline hygiene | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 15 | (MISSING) ph_overdue_opportunities | summary |  |  |  |  |  |  | ph_overdue_opportunities | Pipeline hygiene | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 16 | (MISSING) ph_probability_mismatch_by_stage | summary |  |  |  |  |  |  | ph_probability_mismatch_by_stage | Pipeline hygiene | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 17 | (MISSING) ph_high_value_stale_deals | tabular |  |  |  |  |  |  | ph_high_value_stale_deals | Pipeline hygiene (aging) | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 18 | (MISSING) ph_stale_opportunities | tabular |  |  |  |  |  |  | ph_stale_opportunities | Pipeline hygiene (aging) | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 19 | (MISSING) pc_land_commercial_approval_flow | summary |  |  |  |  |  |  | pc_land_commercial_approval_flow | Process compliance rates | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 20 | (MISSING) pc_next_step_documented | summary |  |  |  |  |  |  | pc_next_step_documented | Process compliance rates | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 21 | (MISSING) pc_recent_activity_logged | summary |  |  |  |  |  |  | pc_recent_activity_logged | Process compliance rates | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 22 | (MISSING) pc_stage_age_within_threshold | summary |  |  |  |  |  |  | pc_stage_age_within_threshold | Process compliance rates | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 23 | (MISSING) pc_won_loss_reason_documented | summary |  |  |  |  |  |  | pc_won_loss_reason_documented | Process compliance rates | BLOCKING | Spec requires this widget; dashboard does not have it |
-| 24 | Missing Decision Reason | Report | 01aTb00000CmjwnIAB | 00OTb000008el0PMAQ | Missing Decision Reason | SUMMARY | CUSTOM | 386.78M |  | (orphan) | WRONG-DATA | (also orphan: widget does not map to any spec entry). Widget is 'Missing decision reason' but the field is not in the detail columns |
-| 25 | Active Opps With No Activity Logged | Report | 01aTb00000Cn9PrIAJ | 00OTb000008fAmnMAE | P2.6 Active Opps: No Activity Ever | SUMMARY | CUSTOM | 1.1K |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 26 | Closed Opps This Quarter Lacking Reason | Report | 01aTb00000Cn9PsIAJ | 00OTb000008fAoPMAU | P2.6 Closed This Qtr: No W/L Reason | SUMMARY | THIS_QUARTER | 9 |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 27 | High Value Stale Deals | Report | 01aTb00000Cmjx0IAB | 00OTb000008Ti97MAC | High Value Stale Deals | TABULAR | CUSTOM | 22.03M |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 28 | KYC Not Completed | Report | 01aTb00000CmjwxIAB | 00OTb000007BvlJMAS | KYC Not Completed | SUMMARY | CUSTOM | 0 |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 29 | Land Deals Lacking Commercial Approval Flow | Report | 01aTb00000Cn9PqIAJ | 00OTb000008fAlBMAU | P2.6 Land: No Approval Flow | SUMMARY | CUSTOM | 20 |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 30 | Low Probability In Quarter | Report | 01aTb00000CmjwzIAB | 00OTb000008RfKDMA0 | Low Probability In Quarter | SUMMARY | THIS_QUARTER | 9.20M |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 31 | Mid-Stage Opps Exceeding 60-Day Age | Report | 01aTb00000Cn9PtIAJ | 00OTb000008fArdMAE | P2.6 Mid-Stage: Age Exceeded 60d | SUMMARY | CUSTOM | 17 |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 32 | Mid-Stage Opps Lacking NextStep | Report | 01aTb00000Cn9PpIAJ | 00OTb000008fAjZMAU | P2.6 Mid-Stage: No NextStep | SUMMARY | CUSTOM | 620 |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 33 | Missing Amount on Open Opps | Report | 01aTb00000CmjwwIAB | 00OTb000008TZqcMAG | Missing Amount | TABULAR | CUSTOM | 1.1K |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 34 | No Activity 30 Plus Days | Report | 01aTb00000CmjwyIAB | 00OTb000008TaEnMAK | No Activity 30+ Days - Open Opps | SUMMARY | THIS_YEAR | 146.46M |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 35 | Overdue Close Date Open Opps | Report | 01aTb00000CmjwtIAB | 00OTb000008TaBZMA0 | Overdue Close Date | TABULAR | CUSTOM | 106 |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 36 | Overdue Opportunities | Report | 01aTb00000CmjwoIAB | 00OTb000008SrmLMAS | Overdue Opportunities | SUMMARY | CUSTOM | 998 |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 37 | Stale Opportunities | Report | 01aTb00000CmjwvIAB | 00OTb000008TZgvMAG | Stale Opportunities | TABULAR | CUSTOM | 1.8K |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 38 | Under Construction: Probability Mismatch by Stage | Report | 01aTb00000CmjwpIAB | 00OTb000008TaJdMAK | Probability Mismatch by Stage | SUMMARY | CUSTOM | 1638.51M |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 39 | Won Loss Info Missing CFQ | Report | 01aTb00000CmjwsIAB | 00OTb000008SqblMAC | Won/Loss Info Missing CFQ | SUMMARY | THIS_QUARTER | 3.45M |  | (orphan) | ORPHAN | Dashboard widget does not map to any spec entry (likely cruft from BOB/RTB clone, or a legitimate context widget the spec does not account for). |
-| 40 | Aging Pipeline 365 Plus Days | Report | 01aTb00000CmjwqIAB | 00OTb000008Ti7VMAS | Aging Pipeline 365 Plus Days | SUMMARY | CUSTOM | 267.21M | ph_aging_pipeline_365_plus | Pipeline hygiene (aging) | OK | Matches spec and passes static rules |
+| 1 | Missing Quote Type | Report | 01aTb00000CmjwrIAB | 00OTb000008ekynMAA | Missing Quote Type | SUMMARY | CUSTOM | 0 | dq_missing_quote_type | CRM data quality (completeness) | BLOCKING | Filter on APTS_Primary_Quote_Type__c is structurally obsolete (picklist is empty in the org). Switch to Type field (Land/Expand/Renewal).; Widget is 'Missing quote type' but the field is not in the detail columns |
+| 2 | (MISSING) fa_forecast_change_volatility | chart |  |  |  |  |  |  | fa_forecast_change_volatility | Forecast accuracy | BLOCKING | Spec requires this widget; dashboard does not have it |
+| 3 | (MISSING) fa_quarterly_realized_vs_bestcase | metric |  |  |  |  |  |  | fa_quarterly_realized_vs_bestcase | Forecast accuracy | BLOCKING | Spec requires this widget; dashboard does not have it |
+| 4 | (MISSING) fa_quarterly_realized_vs_commit | metric |  |  |  |  |  |  | fa_quarterly_realized_vs_commit | Forecast accuracy | BLOCKING | Spec requires this widget; dashboard does not have it |
+| 5 | (MISSING) fa_slipped_count_quarterly | chart |  |  |  |  |  |  | fa_slipped_count_quarterly | Forecast accuracy | BLOCKING | Spec requires this widget; dashboard does not have it |
+| 6 | (MISSING) Widget ID | Type |  |  |  |  |  |  | Widget ID | KPI bullet | BLOCKING | Spec requires this widget; dashboard does not have it |
+| 7 | (MISSING) ph_stale_opportunities | tabular |  |  |  |  |  |  | ph_stale_opportunities | Pipeline hygiene (aging) | BLOCKING | Spec requires this widget; dashboard does not have it |
+| 8 | Missing Won/Loss Reason | Report | 01aTb00000CmjwnIAB | 00OTb000008el0PMAQ | Missing Won/Loss Reason | SUMMARY | CUSTOM | 386.78M | dq_missing_decision_reason | CRM data quality (completeness) | WRONG-DATA | Widget is 'Missing won/loss reason' but the field is not in the detail columns |
+| 9 | KYC Not Completed | Report | 01aTb00000CmjwxIAB | 00OTb000007BvlJMAS | KYC Not Completed | SUMMARY | CUSTOM | 0 | dq_kyc_not_completed | CRM data quality (accuracy) | OK | Matches spec and passes static rules |
+| 10 | Missing Amount on Open Opps | Report | 01aTb00000CmjwwIAB | 00OTb000008TZqcMAG | Missing Amount | TABULAR | CUSTOM | 1.1K | dq_missing_amount | CRM data quality (completeness) | OK | Matches spec and passes static rules |
+| 11 | Won Loss Info Missing CFQ | Report | 01aTb00000CmjwsIAB | 00OTb000008SqblMAC | Won/Loss Info Missing CFQ | SUMMARY | THIS_QUARTER | 3.45M | dq_missing_won_loss_cfq | CRM data quality (completeness) | OK | Matches spec and passes static rules |
+| 12 | Low Probability In Quarter | Report | 01aTb00000CmjwzIAB | 00OTb000008RfKDMA0 | Low Probability In Quarter | SUMMARY | THIS_QUARTER | 9.20M | ph_low_probability_in_quarter | Pipeline hygiene | OK | Matches spec and passes static rules |
+| 13 | No Activity 30 Plus Days | Report | 01aTb00000CmjwyIAB | 00OTb000008TaEnMAK | No Activity 30+ Days - Open Opps | SUMMARY | THIS_YEAR | 146.46M | ph_no_activity_30_plus | Pipeline hygiene | OK | Matches spec and passes static rules |
+| 14 | Overdue Close Date Open Opps | Report | 01aTb00000CmjwtIAB | 00OTb000008TaBZMA0 | Overdue Close Date | TABULAR | CUSTOM | 106 | ph_overdue_close_date_list | Pipeline hygiene | OK | Matches spec and passes static rules |
+| 15 | Overdue Opportunities | Report | 01aTb00000CmjwoIAB | 00OTb000008SrmLMAS | Overdue Opportunities | SUMMARY | CUSTOM | 998 | ph_overdue_opportunities | Pipeline hygiene | OK | Matches spec and passes static rules |
+| 16 | Under Construction: Probability Mismatch by Stage | Report | 01aTb00000CmjwpIAB | 00OTb000008TaJdMAK | Probability Mismatch by Stage | SUMMARY | CUSTOM | 1638.51M | ph_probability_mismatch_by_stage | Pipeline hygiene | OK | Matches spec and passes static rules |
+| 17 | Aging Pipeline 365 Plus Days | Report | 01aTb00000CmjwqIAB | 00OTb000008Ti7VMAS | Aging Pipeline 365 Plus Days | SUMMARY | CUSTOM | 267.21M | ph_aging_pipeline_365_plus | Pipeline hygiene (aging) | OK | Matches spec and passes static rules |
+| 18 | High Value Stale Deals | Report | 01aTb00000Cmjx0IAB | 00OTb000008Ti97MAC | High Value Stale Deals | TABULAR | CUSTOM | 22.03M | ph_high_value_stale_deals | Pipeline hygiene (aging) | OK | Matches spec and passes static rules |
+| 19 | Active Opps With No Activity Logged | Report | 01aTb00000Cn9PrIAJ | 00OTb000008fAmnMAE | P2.6 Active Opps: No Activity Ever | SUMMARY | CUSTOM | 1.1K | pc_recent_activity_logged | Process compliance rates | OK | Matches spec and passes static rules |
+| 20 | Closed Opps This Quarter Lacking Reason | Report | 01aTb00000Cn9PsIAJ | 00OTb000008fAoPMAU | P2.6 Closed This Qtr: No W/L Reason | SUMMARY | THIS_QUARTER | 9 | pc_won_loss_reason_documented | Process compliance rates | OK | Matches spec and passes static rules |
+| 21 | Land Deals Lacking Commercial Approval Flow | Report | 01aTb00000Cn9PqIAJ | 00OTb000008fAlBMAU | P2.6 Land: No Approval Flow | SUMMARY | CUSTOM | 20 | pc_land_commercial_approval_flow | Process compliance rates | OK | Matches spec and passes static rules |
+| 22 | Mid-Stage Opps Exceeding 60-Day Age | Report | 01aTb00000Cn9PtIAJ | 00OTb000008fArdMAE | P2.6 Mid-Stage: Age Exceeded 60d | SUMMARY | CUSTOM | 17 | pc_stage_age_within_threshold | Process compliance rates | OK | Matches spec and passes static rules |
+| 23 | Mid-Stage Opps Lacking NextStep | Report | 01aTb00000Cn9PpIAJ | 00OTb000008fAjZMAU | P2.6 Mid-Stage: No NextStep | SUMMARY | CUSTOM | 620 | pc_next_step_documented | Process compliance rates | OK | Matches spec and passes static rules |
+| 24 | Stale Opportunities | Report | 01aTb00000CmjwvIAB | 00OTb000008TZgvMAG | Stale Opportunities | TABULAR | CUSTOM | 1.8K | pc_stage_age_within_threshold | Process compliance rates | OK | Matches spec and passes static rules |
 
 ## Spec gaps surfaced during audit
 
