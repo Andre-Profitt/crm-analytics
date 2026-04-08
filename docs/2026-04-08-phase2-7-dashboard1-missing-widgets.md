@@ -1,6 +1,6 @@
 # Phase 2.7 - Dashboard 1 Missing Widgets (9 New SF Reports)
 
-> Tight scope doc for Phase 2.7. Builds the 9 missing Report 1 spec widgets on Dashboard 1 via POST /analytics/reports. Uses the POST pattern validated by Phase 2.6 (commit `d4d8b63`) with Dashboard 1-specific conventions from Phase 1.5 (no `.CONVERT` suffix). Same combined design+plan pattern as Phase 2.6 (skipping the formal brainstorm cycle per Andre's autonomy directive).
+> Tight scope doc for Phase 2.7. Builds the 9 missing Report 1 spec widgets on Dashboard 1 via POST /analytics/reports. Uses the POST pattern validated by Phase 2.6 (commit `d4d8b63`). Probe confirmed Dashboard 1 shares folder + `.CONVERT` ARR convention with Dashboard 2; an earlier "no `.CONVERT`" working note was wrong. Same combined design+plan pattern as Phase 2.6 (skipping the formal brainstorm cycle per Andre's autonomy directive).
 
 ## One sentence
 
@@ -8,19 +8,19 @@ Build 9 new SF reports covering the Report 1 spec gaps (4 pipeline overviews, 1 
 
 ## Scope
 
-9 new SF reports. All SUMMARY format. All grouped by Opportunity report type. Dashboard 1 uses the BARE ARR form `s!Opportunity.APTS_Opportunity_ARR__c` (NO `.CONVERT` suffix, per Phase 1.5 finding - opposite of Dashboard 2's convention).
+9 new SF reports. All SUMMARY format. All grouped by Opportunity report type. Dashboard 1 uses the `.CONVERT` ARR form `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT` (same as Dashboard 2, per Phase 2.7 probe finding on 2026-04-08 - empirical scan of Dashboard 1 reports found 3/4 ARR reports use `.CONVERT`, 1 bare, 1 mixed; majority + Dashboard 2 parity is the correct Phase 2.7 choice). Dashboard 1 and Dashboard 2 share folder `005QA000003DUwWYAW`, so the POST path is already validated by Phase 2.6.
 
-| #   | Widget ID                      | Filters (simplified for v1 as needed)                                                                                                                       | Group                              | Aggregate                                         | Shape                                                               |
-| --- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
-| 1   | `pipeline_overview_global`     | `IsClosed=false AND CloseDate IN THIS_QUARTER`                                                                                                              | (none)                             | `s!Opportunity.APTS_Opportunity_ARR__c`           | single metric                                                       |
-| 2   | `pipeline_overview_emea`       | `IsClosed=false AND CloseDate IN THIS_QUARTER AND Sales_Region__c IN ('United Kingdom & Ireland','Central Europe','Northern Europe','Southwestern Europe')` | `STAGE_NAME`                       | `s!Opportunity.APTS_Opportunity_ARR__c`           | stacked bar by stage                                                |
-| 3   | `pipeline_overview_nam`        | `IsClosed=false AND CloseDate IN THIS_QUARTER AND Sales_Region__c='North America'`                                                                          | `STAGE_NAME`                       | `s!Opportunity.APTS_Opportunity_ARR__c`           | stacked bar by stage                                                |
-| 4   | `pipeline_overview_apac`       | `IsClosed=false AND CloseDate IN THIS_QUARTER AND Sales_Region__c IN ('APAC','Middle East & Africa')`                                                       | `STAGE_NAME`                       | `s!Opportunity.APTS_Opportunity_ARR__c`           | stacked bar by stage                                                |
-| 5   | `commercial_approval_global`   | `IsClosed=false AND STAGE_NAME not equals '0 - Lost'`                                                                                                       | `Opportunity.Stage_20_Approval__c` | `RowCount`                                        | count approved vs not approved, grouped                             |
-| 6   | `land_stage3_no_approval_nam`  | `TYPE='Land' AND STAGE_NAME='3 - Engagement' AND Opportunity.Stage_20_Approval__c='False' AND Sales_Region__c='North America'`                              | (table)                            | `RowCount, s!Opportunity.APTS_Opportunity_ARR__c` | tabular list                                                        |
-| 7   | `land_stage3_no_approval_apac` | `TYPE='Land' AND STAGE_NAME='3 - Engagement' AND Opportunity.Stage_20_Approval__c='False' AND Sales_Region__c IN ('APAC','Middle East & Africa')`           | (table)                            | `RowCount, s!Opportunity.APTS_Opportunity_ARR__c` | tabular list                                                        |
-| 8   | `renewal_likelihood`           | `TYPE='Renewal' AND IsClosed=false AND CloseDate IN THIS_QUARTER`                                                                                           | `PROBABILITY`                      | `s!Opportunity.APTS_Renewal_ACV__c`               | chart by probability bucket                                         |
-| 9   | `renewal_upcoming_list`        | `TYPE='Renewal' AND IsClosed=false AND CloseDate IN THIS_QUARTER`                                                                                           | (table)                            | n/a                                               | tabular list with Account, Opp Name, ACV, Close, Probability, Owner |
+| #   | Widget ID                      | Filters (simplified for v1 as needed)                                                                                                                       | Group                              | Aggregate                                                 | Shape                                                               |
+| --- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
+| 1   | `pipeline_overview_global`     | `IsClosed=false AND CloseDate IN THIS_QUARTER`                                                                                                              | (none)                             | `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT`           | single metric                                                       |
+| 2   | `pipeline_overview_emea`       | `IsClosed=false AND CloseDate IN THIS_QUARTER AND Sales_Region__c IN ('United Kingdom & Ireland','Central Europe','Northern Europe','Southwestern Europe')` | `STAGE_NAME`                       | `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT`           | stacked bar by stage                                                |
+| 3   | `pipeline_overview_nam`        | `IsClosed=false AND CloseDate IN THIS_QUARTER AND Sales_Region__c='North America'`                                                                          | `STAGE_NAME`                       | `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT`           | stacked bar by stage                                                |
+| 4   | `pipeline_overview_apac`       | `IsClosed=false AND CloseDate IN THIS_QUARTER AND Sales_Region__c IN ('APAC','Middle East & Africa')`                                                       | `STAGE_NAME`                       | `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT`           | stacked bar by stage                                                |
+| 5   | `commercial_approval_global`   | `IsClosed=false AND STAGE_NAME not equals '0 - Lost'`                                                                                                       | `Opportunity.Stage_20_Approval__c` | `RowCount`                                                | count approved vs not approved, grouped                             |
+| 6   | `land_stage3_no_approval_nam`  | `TYPE='Land' AND STAGE_NAME='3 - Engagement' AND Opportunity.Stage_20_Approval__c='False' AND Sales_Region__c='North America'`                              | (table)                            | `RowCount, s!Opportunity.APTS_Opportunity_ARR__c.CONVERT` | tabular list                                                        |
+| 7   | `land_stage3_no_approval_apac` | `TYPE='Land' AND STAGE_NAME='3 - Engagement' AND Opportunity.Stage_20_Approval__c='False' AND Sales_Region__c IN ('APAC','Middle East & Africa')`           | (table)                            | `RowCount, s!Opportunity.APTS_Opportunity_ARR__c.CONVERT` | tabular list                                                        |
+| 8   | `renewal_likelihood`           | `TYPE='Renewal' AND IsClosed=false AND CloseDate IN THIS_QUARTER`                                                                                           | `PROBABILITY`                      | `s!Opportunity.APTS_Renewal_ACV__c.CONVERT`               | chart by probability bucket                                         |
+| 9   | `renewal_upcoming_list`        | `TYPE='Renewal' AND IsClosed=false AND CloseDate IN THIS_QUARTER`                                                                                           | (table)                            | n/a                                                       | tabular list with Account, Opp Name, ACV, Close, Probability, Owner |
 
 Deferred widgets (not in Phase 2.7 scope):
 
@@ -52,15 +52,15 @@ Two new uncommitted scripts:
 
 ## Dashboard 1 vs Dashboard 2 conventions (CRITICAL)
 
-| Aspect                 | Dashboard 1 (Phase 1.5, 2.7)                            | Dashboard 2 (Phase 2.5, 2.6)                                      |
-| ---------------------- | ------------------------------------------------------- | ----------------------------------------------------------------- |
-| ARR aggregate form     | `s!Opportunity.APTS_Opportunity_ARR__c` (NO `.CONVERT`) | `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT` (with `.CONVERT`) |
-| Detail column ARR form | `Opportunity.APTS_Opportunity_ARR__c` (no suffix)       | `Opportunity.APTS_Opportunity_ARR__c.CONVERT` (with suffix)       |
-| Calendar date tokens   | `THIS_YEAR`, `THIS_QUARTER` (bare)                      | same (bare)                                                       |
-| POST body shape        | `wrapped_full` with read-only fields stripped           | same                                                              |
-| Folder ID              | TBD (probe will find)                                   | `005QA000003DUwWYAW` (Andre's personal)                           |
+| Aspect                 | Dashboard 1 (Phase 1.5, 2.7)                                      | Dashboard 2 (Phase 2.5, 2.6)                                      |
+| ---------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| ARR aggregate form     | `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT` (with `.CONVERT`) | `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT` (with `.CONVERT`) |
+| Detail column ARR form | `Opportunity.APTS_Opportunity_ARR__c.CONVERT` (with suffix)       | `Opportunity.APTS_Opportunity_ARR__c.CONVERT` (with suffix)       |
+| Calendar date tokens   | `THIS_YEAR`, `THIS_QUARTER` (bare)                                | same (bare)                                                       |
+| POST body shape        | `wrapped_full` with read-only fields stripped                     | same                                                              |
+| Folder ID              | `005QA000003DUwWYAW` (same as Dashboard 2, probe-confirmed)       | `005QA000003DUwWYAW` (Andre's personal)                           |
 
-The probe confirms the Dashboard 1 convention empirically. Phase 1.5 established the no-`.CONVERT` rule during live iteration; Phase 2.7 inherits that.
+The Phase 2.7 probe confirmed empirically that Dashboard 1 and Dashboard 2 share conventions. The earlier Phase 1.5 scope claim of a "no `.CONVERT`" rule was inverted in my working notes; the actual Phase 1.5 build script (`scripts/phase1_5_patch_dashboard1.py`) uses `.CONVERT` form (see lines 851, 952, 1596 of the Phase 1.5 plan). Phase 2.7 uses `.CONVERT` for both ARR and ACV aggregates on all applicable widgets.
 
 ## Pre-flight probe goals
 
@@ -68,7 +68,7 @@ The probe confirms the Dashboard 1 convention empirically. Phase 1.5 established
 2. Extract folder ID, report type, filter convention, column naming.
 3. Confirm POST works on Dashboard 1's target folder with a minimal test report (delete after).
 4. Capture Dashboard 1's layout shape for the dashboard component PATCH (layout.components positional grid? Same as Dashboard 2 from Phase 2.6?).
-5. Confirm no-`.CONVERT` form for ARR aggregates.
+5. Confirm ARR aggregate form empirically by scanning Dashboard 1 component reports.
 
 ## The 9 new reports - filter + metadata construction
 
@@ -79,15 +79,15 @@ Each new report inherits the template's baseline metadata and overrides:
 - `reportMetadata.reportFilters`: widget-specific, per the table above
 - `reportMetadata.standardDateFilter`: widget-specific (most use `CLOSE_DATE`, `THIS_QUARTER`)
 - `reportMetadata.groupingsDown`: per the Group column in the table
-- `reportMetadata.aggregates`: per the Aggregate column, NO `.CONVERT` on ARR
+- `reportMetadata.aggregates`: per the Aggregate column, WITH `.CONVERT` on ARR and ACV
 - `reportMetadata.detailColumns`: minimal set for the shape
 - `reportMetadata.reportFormat`: `SUMMARY` for all except widgets 6, 7, 9 which may need `TABULAR` for list views
 
-Critical: for widgets 1-4 (pipeline overviews), the aggregate is `s!Opportunity.APTS_Opportunity_ARR__c` (no `.CONVERT`) AND `Opportunity.APTS_Opportunity_ARR__c` must appear in detailColumns per the Salesforce Reports API constraint from Phase 1.5.
+Critical: for widgets 1-4 (pipeline overviews), the aggregate is `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT` AND `Opportunity.APTS_Opportunity_ARR__c.CONVERT` must appear in detailColumns per the Salesforce Reports API constraint from Phase 1.5.
 
-For widget 8 (`renewal_likelihood`), the aggregate is `s!Opportunity.APTS_Renewal_ACV__c` (no `.CONVERT`) AND `Opportunity.APTS_Renewal_ACV__c` must be in detailColumns.
+For widget 8 (`renewal_likelihood`), the aggregate is `s!Opportunity.APTS_Renewal_ACV__c.CONVERT` AND `Opportunity.APTS_Renewal_ACV__c.CONVERT` must be in detailColumns.
 
-For widgets 6, 7 (`land_stage3_no_approval_*`), the aggregate list is `[RowCount, s!Opportunity.APTS_Opportunity_ARR__c]` per the Phase 2 spec amendment (show both count and ARR sum).
+For widgets 6, 7 (`land_stage3_no_approval_*`), the aggregate list is `[RowCount, s!Opportunity.APTS_Opportunity_ARR__c.CONVERT]` per the Phase 2 spec amendment (show both count and ARR sum).
 
 ## Dashboard component additions
 
@@ -97,7 +97,7 @@ For each new report, clone an existing Dashboard 1 SUMMARY-report component (sam
 - Populate `properties.aggregates` with the new report's aggregate shape
 - Populate `properties.groupings` with the new report's grouping shape
 - Sync `visualizationProperties.tableColumns` if Dashboard 1 uses that pattern
-- Extend `layout.components` positional grid (discovered during Phase 2.6)
+- Extend `layout.components` positional grid only if present (probe found Dashboard 1 has empty layout grid, so this step is likely a no-op; verify empirically)
 - Strip read-only dashboard fields: `id`, `createdDate`, `lastModifiedDate`, `lastAccessedDate`, `url`, `owner`, `runningUser`, `folderName`
 
 ## Acceptance criteria
@@ -113,8 +113,8 @@ For each new report, clone an existing Dashboard 1 SUMMARY-report component (sam
 
 ## Risks
 
-1. **Dashboard 1 layout shape unknown.** Phase 2.6 surfaced `layout.components` positional grid + `properties.groupings`/`tableColumns` sync issues on Dashboard 2. Dashboard 1 may have the same or different constraints. Probe extracts the shape empirically.
-2. **Sum aggregates are new to this session.** Phase 2.6 used `RowCount` only. Phase 2.7 needs `s!Opportunity.APTS_Opportunity_ARR__c` for 6 of 9 widgets. Salesforce Reports API rejects sum aggregates if the corresponding field is not a summarizable numeric field OR if the field is not in detailColumns. Both conditions should be satisfied, but the live run may surface API quirks.
+1. **Dashboard 1 layout shape** resolved by probe: Dashboard 1 has 17 components but an empty `layout.components` positional grid. Phase 2.7 skips the positional-grid sync step that Phase 2.6 needed for Dashboard 2. Still need to keep `properties.groupings` / `visualizationProperties.tableColumns` in sync per the Phase 2.6 Cell 5 fixes.
+2. **Sum aggregates are new to this session.** Phase 2.6 used `RowCount` only. Phase 2.7 needs `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT` for 6 of 9 widgets. Salesforce Reports API rejects sum aggregates if the corresponding field is not a summarizable numeric field OR if the field is not in detailColumns. Both conditions should be satisfied, but the live run may surface API quirks.
 3. **Probability bucket grouping** for `renewal_likelihood`. Native SF reports can group by `PROBABILITY` directly (renders as bar per value) but "bucket" grouping requires a bucket field or custom formula. v1 uses direct grouping (each distinct probability value becomes a bar).
 4. **Tabular vs summary format** for list widgets (6, 7, 9). Dashboard 1's Land Stage 3 Missing Approval by Region widget from Phase 1 is OK, so there's a working template for TABULAR-format list widgets. Clone from that if possible.
 5. **Matcher vocabulary gap** (same as Phase 2.6). The new component titles (e.g., "P2.7 Pipeline EMEA This Quarter") may not match the spec's KPI bullet ("Pipeline overview with quarterly focus") by stem matching. Fall back: amend the Report 1 source contract manually to pin the canonical mapping.
