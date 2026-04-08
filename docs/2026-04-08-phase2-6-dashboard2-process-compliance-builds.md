@@ -53,7 +53,7 @@ All 5 share:
 
 ## The 1 fix
 
-`ph_aging_pipeline_365_plus` (`00OTb000008Ti7VMAS`) — same pattern as Phase 2.5 B-core Fix 1a:
+`ph_aging_pipeline_365_plus` (`00OTb000008Ti7VMAS`) - same pattern as Phase 2.5 B-core Fix 1a:
 
 - Swap `aggregates[0]` from `s!AMOUNT` to `s!Opportunity.APTS_Opportunity_ARR__c.CONVERT`
 - Add `Opportunity.APTS_Opportunity_ARR__c.CONVERT` to `detailColumns`
@@ -64,8 +64,8 @@ All 5 share:
 
 Two new uncommitted scripts:
 
-- **`scripts/phase2_6_post_probe.py`** — pre-flight probe. Auths, fetches one existing Dashboard 2 report (e.g., `00OTb000008el0PMAQ` "Missing Decision Reason") to extract folder ID + report type API name + filter operator conventions. Then attempts a `POST /analytics/reports` with the simplest possible body cloned from that template (modifying only name + developerName) to validate the POST endpoint works. Saves the test report ID for optional cleanup. Writes confirmed metadata to `/tmp/phase2_6_probe/confirmed.json`.
-- **`scripts/phase2_6_build.py`** — main build script. Notebook-style cells: auth, backup (Dashboard 2 + the 1 fix target report + 1 reference report for the clone template), build (5 POSTs for the new reports), fix (1 PATCH for ph_aging_pipeline_365_plus), dashboard (1 dashboard PATCH adding 5 components), summary. `--dry-run` support. Inline assert tests in each cell.
+- **`scripts/phase2_6_post_probe.py`** - pre-flight probe. Auths, fetches one existing Dashboard 2 report (e.g., `00OTb000008el0PMAQ` "Missing Decision Reason") to extract folder ID + report type API name + filter operator conventions. Then attempts a `POST /analytics/reports` with the simplest possible body cloned from that template (modifying only name + developerName) to validate the POST endpoint works. Saves the test report ID for optional cleanup. Writes confirmed metadata to `/tmp/phase2_6_probe/confirmed.json`.
+- **`scripts/phase2_6_build.py`** - main build script. Notebook-style cells: auth, backup (Dashboard 2 + the 1 fix target report + 1 reference report for the clone template), build (5 POSTs for the new reports), fix (1 PATCH for ph_aging_pipeline_365_plus), dashboard (1 dashboard PATCH adding 5 components), summary. `--dry-run` support. Inline assert tests in each cell.
 
 The build script bakes in all Phase 1.5 lessons:
 
