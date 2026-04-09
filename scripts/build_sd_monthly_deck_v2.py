@@ -34,8 +34,29 @@ DEFAULT_OUTPUT_ROOT = REPO_ROOT / "output" / "sales_director_monthly_runs"
 TARGET_ORG = "apro@simcorp.com"
 API_VERSION = "v66.0"
 
-# Deck structure: (section_num, section_title, [(subnum, sub_title, report_id, viz_hint)])
-DECK_SECTIONS: list[tuple[int, str, list[tuple[str, str, str | None, str]]]] = [
+# Sales Directors Monthly Pipeline and Insights dashboard
+DASHBOARD1_ID = "01ZTb00000FSP7hMAH"
+# Sales Ops Quarterly KPI dashboard (has no filters — D2 widgets are global scope)
+DASHBOARD2_ID = "01ZTb00000FSP9JMAX"
+
+# D1 component headers → component IDs (stable across runs)
+D1_COMP = {
+    "Pipeline Overview by Stage": "01aTb00000Cn9mPIAR",
+    "Commercial Approval Current State": "01aTb00000Cn9mQIAR",
+    "Renewal Likelihood by Probability": "01aTb00000Cn85bIAB",
+    "Business At Risk": "01aTb00000Cn85dIAB",
+    "Commercial Approval Approved YTD (Land)": "01aTb00000Cn85aIAB",
+    "Commercial Approval Candidates by Stage": "01aTb00000Cn85jIAB",
+    "Renewal Pipeline This Quarter": "01aTb00000Cn85ZIAR",
+    "Close Date Slipped by Stage": "01aTb00000Cn85lIAB",
+}
+
+# Deck structure. Each sub-item specifies where its data comes from:
+#   source="d1" + component_id  → extract from the pre-filtered D1 componentData cache
+#   source="report" + report_id → fall back to per-report POST filter override (used for D2 widgets)
+#   source="placeholder"        → awaiting external input
+# Format: (subnum, title, source, component_id_or_report_id)
+DECK_SECTIONS: list[tuple[int, str, list[tuple[str, str, str, str | None]]]] = [
     (
         1,
         "Pipeline Overview — quarterly focus",
@@ -43,16 +64,21 @@ DECK_SECTIONS: list[tuple[int, str, list[tuple[str, str, str | None, str]]]] = [
             (
                 "1.1",
                 "Pipeline by Stage (ARR, current calendar quarter)",
-                "00OTb000008fBfdMAE",
-                "bar",
+                "d1",
+                D1_COMP["Pipeline Overview by Stage"],
             ),
             (
                 "1.2",
                 "Pipeline by Region (stacked, per director scope)",
-                "00OTb000008fBfdMAE",
-                "stacked_bar",
+                "d1",
+                D1_COMP["Pipeline Overview by Stage"],
             ),
-            ("1.3", "Top Opportunities in Pipeline", "00OTb000008fBfdMAE", "table"),
+            (
+                "1.3",
+                "Top Opportunities in Pipeline",
+                "d1",
+                D1_COMP["Pipeline Overview by Stage"],
+            ),
         ],
     ),
     (
@@ -62,21 +88,26 @@ DECK_SECTIONS: list[tuple[int, str, list[tuple[str, str, str | None, str]]]] = [
             (
                 "2.1",
                 "Current State Overview (approved vs not-approved)",
-                "00OTb000008fBEDMA2",
-                "bar",
+                "d1",
+                D1_COMP["Commercial Approval Current State"],
             ),
-            ("2.2", "YTD Approved Deals (2026 to date)", "00OTb000008aTtJMAU", "table"),
+            (
+                "2.2",
+                "YTD Approved Deals (2026 to date)",
+                "d1",
+                D1_COMP["Commercial Approval Approved YTD (Land)"],
+            ),
             (
                 "2.3",
                 "Land Stage 3 Missing Approval Candidates",
-                "00OTb000008d6ovMAA",
-                "table",
+                "d1",
+                D1_COMP["Commercial Approval Candidates by Stage"],
             ),
             (
                 "2.4",
                 "Missing Commercial Approval Opportunities",
+                "report",
                 "00OTb000008fAlBMAU",
-                "table",
             ),
         ],
     ),
@@ -87,15 +118,20 @@ DECK_SECTIONS: list[tuple[int, str, list[tuple[str, str, str | None, str]]]] = [
             (
                 "3.1",
                 "Renewal ACV This Quarter (metric)",
-                "00OTb000008ektxMAA",
-                "metric",
+                "d1",
+                D1_COMP["Renewal Pipeline This Quarter"],
             ),
-            ("3.2", "Renewal Likelihood by Probability", "00OTb000008fBULMA2", "bar"),
+            (
+                "3.2",
+                "Renewal Likelihood by Probability",
+                "d1",
+                D1_COMP["Renewal Likelihood by Probability"],
+            ),
             (
                 "3.3",
                 "Upcoming Renewals List (this quarter)",
-                "00OTb000008ektxMAA",
-                "table",
+                "d1",
+                D1_COMP["Renewal Pipeline This Quarter"],
             ),
         ],
     ),
@@ -106,8 +142,8 @@ DECK_SECTIONS: list[tuple[int, str, list[tuple[str, str, str | None, str]]]] = [
             (
                 "4.1",
                 "Churn Risk Placeholder — awaiting Finance feed from Alex P",
-                None,
                 "placeholder",
+                None,
             ),
         ],
     ),
@@ -115,9 +151,14 @@ DECK_SECTIONS: list[tuple[int, str, list[tuple[str, str, str | None, str]]]] = [
         5,
         "Slipped Deals Analysis",
         [
-            ("5.1", "Close Date Slipped by Stage", "00OTb000008eknVMAQ", "table"),
-            ("5.2", "Slipped Deals Trend (6-month)", None, "placeholder"),
-            ("5.3", "Slipped Deals Root Cause Commentary", None, "placeholder"),
+            (
+                "5.1",
+                "Close Date Slipped by Stage",
+                "d1",
+                D1_COMP["Close Date Slipped by Stage"],
+            ),
+            ("5.2", "Slipped Deals Trend (6-month)", "placeholder", None),
+            ("5.3", "Slipped Deals Root Cause Commentary", "placeholder", None),
         ],
     ),
     (
@@ -127,19 +168,85 @@ DECK_SECTIONS: list[tuple[int, str, list[tuple[str, str, str | None, str]]]] = [
             (
                 "6.1",
                 "Missing Win/Loss Reason (excludes 0-No-Opportunity)",
+                "report",
                 "00OTb000008el0PMAQ",
-                "table",
             ),
             (
                 "6.2",
                 "Overdue Close Date Open Opps (sorted by record count)",
+                "report",
                 "00OTb000008TaBZMA0",
-                "table",
             ),
-            ("6.3", "Accounts without KYC Approval", "00OTb000007BvlJMAS", "table"),
+            ("6.3", "Accounts without KYC Approval", "report", "00OTb000007BvlJMAS"),
         ],
     ),
 ]
+
+# Director name → dashboard1 filter query params (positional: filter1=Industry, filter2=Legal Country, filter3=Sales Region, filter4=Account Unit Group)
+# Option IDs pulled from dashboard describe on 2026-04-09.
+_OPT = {
+    # Industry (filter1)
+    "ind_asset_mgmt": "0ICTb0000007DbdOAE",
+    "ind_bank": "0ICTb0000007DbeOAE",
+    "ind_insurance": "0ICTb0000007DbfOAE",
+    "ind_pension": "0ICTb0000007DbgOAE",
+    "ind_wealth": "0ICTb0000007DbhOAE",
+    "ind_servicer": "0ICTb0000007DbiOAE",
+    "ind_other": "0ICTb0000007DbjOAE",
+    # Legal Country (filter2)
+    "lc_canada": "0ICTb0000007DgTOAU",
+    "lc_excl_canada": "0ICTb0000007DgUOAU",
+    # Sales Region (filter3)
+    "sr_apac": "0ICTb0000007DbnOAE",
+    "sr_central_europe": "0ICTb0000007DboOAE",
+    "sr_mea": "0ICTb0000007DbpOAE",
+    "sr_nam": "0ICTb0000007DbqOAE",
+    "sr_northern_europe": "0ICTb0000007DbrOAE",
+    "sr_southwestern_europe": "0ICTb0000007DbsOAE",
+    "sr_uki": "0ICTb0000007DbtOAE",
+    # Account Unit Group (filter4)
+    "aug_sc_nam": "0ICTb0000007Di5OAE",
+    "aug_sc_asia": "0ICTb0000007Di6OAE",
+    "aug_sc_emea": "0ICTb0000007Di7OAE",
+}
+
+# Per-director dashboard1 filter params. Industry (filter1) is single-select at the dashboard level,
+# so Patrick/Adam can only express ONE primary industry via the dashboard filter — other industries
+# are noted on the deck cover as a caveat.
+DIRECTOR_D1_FILTERS: dict[str, dict[str, str]] = {
+    "Megan Miceli": {
+        "filter2": _OPT["lc_canada"],
+        "filter3": _OPT["sr_nam"],
+        "filter4": _OPT["aug_sc_nam"],
+    },
+    "Patrick Gaughan": {
+        "filter1": _OPT["ind_asset_mgmt"],
+        "filter2": _OPT["lc_excl_canada"],
+        "filter3": _OPT["sr_nam"],
+        "filter4": _OPT["aug_sc_nam"],
+    },
+    "Jesper Tyrer": {"filter3": _OPT["sr_apac"], "filter4": _OPT["aug_sc_asia"]},
+    "Sarah Pittroff": {
+        "filter3": _OPT["sr_central_europe"],
+        "filter4": _OPT["aug_sc_emea"],
+    },
+    "Francois Thaury": {
+        "filter3": _OPT["sr_southwestern_europe"],
+        "filter4": _OPT["aug_sc_emea"],
+    },
+    "Dan Peppett": {"filter3": _OPT["sr_uki"], "filter4": _OPT["aug_sc_emea"]},
+    "Christian Ebbesen": {
+        "filter3": _OPT["sr_northern_europe"],
+        "filter4": _OPT["aug_sc_emea"],
+    },
+    "Mourad Essofi": {"filter3": _OPT["sr_mea"], "filter4": _OPT["aug_sc_emea"]},
+    "Adam Steinhaus": {
+        "filter1": _OPT["ind_pension"],
+        "filter2": _OPT["lc_excl_canada"],
+        "filter3": _OPT["sr_nam"],
+        "filter4": _OPT["aug_sc_nam"],
+    },
+}
 
 # Colors
 TEAL = RGBColor(0x00, 0x74, 0x80)
@@ -461,6 +568,50 @@ def add_placeholder_slide(
     p2.font.color.rgb = MUTED
 
 
+def get_dashboard_filtered(
+    instance_url: str,
+    token: str,
+    dashboard_id: str,
+    filter_params: dict[str, str],
+    wait_sec: int = 6,
+) -> dict[str, dict[str, Any]]:
+    """Run a dashboard with filter selections and return {component_id: reportResult}.
+
+    1. PUT the dashboard URL with filterN=<optionId> query params to trigger an
+       async refresh of the filtered combination.
+    2. Wait for the refresh.
+    3. GET the same URL → componentData contains the filtered factMaps.
+    """
+    base = f"{instance_url}/services/data/{API_VERSION}/analytics/dashboards/{dashboard_id}"
+    if filter_params:
+        put_resp = requests.put(
+            base,
+            headers={"Authorization": f"Bearer {token}"},
+            params=filter_params,
+            timeout=60,
+        )
+        # 201 = refresh queued, 200 = cached
+        if put_resp.status_code not in (200, 201):
+            print(f"  warn: PUT refresh returned {put_resp.status_code}")
+        import time
+
+        time.sleep(wait_sec)
+    get_resp = requests.get(
+        base,
+        headers={"Authorization": f"Bearer {token}"},
+        params=filter_params,
+        timeout=60,
+    )
+    get_resp.raise_for_status()
+    payload = get_resp.json()
+    out: dict[str, dict[str, Any]] = {}
+    for cd in payload.get("componentData", []) or []:
+        cid = cd.get("componentId", "")
+        rr = cd.get("reportResult", {}) or {}
+        out[cid] = rr
+    return out
+
+
 def build_deck_for_director(
     director: dict[str, Any],
     snapshot_date: str,
@@ -473,35 +624,98 @@ def build_deck_for_director(
     pres.slide_height = Inches(7.5)
     # 1. Cover
     add_cover_slide(pres, director, snapshot_date)
-    # 2-N. Sections
+
+    # Fetch D1 once with the director's dashboard-level filter selection.
+    # This single call replaces 8 per-report POST overrides and gives us
+    # exactly what the Sales Director sees when they open the dashboard
+    # with their preset filters applied.
+    d1_filter_params = DIRECTOR_D1_FILTERS.get(director["name"], {})
+    if d1_filter_params:
+        print(f"  D1 filter params: {d1_filter_params}")
+    try:
+        d1_results = get_dashboard_filtered(
+            instance_url, token, DASHBOARD1_ID, d1_filter_params
+        )
+        print(f"  D1 fetched: {len(d1_results)} components")
+    except Exception as exc:
+        print(f"  D1 fetch FAILED: {exc}")
+        d1_results = {}
+
+    # D2 has no dashboard filters — per-report override fallback for those.
     extra_filters = director.get("filters", [])
+
     for section_num, section_title, subitems in DECK_SECTIONS:
         add_section_divider(pres, section_num, section_title)
-        for subnum, sub_title, report_id, viz in subitems:
-            if report_id is None:
+        for subnum, sub_title, source, target_id in subitems:
+            if source == "placeholder":
                 reason = (
                     "Awaiting Finance feed (Alex P)"
                     if section_num == 4
                     else "Pipeline Inspection native required — see Phase 4 handoff"
                 )
-                if sub_title.lower().find("root cause") >= 0:
-                    reason = "Opp owner commentary outreach pending — column will be populated manually"
+                if "root cause" in sub_title.lower():
+                    reason = "Opp owner commentary outreach pending — column populated manually"
                 add_placeholder_slide(pres, subnum, sub_title, reason)
                 continue
-            try:
-                result = run_report_with_filters(
-                    instance_url, token, report_id, extra_filters
-                )
-                headers, rows = extract_table(result)
-                add_table_slide(
-                    pres, subnum, sub_title, headers, rows, f"SF Report {report_id}"
-                )
-                print(f"  OK   {subnum} ({len(rows)} rows) — {report_id}")
-            except Exception as exc:
-                add_placeholder_slide(
-                    pres, subnum, sub_title, f"(Data fetch failed: {exc})"
-                )
-                print(f"  FAIL {subnum} — {report_id}: {exc}")
+            if source == "d1":
+                assert target_id is not None
+                rr = d1_results.get(target_id)
+                if rr is None:
+                    add_placeholder_slide(
+                        pres,
+                        subnum,
+                        sub_title,
+                        f"(D1 component {target_id} not in response)",
+                    )
+                    print(f"  MISS {subnum} — component {target_id} not in D1 results")
+                    continue
+                try:
+                    # Synthesize a report-shaped payload for extract_table
+                    synthetic = {
+                        "reportMetadata": rr.get("reportMetadata", {}) or {},
+                        "reportExtendedMetadata": rr.get("reportExtendedMetadata", {})
+                        or {},
+                        "factMap": rr.get("factMap", {}) or {},
+                        "groupingsDown": rr.get("groupingsDown", {}) or {},
+                    }
+                    headers, rows = extract_table(synthetic)
+                    add_table_slide(
+                        pres,
+                        subnum,
+                        sub_title,
+                        headers,
+                        rows,
+                        f"Dashboard 1 (filter-applied) | component {target_id}",
+                    )
+                    print(f"  OK   {subnum} ({len(rows)} rows) — d1:{target_id}")
+                except Exception as exc:
+                    add_placeholder_slide(
+                        pres, subnum, sub_title, f"(D1 extract failed: {exc})"
+                    )
+                    print(f"  FAIL {subnum} — d1:{target_id}: {exc}")
+                continue
+            if source == "report":
+                assert target_id is not None
+                try:
+                    result = run_report_with_filters(
+                        instance_url, token, target_id, extra_filters
+                    )
+                    headers, rows = extract_table(result)
+                    add_table_slide(
+                        pres,
+                        subnum,
+                        sub_title,
+                        headers,
+                        rows,
+                        f"SF Report {target_id} (D2 global — no dashboard filter)",
+                    )
+                    print(f"  OK   {subnum} ({len(rows)} rows) — report:{target_id}")
+                except Exception as exc:
+                    add_placeholder_slide(
+                        pres, subnum, sub_title, f"(Data fetch failed: {exc})"
+                    )
+                    print(f"  FAIL {subnum} — report:{target_id}: {exc}")
+                continue
     # Closing
     slide = pres.slides.add_slide(pres.slide_layouts[6])
     tb = slide.shapes.add_textbox(Inches(0.7), Inches(2.5), Inches(12), Inches(2))
