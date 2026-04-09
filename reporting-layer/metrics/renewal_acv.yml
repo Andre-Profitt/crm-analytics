@@ -1,0 +1,66 @@
+# Metric: renewal_acv
+# Canonical "renewal ACV" metric for Sales Director Monthly renewal
+# tracking. Sum of APTS_Renewal_ACV__c on Opportunity records where
+# Type = 'Renewal' and the opportunity is open, aggregated via .CONVERT.
+#
+# ACV (not ARR) is the right aggregation for renewals because a renewal
+# is by definition a per-year recurring commitment. ARR is a company-
+# level metric; ACV is the deal-level metric that matters for renewals.
+
+metric:
+  name: renewal_acv
+  version: 1.0.0
+  display_name: Renewal ACV
+  description: >
+    Sum of APTS_Renewal_ACV__c on Opportunity records where
+    Type = 'Renewal' and IsClosed = false, aggregated in corporate
+    currency via .CONVERT. Canonical for renewal pipeline reporting.
+    Never mix with new_business_arr in the same widget.
+
+  measure:
+    type: sum
+    field: Opportunity.APTS_Renewal_ACV__c
+    currency_handling: CONVERT
+    aggregation_expression: s!Opportunity.APTS_Renewal_ACV__c.CONVERT
+
+  dimensions:
+    time:
+      field: Opportunity.CloseDate
+      framing: CALENDAR
+      grain: QUARTER
+    segment:
+      - Opportunity.Sales_Region__c
+      - Opportunity.Probability
+
+  filters:
+    - field: Opportunity.IsClosed
+      operator: equals
+      value: "False"
+    - field: Opportunity.Type
+      operator: equals
+      value: "Renewal"
+
+  source:
+    report_id: 00OTb000008fBULMA2
+    developer_name: Phase_2_7_Renewal_Likelihood
+    contract_file: contracts/report_00OTb000008fBULMA2.yml
+
+  bindings:
+    - dashboard_id: 01ZTb00000FSP7hMAH
+      dashboard_label: Sales Directors Monthly
+      widget_index: 15 # Renewal Likelihood by Probability
+      component_type: Chart
+      property_path: properties.aggregates[0]
+
+  owner: apro@simcorp.com
+  reviewers:
+    - apro@simcorp.com
+
+  changelog:
+    - version: 1.0.0
+      date: 2026-04-09
+      change: >
+        Initial metric definition. Extracted from docs/specs/report-1-source-contract.md
+        row 11 (renewal_likelihood). Binds to the Phase 2.7 canonical
+        renewal likelihood report. The 2026-04-08 pristine pass upgraded
+        this widget's aggregate to .CONVERT form.

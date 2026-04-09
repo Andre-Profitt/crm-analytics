@@ -1,0 +1,73 @@
+# Source Contract: Phase 2.7 Renewal Likelihood (Report 1 / Renewal ACV)
+
+source_contract:
+  report_id: 00OTb000008fBULMA2
+  developer_name: Phase_2_7_Renewal_Likelihood
+  display_label: P2.7 Renewal Likelihood This Qtr
+  report_type:
+    label: Opportunities
+    type: Opportunity
+  format: SUMMARY
+
+  owner: apro@simcorp.com
+  reviewers:
+    - apro@simcorp.com
+
+  folder_id: 005QA000003DUwWYAW
+
+  groupings_down:
+    - field: PROBABILITY
+      sort_order: Asc
+      sort_aggregate: null
+
+  groupings_across: []
+
+  detail_columns:
+    - ACCOUNT_NAME
+    - OPPORTUNITY_NAME
+    - CLOSE_DATE
+    - Opportunity.APTS_Renewal_ACV__c.CONVERT
+
+  filters:
+    - column: CLOSED
+      operator: equals
+      value: "False"
+    - column: TYPE
+      operator: equals
+      value: "Renewal"
+
+  standard_date_filter:
+    column: CLOSE_DATE
+    duration: THIS_QUARTER
+
+  aggregations:
+    - field: Opportunity.APTS_Renewal_ACV__c
+      function: Sum
+      currency_handling: CONVERT
+      aggregation_expression: s!Opportunity.APTS_Renewal_ACV__c.CONVERT
+    - field: RowCount
+      function: Count
+
+  bucket_fields: []
+  calendar_framing: CALENDAR
+
+  normalization_notes: >
+    Built in Phase 2.7 as the canonical renewal likelihood report,
+    grouped by Probability bucket so the Director can see which renewals
+    are at risk. ACV aggregate upgraded to .CONVERT form in the
+    2026-04-08 pristine pass.
+
+  known_gotchas: >
+    - APTS_Renewal_ACV__c must remain Currency-typed or .CONVERT
+      silently falls back to native values (the old currency-type
+      fallback bug).
+    - The Director-facing widget uses this report with a dashboard
+      component that can sort by probability DESC in the UI.
+
+  hash:
+    algorithm: sha256
+    value: ""
+    last_verified: null
+
+  bound_metrics:
+    - renewal_acv@1.0.0

@@ -1,0 +1,72 @@
+# Metric: pipeline_coverage
+# Derived metric: ratio of open pipeline ARR to remaining quota.
+#
+# Per Bridge Group / SaaStr / Forrester: enterprise B2B coverage ratio
+# floor is 4x. For SimCorp (6-18 month cycle, >$100k ACV, regulated
+# buyers) anything below 3.5x should highlight red on the dashboard.
+#
+# This metric is DERIVED — it depends on two base measures (pipeline
+# ARR and quota) that must exist first. Quota is a GAP: SimCorp does
+# not currently have quota captured in Salesforce in a queryable form,
+# so this metric is SPECIFICATION-ONLY until the quota data source is
+# identified.
+
+metric:
+  name: pipeline_coverage
+  version: 0.1.0 # draft: awaits quota data source
+  display_name: Pipeline Coverage Ratio
+  description: >
+    Ratio of open pipeline ARR (this quarter) to remaining quota (this
+    quarter). Highlights red below 3.5x, yellow 3.5x-4x, green >4x.
+    BLOCKED pending identification of the quota data source.
+
+  measure:
+    type: derived
+    numerator: new_business_arr@1.0.0
+    denominator: quota_remaining_this_quarter@unresolved
+    # Evaluation: sum of new_business_arr over current quarter
+    # / sum of quota_remaining over current quarter
+
+  dimensions:
+    time:
+      field: Opportunity.CloseDate
+      framing: CALENDAR
+      grain: QUARTER
+    segment:
+      - Opportunity.Sales_Region__c
+      - Account.BillingCountry
+
+  filters: [] # inherited from base measures
+
+  source:
+    # No single source report — this metric is computed on the
+    # dashboard side from two measures. Flagged for a new report
+    # that combines both sides once quota data lands.
+    status: no_source_yet
+    blockers:
+      - quota_data_source_unresolved
+    notes: >
+      SimCorp quota is currently managed outside Salesforce (per the
+      deep audit's stakeholder-blocked section). Options: (1) ingest
+      quota via a CSV upload into a custom object, (2) reference an
+      external reporting system via CRMA dataflow, (3) capture quota
+      on User or UserRole as a formula field. Pick one before
+      elevating this metric past v0.1.0.
+
+  bindings:
+    - status: blocked
+      target_dashboard_id: 01ZTb00000FSP7hMAH
+      target_widget_label: "Coverage & Gap-to-Quota"
+      blocker: quota_data_source_unresolved
+
+  owner: apro@simcorp.com
+  reviewers:
+    - apro@simcorp.com
+
+  changelog:
+    - version: 0.1.0
+      date: 2026-04-09
+      change: >
+        Draft specification. Intentionally flagged as blocked pending
+        quota data source decision. Not to be promoted to v1.0.0 until
+        the blocker is resolved and a source contract exists.

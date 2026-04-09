@@ -1,0 +1,71 @@
+# Metric: new_business_arr
+# The canonical "new business ARR" metric for Sales Director Monthly and
+# Sales Ops Quarterly reporting. Sum of Opportunity ARR for New Business
+# (non-renewal) opportunities, aggregated in corporate currency.
+#
+# "ARR is the metric of the company; ACV is the metric of the deal" — David
+# Skok, SaaS Metrics 2.0. New business uses ARR because it rolls up to the
+# company's recurring revenue number. Renewals use ACV because a renewal is
+# a per-year commitment and the TCV multiplier isn't meaningful at the deal
+# level.
+
+metric:
+  name: new_business_arr
+  version: 1.0.0
+  display_name: New Business ARR
+  description: >
+    Sum of APTS_Opportunity_ARR__c on Opportunity records where
+    Type != 'Renewal' and the opportunity is open (IsClosed = false),
+    aggregated in corporate currency via the .CONVERT suffix.
+    Canonical for new-business pipeline reporting at Director and
+    Sales Ops levels.
+
+  measure:
+    type: sum
+    field: Opportunity.APTS_Opportunity_ARR__c
+    currency_handling: CONVERT # multi-currency org; must use .CONVERT
+    aggregation_expression: s!Opportunity.APTS_Opportunity_ARR__c.CONVERT
+
+  dimensions:
+    time:
+      field: Opportunity.CloseDate
+      framing: CALENDAR # never fiscal, per pristine design rule P2
+      grain: QUARTER
+      # Note: calendar-quarter grouping requires a Calendar_Quarter__c
+      # formula field on Opportunity (see docs/2026-04-08-manual-ui-runbook.md §4).
+      # Until that's deployed, this metric groups by STAGE_NAME as a proxy.
+    segment:
+      - Opportunity.Sales_Region__c
+      - Account.BillingCountry
+
+  filters:
+    - field: Opportunity.IsClosed
+      operator: equals
+      value: "False"
+    - field: Opportunity.Type
+      operator: notEqual
+      value: "Renewal"
+
+  source:
+    report_id: 00OTb000008fBfdMAE
+    developer_name: Phase_2_7_Pipeline_Global3
+    contract_file: contracts/report_00OTb000008fBfdMAE.yml
+
+  bindings:
+    - dashboard_id: 01ZTb00000FSP7hMAH # Sales Directors Monthly
+      dashboard_label: Sales Directors Monthly
+      widget_index: 3 # Pipeline Overview by Stage
+      component_type: Chart
+      property_path: properties.aggregates[0]
+
+  owner: apro@simcorp.com
+  reviewers:
+    - apro@simcorp.com
+
+  changelog:
+    - version: 1.0.0
+      date: 2026-04-09
+      change: >
+        Initial metric definition. Extracted from docs/specs/report-1-source-contract.md
+        row 1 (pipeline_overview_global). Binds to the Phase 2.7 canonical
+        pipeline global report.

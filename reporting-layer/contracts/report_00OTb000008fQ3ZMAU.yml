@@ -1,0 +1,85 @@
+# Source Contract: Top 10 Deals by ARR This Qtr (Pristine pass continuation)
+# Created 2026-04-09 via POST /analytics/reports as infrastructure for the
+# future 8-widget pristine Dashboard 1 blueprint.
+
+source_contract:
+  report_id: 00OTb000008fQ3ZMAU
+  developer_name: Pristine_Top_10_Deals_ARR_This_Qtr
+  display_label: Top 10 Deals by ARR This Qtr
+  report_type:
+    label: Opportunities
+    type: Opportunity
+  format: SUMMARY
+
+  owner: apro@simcorp.com
+  reviewers:
+    - apro@simcorp.com
+
+  folder_id: 005QA000003DUwWYAW
+
+  groupings_down:
+    - field: ACCOUNT_NAME
+      sort_order: Asc
+      sort_aggregate: null
+      # Note: sort_aggregate="s!Opportunity.APTS_Opportunity_ARR__c.CONVERT"
+      # cannot be set at POST time; apply via subsequent PATCH if sort-by-
+      # aggregate is needed. The dashboard component can also control sort
+      # at render time.
+
+  groupings_across: []
+
+  detail_columns:
+    - OPPORTUNITY_NAME
+    - STAGE_NAME
+    - CLOSE_DATE
+    - FULL_NAME
+    - Opportunity.Sales_Region__c
+    - Opportunity.APTS_Opportunity_ARR__c.CONVERT
+
+  filters:
+    - column: CLOSED
+      operator: equals
+      value: "False"
+
+  standard_date_filter:
+    column: CLOSE_DATE
+    duration: THIS_QUARTER
+
+  aggregations:
+    - field: Opportunity.APTS_Opportunity_ARR__c
+      function: Sum
+      currency_handling: CONVERT
+      aggregation_expression: s!Opportunity.APTS_Opportunity_ARR__c.CONVERT
+    - field: RowCount
+      function: Count
+
+  bucket_fields: []
+  calendar_framing: CALENDAR
+
+  normalization_notes: >
+    Built 2026-04-09 as pristine infrastructure. Cloned from
+    00OTb000008fBfdMAE (P2.7 Pipeline Global) and modified with
+    ACCOUNT_NAME grouping. Owner column via FULL_NAME (standard).
+    Not yet bound to any dashboard widget — awaits stakeholder
+    consolidation conversation per
+    docs/2026-04-09-pristine-design-research-addendum.md.
+
+  known_gotchas: >
+    - detail_columns must NOT contain ACCOUNT_NAME (it's the grouping;
+      Reports API rejects with specificErrorCode 113).
+    - sort_aggregate on grouping is PATCH-only, not POST-settable.
+    - Do not set description or folderId on POST — triggers HTTP 500
+      "invalid parameter value". Apply via PATCH after creation.
+
+  hash:
+    algorithm: sha256
+    value: ""
+    last_verified: null
+
+  bound_metrics:
+    - top_10_deals_arr@1.0.0
+
+  creation_metadata:
+    created_at: 2026-04-09
+    created_by_script: /tmp/build-new-reports.mjs
+    cloned_from: 00OTb000008fBfdMAE

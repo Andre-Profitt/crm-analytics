@@ -1,0 +1,69 @@
+# Metric: top_10_deals_arr
+# The "Top 10 Deals" concept for the pristine 8-widget Sales Directors
+# Monthly blueprint. Surfaces the largest open opportunities by ARR for
+# the current quarter, grouped by account with sort-by-aggregate in the
+# dashboard component (the source report can't set sort_aggregate at
+# POST time — that's a locked-in API constraint).
+#
+# Per Mark Roberge's Sales Acceleration Formula, the Top-10 deals list
+# is the canonical "what deals will make or break my quarter" primitive
+# for Director-level review.
+
+metric:
+  name: top_10_deals_arr
+  version: 1.0.0
+  display_name: Top 10 Deals by ARR This Quarter
+  description: >
+    The largest 10 open opportunities by APTS_Opportunity_ARR__c for
+    the current calendar quarter, grouped by account. Used for the
+    Director's "what deals will make or break my quarter" review.
+
+  measure:
+    type: sum
+    field: Opportunity.APTS_Opportunity_ARR__c
+    currency_handling: CONVERT
+    aggregation_expression: s!Opportunity.APTS_Opportunity_ARR__c.CONVERT
+
+  dimensions:
+    time:
+      field: Opportunity.CloseDate
+      framing: CALENDAR
+      grain: QUARTER
+    segment:
+      - Account.Name
+      - Opportunity.StageName
+      - Opportunity.OwnerFullName
+      - Opportunity.Sales_Region__c
+
+  filters:
+    - field: Opportunity.IsClosed
+      operator: equals
+      value: "False"
+
+  source:
+    # Built 2026-04-09 via POST /analytics/reports — see
+    # /tmp/build-new-reports.mjs and the commit following it.
+    report_id: 00OTb000008fQ3ZMAU
+    developer_name: Pristine_Top_10_Deals_ARR_This_Qtr
+    contract_file: contracts/report_00OTb000008fQ3ZMAU.yml
+
+  bindings:
+    # Not yet bound — this metric is infrastructure for the future
+    # 8-widget pristine blueprint. Awaits stakeholder consolidation
+    # conversation per docs/2026-04-09-pristine-design-research-addendum.md.
+    - status: pending_stakeholder_consolidation
+      target_dashboard_id: 01ZTb00000FSP7hMAH
+      target_widget_label: "Top 10 Deals"
+
+  owner: apro@simcorp.com
+  reviewers:
+    - apro@simcorp.com
+
+  changelog:
+    - version: 1.0.0
+      date: 2026-04-09
+      change: >
+        Initial metric definition. Report created via POST /analytics/reports
+        as part of the pristine-pass continuation work. Blueprint source:
+        docs/2026-04-09-pristine-design-research-addendum.md section
+        "The 8-widget Dashboard 1 blueprint".

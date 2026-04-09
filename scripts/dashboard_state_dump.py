@@ -58,6 +58,18 @@ DEFERRED_FISCAL_GROUPING_REPORTS: set[str] = {
     "00OTb000008SrmLMAS",  # D2 Overdue Opportunities
 }
 
+# Dashboards classified as "executive review surfaces" — the ones used
+# in live monthly/quarterly meetings by senior stakeholders. Research
+# sources (Stephen Few, Gartner 2023, Tufte) converge on 6-9 widgets as
+# the cognitive ceiling for this audience. We treat violations as
+# WARNINGS (not active flags) because widget count is a design choice
+# that requires stakeholder sign-off to consolidate, not a data defect.
+EXECUTIVE_DASHBOARDS: set[str] = {
+    "01ZTb00000FSP7hMAH",  # Sales Directors Monthly
+}
+EXECUTIVE_WIDGET_CEILING_TARGET = 8  # research-recommended target
+EXECUTIVE_WIDGET_CEILING_MAX = 12  # absolute upper bound
+
 
 @dataclass
 class WidgetState:
@@ -248,6 +260,21 @@ def build_report(
             "components_count": len(components),
             "widgets": [asdict(w) for w in widgets],
         }
+        # Executive widget count warnings — design choice, not data defect.
+        # Per Stephen Few / Tufte / Gartner 2023, executive review surfaces
+        # should carry 6-9 widgets. Widgets above that erode decision speed.
+        warnings: list[str] = []
+        widget_count = len(widgets)
+        if dash_id in EXECUTIVE_DASHBOARDS:
+            if widget_count > EXECUTIVE_WIDGET_CEILING_MAX:
+                warnings.append(
+                    f"widget-count-over-max:{widget_count}/{EXECUTIVE_WIDGET_CEILING_MAX}"
+                )
+            elif widget_count > EXECUTIVE_WIDGET_CEILING_TARGET:
+                warnings.append(
+                    f"widget-count-over-target:{widget_count}/{EXECUTIVE_WIDGET_CEILING_TARGET}"
+                )
+        dash_dict["warnings"] = warnings
         out["dashboards"].append(dash_dict)
 
         # Summary per dashboard
@@ -255,10 +282,11 @@ def build_report(
         deferred_flags = sum(len(w.flags_deferred) for w in widgets)
         flagged_widgets = sum(1 for w in widgets if w.flags)
         out["summary"][dash_label] = {
-            "widgets": len(widgets),
+            "widgets": widget_count,
             "flagged_widgets": flagged_widgets,
             "active_flags": active_flags,
             "deferred_flags": deferred_flags,
+            "warnings": warnings,
         }
 
     return out
@@ -273,7 +301,8 @@ def to_markdown(report: dict[str, Any]) -> str:
     lines.append(
         "Pristine-state audit. Cross-references every widget binding with its source "
         "report. Flags prefixed with `⚠️` are active defects; those prefixed with "
-        "`🔶` are deferred (schema change required)."
+        "`🔶` are deferred (schema change required); dashboard-level warnings "
+        "prefixed with `💡` are design-choice flags (e.g. executive widget-count ceiling)."
     )
     lines.append("")
 
@@ -285,6 +314,8 @@ def to_markdown(report: dict[str, Any]) -> str:
         lines.append(f"- **runningUser:** {dash['runningUser']}")
         lines.append(f"- **filters:** {dash['filters_count']}")
         lines.append(f"- **components:** {dash['components_count']} / 20")
+        for w in dash.get("warnings", []):
+            lines.append(f"- 💡 **warning:** {w}")
         lines.append("")
         lines.append("| # | Widget | Report | Format | Date | Widget Agg | Flags |")
         lines.append("|---|---|---|---|---|---|---|")
@@ -309,19 +340,26 @@ def to_markdown(report: dict[str, Any]) -> str:
     lines.append("## Summary")
     lines.append("")
     for label, s in report["summary"].items():
+        warning_count = len(s.get("warnings") or [])
+        warn_str = f", {warning_count} warning(s)" if warning_count else ""
         lines.append(
             f"- **{label}:** {s['widgets']} widgets, "
             f"{s['flagged_widgets']} flagged, "
             f"{s['active_flags']} active flag(s), "
             f"{s['deferred_flags']} deferred flag(s)"
+            f"{warn_str}"
         )
     lines.append("")
 
     total_active = sum(s["active_flags"] for s in report["summary"].values())
     total_deferred = sum(s["deferred_flags"] for s in report["summary"].values())
+    total_warnings = sum(
+        len(s.get("warnings") or []) for s in report["summary"].values()
+    )
     if total_active == 0:
+        warn_suffix = f", {total_warnings} design warning(s)" if total_warnings else ""
         lines.append(
-            f"✓ **Pristine state: 0 active flags, {total_deferred} deferred flags.**"
+            f"✓ **Pristine state: 0 active flags, {total_deferred} deferred flags{warn_suffix}.**"
         )
     else:
         lines.append(

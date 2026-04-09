@@ -1,0 +1,73 @@
+# Source Contract: Phase 2.7 Pipeline Global (Report 1 / New Business ARR)
+# Canonical source report for new_business_arr metric.
+
+source_contract:
+  report_id: 00OTb000008fBfdMAE
+  developer_name: Phase_2_7_Pipeline_Global3
+  display_label: P2.7 Pipeline Global This Qtr
+  report_type:
+    label: Opportunities
+    type: Opportunity
+  format: SUMMARY
+
+  owner: apro@simcorp.com
+  reviewers:
+    - apro@simcorp.com
+
+  folder_id: 005QA000003DUwWYAW
+
+  groupings_down:
+    - field: STAGE_NAME
+      sort_order: Asc
+      sort_aggregate: null
+
+  groupings_across: []
+
+  detail_columns:
+    - ACCOUNT_NAME
+    - OPPORTUNITY_NAME
+    - CLOSE_DATE
+    - Opportunity.APTS_Opportunity_ARR__c.CONVERT
+
+  filters:
+    - column: CLOSED
+      operator: equals
+      value: "False"
+
+  standard_date_filter:
+    column: CLOSE_DATE
+    duration: THIS_QUARTER
+
+  aggregations:
+    - field: Opportunity.APTS_Opportunity_ARR__c
+      function: Sum
+      currency_handling: CONVERT
+      aggregation_expression: s!Opportunity.APTS_Opportunity_ARR__c.CONVERT
+    - field: RowCount
+      function: Count
+
+  bucket_fields: []
+  calendar_framing: CALENDAR
+
+  normalization_notes: >
+    Built in Phase 2.7 as the canonical pipeline overview report, replacing
+    older fiscal-framed reports. Uses .CONVERT for multi-currency rollup.
+    Close Date filter uses bare THIS_QUARTER (not THIS_CALENDAR_QUARTER,
+    which is rejected by this org's Reports API).
+
+  known_gotchas: >
+    - Do NOT add STAGE_NAME to detail_columns; it's a grouping and the
+      Reports API rejects the PATCH with specificErrorCode 113.
+    - sort_aggregate on the grouping cannot be set at POST time; must be
+      applied via subsequent PATCH.
+    - The `description` and `folderId` fields on the report metadata will
+      trigger HTTP 500 "invalid parameter value" on POST; apply via PATCH
+      after creation.
+
+  hash:
+    algorithm: sha256
+    value: "" # populated by scripts/normalize_and_hash.py (not yet built)
+    last_verified: null
+
+  bound_metrics:
+    - new_business_arr@1.0.0
