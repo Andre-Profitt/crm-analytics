@@ -188,7 +188,7 @@ def extract_soql_queries(
         ),
         (
             "soql_forecast_categories.json",
-            f"SELECT ForecastCategoryName, SUM(APTS_Opportunity_ARR__c) arr, SUM(Opportunity_Average_ACV__c) acv, COUNT(Id) ct FROM Opportunity WHERE IsClosed = false AND CloseDate = THIS_QUARTER AND {where} GROUP BY ForecastCategoryName",
+            f"SELECT ForecastCategoryName, SUM(convertCurrency(APTS_Opportunity_ARR__c)) arr, SUM(convertCurrency(Opportunity_Average_ACV__c)) acv, COUNT(Id) ct FROM Opportunity WHERE IsClosed = false AND CloseDate = THIS_QUARTER AND {where} GROUP BY ForecastCategoryName",
             "forecast_categories",
         ),
     ]
@@ -280,9 +280,13 @@ def extract_forecasting(
             filename = f"forecast_item_{period_label}_{type_label}.json"
             print(f"  [global] {filename} ...", end=" ", flush=True)
             query = (
-                f"SELECT Id, OwnerId, Owner.Name, ForecastCategoryName, "
-                f"ForecastingItemCategory, ForecastAmount, AmountWithoutAdjustments, "
-                f"AmountWithoutManagerAdjustment, HasAdjustment, OwnerOnlyAmount "
+                f"SELECT Id, OwnerId, Owner.Name, CurrencyIsoCode, "
+                f"ForecastCategoryName, ForecastingItemCategory, "
+                f"ForecastAmount, convertCurrency(ForecastAmount) ConvertedForecastAmount, "
+                f"AmountWithoutAdjustments, convertCurrency(AmountWithoutAdjustments) ConvertedAdjAmount, "
+                f"AmountWithoutManagerAdjustment, convertCurrency(AmountWithoutManagerAdjustment) ConvertedNoMgrAdjAmount, "
+                f"HasAdjustment, "
+                f"OwnerOnlyAmount, convertCurrency(OwnerOnlyAmount) ConvertedOwnerOnlyAmount "
                 f"FROM ForecastingItem "
                 f"WHERE PeriodId = '{period_id}' AND ForecastingTypeId = '{type_id}'"
             )
@@ -337,7 +341,11 @@ def extract_field_history(
         print(f"  [global] {filename} ...", end=" ", flush=True)
         query = (
             f"SELECT OpportunityId, Opportunity.Name, Opportunity.Account.Name, "
-            f"Opportunity.Owner.Name, Opportunity.APTS_Opportunity_ARR__c, "
+            f"Opportunity.Owner.Name, Opportunity.CurrencyIsoCode, "
+            f"Opportunity.APTS_Opportunity_ARR__c, "
+            f"convertCurrency(Opportunity.APTS_Opportunity_ARR__c) ConvertedARR, "
+            f"Opportunity.APTS_Renewal_ACV__c, "
+            f"convertCurrency(Opportunity.APTS_Renewal_ACV__c) ConvertedRenewalACV, "
             f"Opportunity.Sales_Director_Book__c, Opportunity.StageName, "
             f"Opportunity.CloseDate, Opportunity.ForecastCategoryName, "
             f"OldValue, NewValue, CreatedDate "

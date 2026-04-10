@@ -158,10 +158,14 @@ DIRECTOR_D1_FILTERS: dict[str, dict[str, Any]] = {
 # Opportunity field list for SOQL bulk pulls
 # ---------------------------------------------------------------------------
 OPP_FIELDS = (
-    "Id, Name, Account.Name, Account.Industry, Account.BillingCountryCode, "
+    "Id, Name, CurrencyIsoCode, Account.Name, Account.Industry, "
+    "Account.BillingCountryCode, "
     "Owner.Name, OwnerId, StageName, CloseDate, "
-    "APTS_Opportunity_ARR__c, Opportunity_Average_ACV__c, "
-    "APTS_Forecast_ARR__c, APTS_Forecast_ACV_AVG__c, "
+    "APTS_Opportunity_ARR__c, convertCurrency(APTS_Opportunity_ARR__c) ConvertedARR, "
+    "Opportunity_Average_ACV__c, convertCurrency(Opportunity_Average_ACV__c) ConvertedACV, "
+    "APTS_Renewal_ACV__c, convertCurrency(APTS_Renewal_ACV__c) ConvertedRenewalACV, "
+    "APTS_Forecast_ARR__c, convertCurrency(APTS_Forecast_ARR__c) ConvertedForecastARR, "
+    "APTS_Forecast_ACV_AVG__c, convertCurrency(APTS_Forecast_ACV_AVG__c) ConvertedForecastACV, "
     "ForecastCategoryName, Probability, Type, APTS_Opportunity_Sub_Type__c, "
     "PushCount, AgeInDays, LastStageChangeInDays, "
     "LastActivityDate, LastActivityInDays, "

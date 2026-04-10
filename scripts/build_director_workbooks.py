@@ -642,31 +642,25 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
     ).font = _data_font(size=9, color="666666")
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
     row += 1
-    headers_a = ["Category", "Forecast Amount (€, OwnerOnly)", "Adj Amount (€)"]
+    headers_a = ["Category", "Forecast Amount (€, OwnerOnly)"]
     _write_header_row(ws, row, headers_a)
     row += 1
 
     fi = cache.forecast_items("Q1_2026", "ARR")
     CATEGORIES = ["Commit", "BestCase", "Pipeline", "Closed"]
-    totals = {cat: {"forecast": 0.0, "adj": 0.0} for cat in CATEGORIES}
+    totals = {cat: 0.0 for cat in CATEGORIES}
     for item in fi:
         cat = item.get("ForecastCategoryName") or item.get(
             "ForecastingItemCategory", ""
         )
         for c in CATEGORIES:
             if c.lower() in cat.lower():
-                totals[c]["forecast"] += forecast_owner_only_eur(item)
-                totals[c]["adj"] += forecast_adjusted_amount_eur(item)
+                totals[c] += forecast_owner_only_eur(item)
                 break
 
     for cat in CATEGORIES:
         ws.cell(row=row, column=1, value=cat).font = _data_font()
-        ws.cell(
-            row=row, column=2, value=round(totals[cat]["forecast"], 2)
-        ).font = _data_font()
-        ws.cell(
-            row=row, column=3, value=round(totals[cat]["adj"], 2)
-        ).font = _data_font()
+        ws.cell(row=row, column=2, value=round(totals[cat], 2)).font = _data_font()
         row += 1
 
     # Won / Lost actuals
