@@ -1,5 +1,7 @@
 # Report 1 Source-of-Truth Contract - Pipeline Reporting & Insights (Sales Director Monthly)
 
+> **2026-04-10 update — forecast subregion bug fix:** `Middle East & Africa` previously appeared in the APAC filter list for several widgets in this contract. That is wrong for CRO forecast tie-out; `ME & AFR Sales` is a child of `EMEA` in the live Salesforce forecast hierarchy. EMEA filters now include MEA and APAC filters are APAC-only. Single source of truth for territory rollups: [`config/territory_mappings.json`](/Users/test/crm-analytics/config/territory_mappings.json). Full context: [`docs/2026-04-10-forecast-subregion-bug-handoff.md`](/Users/test/crm-analytics/docs/2026-04-10-forecast-subregion-bug-handoff.md).
+
 > Maps each of the 16 widgets in the Report 1 spec to a canonical SF report ID or Pipeline Inspection list view. Output of Phase 2 Task 5. Phase 4 deck rebuild reads this file to decide which data source feeds each slide.
 
 ## Header
@@ -62,14 +64,14 @@
 Every row with `Phase 1.5 fix needed = yes`:
 
 1. **Widget 1 - pipeline_overview_global:** Replace or fix `00OTb000008ektxMAA` (fiscal quarter filter, AMOUNT aggregation): use `CloseDate IN THIS_CALENDAR_QUARTER` and `sum(APTS_Opportunity_ARR__c)`. Also retire or fix `00OTb000008TZc5MAG` (Pipeline Coverage by Stage, THIS_FISCAL_YEAR) which shares the same spec ID.
-2. **Widget 2 - pipeline_overview_emea:** Create new SF report and dashboard widget: `IsClosed=false AND CloseDate IN THIS_CALENDAR_QUARTER AND Sales_Region__c IN ('United Kingdom & Ireland','Central Europe','Northern Europe','Southwestern Europe')`, stacked bar by `StageName`, `sum(APTS_Opportunity_ARR__c)`.
+2. **Widget 2 - pipeline_overview_emea:** Create new SF report and dashboard widget: `IsClosed=false AND CloseDate IN THIS_CALENDAR_QUARTER AND Sales_Region__c IN ('United Kingdom & Ireland','Central Europe','Northern Europe','Southwestern Europe','Middle East & Africa')`, stacked bar by `StageName`, `sum(APTS_Opportunity_ARR__c)`. EMEA now includes Middle East & Africa per 2026-04-10 forecast-hierarchy alignment (`ME & AFR Sales` is a child of `EMEA` in the live CRO forecast tree).
 3. **Widget 3 - pipeline_overview_nam:** Create new SF report and dashboard widget: `IsClosed=false AND CloseDate IN THIS_CALENDAR_QUARTER AND Sales_Region__c='North America'`, stacked bar by `StageName`.
-4. **Widget 4 - pipeline_overview_apac:** Create new SF report and dashboard widget: `IsClosed=false AND CloseDate IN THIS_CALENDAR_QUARTER AND Sales_Region__c IN ('APAC','Middle East & Africa')`, stacked bar by `StageName`.
+4. **Widget 4 - pipeline_overview_apac:** Create new SF report and dashboard widget: `IsClosed=false AND CloseDate IN THIS_CALENDAR_QUARTER AND Sales_Region__c='APAC'`, stacked bar by `StageName`. APAC only — MEA is grouped under EMEA per 2026-04-10 forecast-hierarchy alignment.
 5. **Widget 5 - commercial_approval_global:** Create new SF report and dashboard widget counting `Stage_20_Approval__c` (true vs false) on `IsClosed=false AND StageName!='0 - Lost'`.
 6. **Widget 6 - commercial_approval_approved_ytd:** Create new dashboard widget pointing to `00OTb000008aTtJMAU` (report already exists in Sales Operations folder). Widget shape: metric+list showing count and `sum(APTS_Opportunity_ARR__c)` YTD approved Land deals.
 7. **Widget 7 - land_stage3_no_approval_emea:** Retire or fix `00OTb000008ekqjMAA` (New Customers (Land) by Region, THIS_FISCAL_YEAR). Confirm `00OTb000008ekp7MAA` (or canonical `00OTb000008d6ovMAA`) as the sole EMEA source.
 8. **Widget 8 - land_stage3_no_approval_nam:** Create new dashboard widget from `00OTb000008d6ovMAA` filtered to `Sales_Region__c='North America'`.
-9. **Widget 9 - land_stage3_no_approval_apac:** Create new dashboard widget from `00OTb000008d6ovMAA` filtered to `Sales_Region__c IN ('APAC','Middle East & Africa')`.
+9. **Widget 9 - land_stage3_no_approval_apac:** Create new dashboard widget from `00OTb000008d6ovMAA` filtered to `Sales_Region__c='APAC'`. APAC only — MEA flows through the EMEA widget per 2026-04-10 forecast-hierarchy alignment.
 10. **Widget 10 - renewal_acv_this_quarter:** Fix `00OTb000008ekxBMAQ`: replace THIS_FISCAL_YEAR with `CloseDate IN THIS_CALENDAR_QUARTER` and replace `AMOUNT` with `APTS_Renewal_ACV__c`. Remediate or retire `00OTb000008eksLMAQ` (same two defects plus "Fiscal" in title).
 11. **Widget 11 - renewal_likelihood:** Create new SF report and dashboard widget: `Type='Renewal' AND CloseDate IN THIS_CALENDAR_QUARTER AND IsClosed=false`, bucketed by `Probability`, `sum(APTS_Renewal_ACV__c)`.
 12. **Widget 12 - renewal_upcoming_list:** Create new SF report and dashboard widget: `Type='Renewal' AND IsClosed=false AND CloseDate IN THIS_CALENDAR_QUARTER`, columns: Account, Opp Name, `APTS_Renewal_ACV__c`, CloseDate, Probability, Owner.
@@ -147,11 +149,11 @@ The Phase 1 audit script's stem matcher does not reliably bridge the new widget 
 
 Treat the audit tally together with this contract amendment: the audit's `OK` rows plus this contract's `OK (Phase 2.7)` and `OK (Phase 2.7, report-only)` rows together cover 13 of the 16 spec widgets. The remaining 3 are `renewal_upcoming_list` (deferred), `slipped_deals_root_cause` / `slipped_deals_trend` (Pipeline Inspection native, deferred to a PI-config phase), and `churn_risk_placeholder` (blocked on Finance feed).
 
-## Phase 2.8 amendment (2026-04-08): one filterable dashboard, 9 Directors
+## Phase 2.8 amendment + 2026-04-09 live continuation: one filterable dashboard, 9 Directors
 
 ### Decision
 
-Rather than maintain 9 per-region hard-coded SF reports for Dashboard 1 (the Phase 2.7 approach for rows 2-4 and 8-9), Phase 2.8 collapses to **one filterable Dashboard 1** with dashboard-level filters. Each of the 9 named Sales Directors applies their preset filter combo to the same dashboard and gets their own slice.
+Rather than maintain 9 per-region hard-coded SF reports for Dashboard 1 (the Phase 2.7 approach for rows 2-4 and 8-9), Phase 2.8 collapses to **one filterable Dashboard 1** with dashboard-level filters. The 2026-04-09 live continuation completed that model in the org: D1 now has 4 persisted dashboard-owned filters (`Sales Region`, `Legal Country`, `Industry`, `Account Unit Group`). Each of the 9 named Sales Directors applies their preset filter combo to the same dashboard and gets their own slice.
 
 ### What Phase 2.8 deleted
 
@@ -167,21 +169,26 @@ The 3 Phase 2.7 reports that stay on Dashboard 1 (`pipeline_overview_global`, `c
 
 ### 9 Sales Directors and their preset filter combos
 
-The 9 named Directors each apply a specific combo of dashboard filters to see their book. `Sales_Region__c`, `Account.Industry`, and `Account.BillingCountry` are the three filter fields.
+The 9 named Directors each apply a specific combo of the 4 live dashboard filters to see their book. The current live filter labels / fields are:
 
-| #   | Sales Director    | Territory label (from stakeholder brief) | Filter combo                                                                                                                   | Open opps (approx) |
-| --- | ----------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| 1   | Jesper Tyrer      | APAC                                     | `Sales_Region__c = 'APAC'`                                                                                                     | ~60                |
-| 2   | Sarah Pittroff    | Central Europe                           | `Sales_Region__c = 'Central Europe'`                                                                                           | (probe)            |
-| 3   | Francois Thaury   | Southern Europe                          | `Sales_Region__c = 'Southwestern Europe'`                                                                                      | (probe)            |
-| 4   | Dan Peppett       | UK & Ireland                             | `Sales_Region__c = 'United Kingdom & Ireland'`                                                                                 | (probe)            |
-| 5   | Christian Ebbesen | NL & Nordics                             | `Sales_Region__c = 'Northern Europe'`                                                                                          | (probe)            |
-| 6   | Mourad Essofi     | Middle East & Africa                     | `Sales_Region__c = 'Middle East & Africa'`                                                                                     | (probe)            |
-| 7   | Megan Miceli      | Canada (all segments)                    | `Account.BillingCountry = 'Canada'`                                                                                            | 38 accounts        |
-| 8   | Patrick Gaughan   | NA remainder (AM + Bank + WM + Other)    | `Sales_Region__c = 'North America' AND Account.BillingCountry != 'Canada' AND Account.Industry NOT IN ('Pension','Insurance')` | ~150               |
-| 9   | Adam Steinhaus    | NA Pension & Insurance                   | `Sales_Region__c = 'North America' AND Account.BillingCountry != 'Canada' AND Account.Industry IN ('Pension','Insurance')`     | ~165               |
+- `Sales Region` → `Sales_Region__c`
+- `Legal Country` → `ADDRESS1_COUNTRY_CODE`
+- `Industry` → `INDUSTRY`
+- `Account Unit Group` → `Opportunity.Account_Unit_Group__c`
 
-The 9 slices are mutually exclusive by design (Canada wins for Megan; Patrick and Adam split the remaining US/NAM by Industry).
+| #   | Sales Director    | Territory label (from stakeholder brief) | Live preset combo                                                                                                                               |
+| --- | ----------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Jesper Tyrer      | APAC                                     | `Sales Region = APAC AND Account Unit Group = SC Asia`                                                                                          |
+| 2   | Sarah Pittroff    | Central Europe                           | `Sales Region = Central Europe AND Account Unit Group = SC EMEA`                                                                                |
+| 3   | Francois Thaury   | Southern Europe                          | `Sales Region = Southwestern Europe AND Account Unit Group = SC EMEA`                                                                           |
+| 4   | Dan Peppett       | UK & Ireland                             | `Sales Region = United Kingdom & Ireland AND Account Unit Group = SC EMEA`                                                                      |
+| 5   | Christian Ebbesen | NL & Nordics                             | `Sales Region = Northern Europe AND Account Unit Group = SC EMEA`                                                                               |
+| 6   | Mourad Essofi     | Middle East & Africa                     | `Sales Region = Middle East & Africa AND Account Unit Group = SC EMEA`                                                                          |
+| 7   | Megan Miceli      | Canada (all segments)                    | `Sales Region = North America AND Legal Country = Canada AND Account Unit Group = SC North America`                                             |
+| 8   | Patrick Gaughan   | NA remainder (AM + Bank + WM + Other)    | `Sales Region = North America AND Legal Country = Exclude Canada AND Account Unit Group = SC North America`                                     |
+| 9   | Adam Steinhaus    | NA Pension & Insurance                   | `Sales Region = North America AND Legal Country = Exclude Canada AND Account Unit Group = SC North America AND Industry ∈ (Pension, Insurance)` |
+
+The slices are mostly mutually exclusive by design (Canada wins for Megan; Patrick and Adam split the remaining North America book by Industry). If the viewer UI only allows one Industry value at a time, Adam should use 2 saved states or bookmarks: one for `Pension`, one for `Insurance`.
 
 **User ID mapping** (for role-hierarchy scope if ever enabled; currently NOT the primary slicing mechanism because 5 of 9 share roles):
 
@@ -197,18 +204,19 @@ The 9 slices are mutually exclusive by design (Canada wins for Megan; Patrick an
 | Patrick Gaughan   | `005Tb00000XYMJIIA5` | SC NA Sales            | no (shared)  |
 | Adam Steinhaus    | `005QA000006WqODYA0` | SC NA Sales            | no (shared)  |
 
-### Dashboard filter creation (manual UI step)
+### Dashboard filter creation / recovery (completed live 2026-04-09)
 
-Classic SF dashboard filters cannot be created via the Analytics REST API. The `dashboardMetadata.filters[]` array can only be **updated** via PATCH - new filters return HTTP 400 `"filter field is no longer available"` because the server-assigned filter ID (`0IB` prefix) and its internal field-binding metadata are created by the Lightning UI only.
+Classic SF dashboard filters still cannot be created via the Analytics REST API. The `dashboardMetadata.filters[]` array can only be **updated** via PATCH - new filters return HTTP 400 `"filter field is no longer available"` because the server-assigned filter ID (`0IB` prefix) and its internal field-binding metadata are created by the Lightning UI only.
 
-**Manual handoff:** open `01ZTb00000FSP7hMAH` in Lightning, click "Edit" → "+ Filter" three times:
+D1 now already has 4 dashboard-owned filters created in the Lightning UI. If the dashboard is ever rebuilt or the filters are lost, recreate the same 4 in Lightning:
 
 1. **Sales Region** filter - field: `Opportunity.Sales Region`; values: APAC, Central Europe, Northern Europe, Southwestern Europe, United Kingdom & Ireland, Middle East & Africa, North America
-2. **Industry** filter - field: `Account: Industry`; values: Asset Management, Pension, Insurance, Bank, Wealth Management, Asset Servicer, Other
-3. **Billing Country** filter - field: `Account: Legal Country` (the report type exposes `ADDRESS1_COUNTRY_CODE` under the label "Legal Country"; `BillingCountry` is not exposed in this org's Opportunity report type); values: Canada, United States
+2. **Industry** filter - field: `Account: Industry`; values: Asset Management, Bank, Insurance, Pension, Wealth Management, Asset Servicer, Other
+3. **Legal Country** filter - field: `Account: Legal Country` (the report type exposes `ADDRESS1_COUNTRY_CODE` under the label "Legal Country"); values: Canada, Exclude Canada
+4. **Account Unit Group** filter - field: `Opportunity: Account Unit Group`; values: SC North America, SC Asia, SC EMEA
 
-The `canChangeRunningUser` flag is also Lightning-UI-only (API PATCH returns HTTP 200 but silently ignores the change). If you want each Director to auto-scope via role hierarchy on open, flip `canChangeRunningUser` in the UI at the same time. Not strictly required - the 3 filter combos above work regardless of running user, since they filter on Account + Opportunity fields, not Owner.
+The `canChangeRunningUser` flag is also Lightning-UI-only (API PATCH returns HTTP 200 but silently ignores the change). If you want each Director to auto-scope via role hierarchy on open, flip `canChangeRunningUser` in the UI at the same time. Not strictly required - the 4 filter combos above work regardless of running user, since they filter on Account + Opportunity fields, not Owner.
 
 ### After the UI step
 
-Once the 3 filters exist, no further script work is needed for the per-Director views. Each Director opens Dashboard 1, applies their combo from the table above, and sees their book. A future phase could auto-bookmark the 9 combos as saved filter states per-Director, but that's beyond scope here.
+Once the 4 filters exist, no further script work is needed for the per-Director views. Each Director opens Dashboard 1, applies their combo from the table above, and sees their book. REST can then mutate the filter labels, option lists, and widget bindings, but it still cannot mint new filter ids. A future phase could auto-bookmark the 9 combos as saved filter states per-Director, but that's beyond scope here.

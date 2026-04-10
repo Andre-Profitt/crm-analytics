@@ -1,0 +1,117 @@
+{
+  "_meta": {
+    "purpose": "Single source of truth for SimCorp territory mapping across director workbooks and CRO forecast reconciliation.",
+    "created": "2026-04-10",
+    "handoff_doc": "docs/2026-04-10-forecast-subregion-bug-handoff.md",
+    "notes": [
+      "director_book_rollup is the per-director slice model used by sales_director_md1_presets.json and workbook/deck pipeline.",
+      "forecast_rollup mirrors the live Salesforce CRO forecast territory hierarchy (verified 2026-04-10).",
+      "CRITICAL: Middle East & Africa belongs under EMEA in the forecast hierarchy, NOT APAC.",
+      "Do NOT collapse these two concepts; decks and workbooks must explicitly choose one."
+    ]
+  },
+  "director_book_rollup": {
+    "Jesper Tyrer": {
+      "territory": "APAC",
+      "sales_region": "APAC",
+      "account_unit_group": "SC Asia"
+    },
+    "Sarah Pittroff": {
+      "territory": "Central Europe",
+      "sales_region": "Central Europe",
+      "account_unit_group": "SC EMEA"
+    },
+    "Francois Thaury": {
+      "territory": "Southern Europe",
+      "sales_region": "Southwestern Europe",
+      "account_unit_group": "SC EMEA"
+    },
+    "Dan Peppett": {
+      "territory": "UK & Ireland",
+      "sales_region": "United Kingdom & Ireland",
+      "account_unit_group": "SC EMEA"
+    },
+    "Christian Ebbesen": {
+      "territory": "NL & Nordics",
+      "sales_region": "Northern Europe",
+      "account_unit_group": "SC EMEA"
+    },
+    "Mourad Essofi": {
+      "territory": "Middle East & Africa",
+      "sales_region": "Middle East & Africa",
+      "account_unit_group": "SC EMEA"
+    },
+    "Megan Miceli": {
+      "territory": "Canada",
+      "sales_region": "North America",
+      "account_unit_group": "SC North America",
+      "legal_country": "CA",
+      "country_operator": "equals"
+    },
+    "Patrick Gaughan": {
+      "territory": "NA Asset Management",
+      "sales_region": "North America",
+      "account_unit_group": "SC North America",
+      "legal_country": "CA",
+      "country_operator": "notEqual",
+      "industries": [
+        "Asset Management",
+        "Bank",
+        "Wealth Management",
+        "Asset Servicer",
+        "Other"
+      ]
+    },
+    "Adam Steinhaus": {
+      "territory": "Pension & Insurance",
+      "sales_region": "North America",
+      "account_unit_group": "SC North America",
+      "legal_country": "CA",
+      "country_operator": "notEqual",
+      "industries": ["Pension", "Insurance"]
+    }
+  },
+  "forecast_rollup": {
+    "APAC": {
+      "forecasting_territory_id": "0MI7S0000008XKuWAM",
+      "sales_regions": ["APAC"],
+      "child_territories": {
+        "APAC LAND": "0MI7S0000008XKyWAM",
+        "APAC Expansion": "0MIQA0000000Jtt4AE"
+      }
+    },
+    "EMEA": {
+      "forecasting_territory_id": "0MI7S0000008XL4WAM",
+      "sales_regions": [
+        "Central Europe",
+        "Northern Europe",
+        "Southwestern Europe",
+        "United Kingdom & Ireland",
+        "Middle East & Africa"
+      ],
+      "child_territories": {
+        "EMEA Sales": "0MIQA00000005UL4AY",
+        "ME & AFR Sales": "0MIQA00000005m54AA",
+        "EMEA Sales CE": "0MIQA00000005Vx4AI",
+        "EMEA Sales NE": "0MIQA00000005ZB4AY",
+        "EMEA Sales SWE": "0MIQA00000005cP4AQ",
+        "EMEA Sales UK & IE": "0MIQA00000005fd4AA"
+      }
+    },
+    "North America": {
+      "forecasting_territory_id": "0MI7S0000008XLVWA2",
+      "sales_regions": ["North America"],
+      "child_territories": {
+        "NA Sales AM & Insurance": "0MIQA00000004tF4AQ",
+        "NA Sales Canada": "0MIQA00000004wT4AQ",
+        "NA Sales Pension": "0MIQA000000052v4AA"
+      }
+    }
+  },
+  "cro": {
+    "forecasting_owner_id": "0055700000747OgAAI",
+    "forecasting_owner_name": "Oliver Johnson",
+    "forecasting_territory_id": "0MI7S0000008XL2WAM",
+    "forecasting_type_id_arr": "0Db7S000000zDaMSAU"
+  }
+}
