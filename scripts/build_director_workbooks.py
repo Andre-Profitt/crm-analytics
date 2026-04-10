@@ -869,15 +869,755 @@ def build_sources(ws, cache: DirectorCache):
 
 
 # ---------------------------------------------------------------------------
+# Tab 7: Q2 Outlook
+# ---------------------------------------------------------------------------
+
+Q2_START = date(2026, 4, 1)
+Q2_END = date(2026, 6, 30)
+
+
+def build_q2_outlook(ws, cache: DirectorCache, territory: str = ""):
+    ws.title = "Q2 Outlook"
+
+    row = 1
+
+    def title(text):
+        nonlocal row
+        ws.cell(row=row, column=1, value=text).font = _title_font()
+        row += 1
+
+    def subheader(text):
+        nonlocal row
+        ws.cell(row=row, column=1, value=text).font = _section_font()
+        ws.cell(row=row, column=1).fill = _make_fill("E8F4F8")
+        row += 1
+
+    def blank():
+        nonlocal row
+        row += 1
+
+    title(f"Q2 2026 Outlook — {territory}")
+    blank()
+
+    # --- Section A: Q2 Forecast Breakdown ---
+    subheader("A  Q2 Forecast Breakdown")
+    headers_a = ["Forecast Category", "Deal Count", "ARR (€)", "ACV (€)"]
+    _write_header_row(ws, row, headers_a)
+    row += 1
+
+    forecast_cats = cache.forecast_categories
+    for fc in forecast_cats:
+        ws.cell(
+            row=row, column=1, value=safe_str(fc.get("ForecastCategoryName"))
+        ).font = _data_font()
+        ws.cell(
+            row=row, column=2, value=int(safe_num(fc.get("ct")))
+        ).font = _data_font()
+        ws.cell(
+            row=row, column=3, value=round(safe_num(fc.get("arr")), 2)
+        ).font = _data_font()
+        ws.cell(
+            row=row, column=4, value=round(safe_num(fc.get("acv")), 2)
+        ).font = _data_font()
+        row += 1
+
+    if not forecast_cats:
+        ws.cell(
+            row=row, column=1, value="No forecast category data found."
+        ).font = _data_font(color="888888")
+        row += 1
+
+    blank()
+
+    pipeline = cache.open_pipeline
+
+    def is_q2_close(r):
+        cd = parse_date(r.get("CloseDate"))
+        return cd is not None and Q2_START <= cd <= Q2_END
+
+    commit_deals = [
+        r
+        for r in pipeline
+        if r.get("ForecastCategoryName") == "Commit" and is_q2_close(r)
+    ]
+    bestcase_deals = [
+        r
+        for r in pipeline
+        if r.get("ForecastCategoryName") == "Best Case" and is_q2_close(r)
+    ]
+
+    deal_headers = [
+        "Account",
+        "Opportunity",
+        "Owner",
+        "Stage",
+        "Close Date",
+        "ARR (€)",
+        "Probability (%)",
+    ]
+
+    def write_deals(deals):
+        nonlocal row
+        _write_header_row(ws, row, deal_headers)
+        row += 1
+        if not deals:
+            ws.cell(row=row, column=1, value="No deals found.").font = _data_font(
+                color="888888"
+            )
+            row += 1
+            return
+        for r in sorted(
+            deals,
+            key=lambda x: safe_num(x.get("APTS_Opportunity_ARR__c")),
+            reverse=True,
+        ):
+            arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+            row_data = [
+                nested_get(r, "Account", "Name", default=""),
+                safe_str(r.get("Name")),
+                nested_get(r, "Owner", "Name", default=""),
+                safe_str(r.get("StageName")),
+                safe_str(r.get("CloseDate", ""))[:10],
+                round(arr, 2),
+                safe_num(r.get("Probability")),
+            ]
+            for col_idx, val in enumerate(row_data, start=1):
+                ws.cell(row=row, column=col_idx, value=val).font = _data_font()
+            row += 1
+
+    # --- Section B: Commit Deals ---
+    subheader("B  Commit Deals (Q2 Close Date)")
+    write_deals(commit_deals)
+    blank()
+
+    # --- Section C: Best Case Deals ---
+    subheader("C  Best Case Deals (Q2 Close Date)")
+    write_deals(bestcase_deals)
+    blank()
+
+    # --- Section D: Pipeline Coverage ---
+    subheader("D  Pipeline Coverage")
+    total_pipe_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in pipeline)
+    commit_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in commit_deals)
+    bestcase_arr = sum(
+        safe_num(r.get("APTS_Opportunity_ARR__c")) for r in bestcase_deals
+    )
+
+    coverage_headers = ["Metric", "Value"]
+    _write_header_row(ws, row, coverage_headers)
+    row += 1
+    for label, val in [
+        ("Total Pipeline ARR", fmt_eur(total_pipe_arr)),
+        ("Commit ARR (Q2 close)", fmt_eur(commit_arr)),
+        ("Best Case ARR (Q2 close)", fmt_eur(bestcase_arr)),
+        ("Gap to Quota", "Awaiting quota targets"),
+    ]:
+        ws.cell(row=row, column=1, value=label).font = _data_font(bold=True)
+        ws.cell(row=row, column=2, value=val).font = _data_font()
+        row += 1
+
+    _auto_width(ws)
+
+
+# ---------------------------------------------------------------------------
+# Tab 8: Commercial Approval
+# ---------------------------------------------------------------------------
+
+
+def _stage_num(r) -> float:
+    """Extract numeric prefix from StageName, returns -1 on failure."""
+    stage = safe_str(r.get("StageName"))
+    try:
+        prefix = stage.split(" ")[0].replace("-", "").strip()
+        return float(prefix)
+    except (ValueError, IndexError):
+        return -1.0
+
+
+def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
+    ws.title = "Commercial Approval"
+
+    row = 1
+
+    def title(text):
+        nonlocal row
+        ws.cell(row=row, column=1, value=text).font = _title_font()
+        row += 1
+
+    def subheader(text):
+        nonlocal row
+        ws.cell(row=row, column=1, value=text).font = _section_font()
+        ws.cell(row=row, column=1).fill = _make_fill("E8F4F8")
+        row += 1
+
+    def blank():
+        nonlocal row
+        row += 1
+
+    title(f"Commercial Approval — {territory}")
+    blank()
+
+    pipeline = cache.open_pipeline
+
+    def is_approved(r):
+        return r.get("Stage_20_Approval__c") is True
+
+    def approval_not_needed(r):
+        sn = _stage_num(r)
+        status = safe_str(r.get("Approval_Status__c")).lower()
+        return sn < 3 or "no approval" in status
+
+    approved_opps = [r for r in pipeline if is_approved(r)]
+    no_approval_opps = [
+        r for r in pipeline if approval_not_needed(r) and not is_approved(r)
+    ]
+    pending_opps = [
+        r for r in pipeline if not is_approved(r) and not approval_not_needed(r)
+    ]
+
+    # --- Section A: Approval Summary ---
+    subheader("A  Approval Summary")
+    summary_headers = ["Category", "Deal Count", "ARR (€)"]
+    _write_header_row(ws, row, summary_headers)
+    row += 1
+
+    for label, opps in [
+        ("Approved", approved_opps),
+        ("Pending / Missing Approval", pending_opps),
+        ("No Approval Needed", no_approval_opps),
+    ]:
+        arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in opps)
+        ws.cell(row=row, column=1, value=label).font = _data_font(bold=True)
+        ws.cell(row=row, column=2, value=len(opps)).font = _data_font()
+        ws.cell(row=row, column=3, value=round(arr, 2)).font = _data_font()
+        row += 1
+
+    blank()
+
+    # --- Section B: Missing Approval Candidates ---
+    subheader("B  Missing Approval Candidates (Stage 3+, Land, Not Approved)")
+    missing_hdrs = [
+        "Account",
+        "Opportunity",
+        "Owner",
+        "Stage",
+        "ARR (€)",
+        "Close Date",
+        "Next Step",
+    ]
+    _write_header_row(ws, row, missing_hdrs)
+    row += 1
+
+    missing = [
+        r
+        for r in pipeline
+        if _stage_num(r) >= 3 and r.get("Type") == "Land" and not is_approved(r)
+    ]
+    missing_sorted = sorted(
+        missing, key=lambda r: safe_num(r.get("APTS_Opportunity_ARR__c")), reverse=True
+    )
+
+    if not missing_sorted:
+        ws.cell(
+            row=row, column=1, value="No missing approval candidates found."
+        ).font = _data_font(color="888888")
+        row += 1
+    else:
+        for r in missing_sorted:
+            arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+            row_data = [
+                nested_get(r, "Account", "Name", default=""),
+                safe_str(r.get("Name")),
+                nested_get(r, "Owner", "Name", default=""),
+                safe_str(r.get("StageName")),
+                round(arr, 2),
+                safe_str(r.get("CloseDate", ""))[:10],
+                safe_str(r.get("NextStep"), max_len=150),
+            ]
+            for col_idx, val in enumerate(row_data, start=1):
+                ws.cell(row=row, column=col_idx, value=val).font = _data_font()
+            _apply_row_fill(ws, row, len(missing_hdrs), AMBER_FILL)
+            row += 1
+
+    blank()
+
+    # --- Section C: Approved Deals YTD ---
+    subheader("C  Approved Deals YTD (2026)")
+    approved_hdrs = [
+        "Account",
+        "Opportunity",
+        "Owner",
+        "Stage",
+        "ARR (€)",
+        "Approval Date",
+    ]
+    _write_header_row(ws, row, approved_hdrs)
+    row += 1
+
+    approved_ytd = [
+        r
+        for r in pipeline
+        if is_approved(r)
+        and parse_date(r.get("Stage_20_Approval_Date__c")) is not None
+        and parse_date(r.get("Stage_20_Approval_Date__c")).year == 2026
+    ]
+
+    if not approved_ytd:
+        ws.cell(
+            row=row, column=1, value="No approved deals YTD found."
+        ).font = _data_font(color="888888")
+        row += 1
+    else:
+        for r in sorted(
+            approved_ytd,
+            key=lambda r: safe_num(r.get("APTS_Opportunity_ARR__c")),
+            reverse=True,
+        ):
+            arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+            row_data = [
+                nested_get(r, "Account", "Name", default=""),
+                safe_str(r.get("Name")),
+                nested_get(r, "Owner", "Name", default=""),
+                safe_str(r.get("StageName")),
+                round(arr, 2),
+                safe_str(r.get("Stage_20_Approval_Date__c", ""))[:10],
+            ]
+            for col_idx, val in enumerate(row_data, start=1):
+                ws.cell(row=row, column=col_idx, value=val).font = _data_font()
+            _apply_row_fill(ws, row, len(approved_hdrs), GREEN_FILL)
+            row += 1
+
+    _auto_width(ws)
+
+
+# ---------------------------------------------------------------------------
+# Tab 9: Renewals & Retention
+# ---------------------------------------------------------------------------
+
+
+def build_renewals_retention(ws, cache: DirectorCache, territory: str = ""):
+    ws.title = "Renewals & Retention"
+
+    row = 1
+
+    def title(text):
+        nonlocal row
+        ws.cell(row=row, column=1, value=text).font = _title_font()
+        row += 1
+
+    def subheader(text):
+        nonlocal row
+        ws.cell(row=row, column=1, value=text).font = _section_font()
+        ws.cell(row=row, column=1).fill = _make_fill("E8F4F8")
+        row += 1
+
+    def blank():
+        nonlocal row
+        row += 1
+
+    title(f"Renewals & Retention — {territory}")
+    blank()
+
+    # --- Section A: Retention KPIs ---
+    subheader("A  Retention KPIs (Most Recent Year)")
+    retention = cache.load("crma_retention_metrics.json")
+
+    if retention:
+        # Use most recent year (last item, or sort by YearLabel desc)
+        latest = sorted(
+            retention, key=lambda r: safe_str(r.get("YearLabel")), reverse=True
+        )[0]
+        starting = safe_num(latest.get("StartingARR"))
+        renewal_won = safe_num(latest.get("RenewalWonARR"))
+        expansion = safe_num(latest.get("ExpansionARR"))
+        churn = safe_num(latest.get("ChurnARR"))
+        ending = safe_num(latest.get("EndingARR"))
+        new_logo = safe_num(latest.get("NewLogoARR"))
+
+        grr = ((starting - churn) / starting * 100) if starting else 0.0
+        nrr = ((starting + expansion - churn) / starting * 100) if starting else 0.0
+
+        kpi_headers = ["KPI", "Value"]
+        _write_header_row(ws, row, kpi_headers)
+        row += 1
+
+        for label, val in [
+            ("Year", safe_str(latest.get("YearLabel"))),
+            ("Starting ARR", fmt_eur(starting)),
+            ("Renewal Won ARR", fmt_eur(renewal_won)),
+            ("Expansion ARR", fmt_eur(expansion)),
+            ("Churn ARR", fmt_eur(churn)),
+            ("Ending ARR", fmt_eur(ending)),
+            ("New Logo ARR", fmt_eur(new_logo)),
+            ("GRR (Gross Retention Rate)", fmt_pct(grr)),
+            ("NRR (Net Retention Rate)", fmt_pct(nrr)),
+        ]:
+            ws.cell(row=row, column=1, value=label).font = _data_font(bold=True)
+            ws.cell(row=row, column=2, value=val).font = _data_font()
+            row += 1
+    else:
+        ws.cell(
+            row=row, column=1, value="No retention metrics found."
+        ).font = _data_font(color="888888")
+        row += 1
+
+    blank()
+
+    # --- Section B: Renewal Pipeline by Risk Level ---
+    subheader("B  Renewal Pipeline by Risk Level")
+    risk_data = cache.load("crma_renewal_risk.json")
+    risk_headers = ["Risk Level", "Deal Count", "ARR (€)"]
+    _write_header_row(ws, row, risk_headers)
+    row += 1
+
+    if risk_data:
+        for rd in sorted(
+            risk_data, key=lambda r: safe_num(r.get("RecurringValue")), reverse=True
+        ):
+            risk_level = safe_str(rd.get("RiskLevel"))
+            ct = int(safe_num(rd.get("ct")))
+            arr = safe_num(rd.get("RecurringValue"))
+
+            fill = None
+            if "high" in risk_level.lower():
+                fill = RED_FILL
+            elif "medium" in risk_level.lower():
+                fill = AMBER_FILL
+            elif "low" in risk_level.lower():
+                fill = GREEN_FILL
+
+            ws.cell(row=row, column=1, value=risk_level).font = _data_font()
+            ws.cell(row=row, column=2, value=ct).font = _data_font()
+            ws.cell(row=row, column=3, value=round(arr, 2)).font = _data_font()
+            if fill:
+                _apply_row_fill(ws, row, 3, fill)
+            row += 1
+    else:
+        ws.cell(
+            row=row, column=1, value="No renewal risk data found."
+        ).font = _data_font(color="888888")
+        row += 1
+
+    blank()
+
+    # --- Section C: Open Renewals ---
+    subheader("C  Open Renewals")
+    renewal_hdrs = [
+        "Account",
+        "Opportunity",
+        "Owner",
+        "ACV (€)",
+        "Probability (%)",
+        "Close Date",
+        "Stage",
+    ]
+    _write_header_row(ws, row, renewal_hdrs)
+    row += 1
+
+    pipeline = cache.open_pipeline
+    open_renewals = [r for r in pipeline if r.get("Type") == "Renewal"]
+    open_renewals_sorted = sorted(
+        open_renewals, key=lambda r: parse_date(r.get("CloseDate")) or date.max
+    )
+
+    if not open_renewals_sorted:
+        ws.cell(row=row, column=1, value="No open renewals found.").font = _data_font(
+            color="888888"
+        )
+        row += 1
+    else:
+        for r in open_renewals_sorted:
+            acv = safe_num(r.get("Opportunity_Average_ACV__c"))
+            row_data = [
+                nested_get(r, "Account", "Name", default=""),
+                safe_str(r.get("Name")),
+                nested_get(r, "Owner", "Name", default=""),
+                round(acv, 2),
+                safe_num(r.get("Probability")),
+                safe_str(r.get("CloseDate", ""))[:10],
+                safe_str(r.get("StageName")),
+            ]
+            for col_idx, val in enumerate(row_data, start=1):
+                ws.cell(row=row, column=col_idx, value=val).font = _data_font()
+            row += 1
+
+    _auto_width(ws)
+
+
+# ---------------------------------------------------------------------------
+# Tab 10: Risk Register
+# ---------------------------------------------------------------------------
+
+
+def build_risk_register(ws, cache: DirectorCache, territory: str = ""):
+    ws.title = "Risk Register"
+
+    pipeline = cache.open_pipeline
+    crma_ops = cache.load("crma_pipeline_ops.json")
+
+    # Build CRMA lookup by OpportunityId
+    crma_by_id: dict[str, dict] = {}
+    for op in crma_ops:
+        oid = op.get("OpportunityId")
+        if oid:
+            crma_by_id[oid] = op
+
+    RISK_HEADERS = [
+        "Account",
+        "Opportunity",
+        "Owner",
+        "Stage",
+        "ARR (€)",
+        "Close Date",
+        "Push Count",
+        "Activity Days Ago",
+        "Age (Days)",
+        "Risk Score",
+        "Risk Flags",
+        "Days In Stage",
+        "Backward Moves",
+        "Stale Count",
+        "Past Due Count",
+    ]
+
+    _write_header_row(ws, 1, RISK_HEADERS)
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(RISK_HEADERS))}1"
+
+    scored_rows = []
+    for r in pipeline:
+        opp_id = r.get("Id", "")
+        crma = crma_by_id.get(opp_id, {})
+
+        push_count = safe_num(r.get("PushCount"))
+        activity_days = safe_num(r.get("LastActivityInDays"))
+        arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+        close_date = parse_date(r.get("CloseDate"))
+        age_days = safe_num(r.get("AgeInDays"))
+        prob = safe_num(r.get("Probability"))
+        stage_n = _stage_num(r)
+        last_activity_date = r.get("LastActivityDate")
+        opp_type = safe_str(r.get("Type"))
+        approved = r.get("Stage_20_Approval__c") is True
+        backward_moves = safe_num(crma.get("BackwardMoveCount", 0))
+
+        # Determine current quarter end
+        q_end = date(2026, 6, 30)
+
+        score = 0
+        flags = []
+
+        if push_count >= 5:
+            score += 3
+            flags.append("PushCount≥5")
+        if activity_days > 60 and arr >= 1_000_000:
+            score += 3
+            flags.append("HighValStale60d")
+        if close_date is not None and close_date < TODAY:
+            score += 2
+            flags.append("Overdue")
+        if activity_days > 30:
+            score += 1
+            flags.append("Stale30d")
+        if age_days > 365:
+            score += 2
+            flags.append("Aging365+")
+        if not last_activity_date:
+            score += 3
+            flags.append("NoActivity")
+        if stage_n >= 3 and not approved and opp_type == "Land":
+            score += 1
+            flags.append("MissingApproval")
+        if (
+            prob < 50
+            and close_date is not None
+            and close_date <= q_end
+            and close_date >= Q2_START
+        ):
+            score += 1
+            flags.append("LowProbThisQ")
+        if backward_moves > 0:
+            score += 2
+            flags.append("BackwardMove")
+
+        if score <= 0:
+            continue
+
+        scored_rows.append((score, r, crma, flags))
+
+    scored_rows.sort(key=lambda x: x[0], reverse=True)
+
+    n_cols = len(RISK_HEADERS)
+    for row_idx, (score, r, crma, flags) in enumerate(scored_rows, start=2):
+        arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+        row_data = [
+            nested_get(r, "Account", "Name", default=""),
+            safe_str(r.get("Name")),
+            nested_get(r, "Owner", "Name", default=""),
+            safe_str(r.get("StageName")),
+            round(arr, 2),
+            safe_str(r.get("CloseDate", ""))[:10],
+            int(safe_num(r.get("PushCount"))),
+            int(safe_num(r.get("LastActivityInDays"))),
+            int(safe_num(r.get("AgeInDays"))),
+            score,
+            ", ".join(flags),
+            int(safe_num(crma.get("DaysInCurrentStage", 0))),
+            int(safe_num(crma.get("BackwardMoveCount", 0))),
+            int(safe_num(crma.get("StaleCount", 0))),
+            int(safe_num(crma.get("PastDueCount", 0))),
+        ]
+        for col_idx, val in enumerate(row_data, start=1):
+            ws.cell(row=row_idx, column=col_idx, value=val).font = _data_font()
+
+        if score >= 6:
+            _apply_row_fill(ws, row_idx, n_cols, RED_FILL)
+        elif score >= 3:
+            _apply_row_fill(ws, row_idx, n_cols, AMBER_FILL)
+
+    if not scored_rows:
+        ws.cell(row=2, column=1, value="No risky deals found.").font = _data_font(
+            color="888888"
+        )
+
+    _auto_width(ws)
+
+
+# ---------------------------------------------------------------------------
+# Tab 11: Data Quality
+# ---------------------------------------------------------------------------
+
+
+def build_data_quality(ws, cache: DirectorCache, territory: str = ""):
+    ws.title = "Data Quality"
+
+    pipeline = cache.open_pipeline
+
+    DQ_HEADERS = [
+        "Rep",
+        "Stale 30d",
+        "No Activity",
+        "Overdue Close",
+        "Missing Amount",
+        "Missing Next Step",
+        "Missing Approval",
+        "Aging 365+",
+        "Total Issues",
+    ]
+
+    reps: dict[str, dict] = {}
+
+    def get_rep(name: str) -> dict:
+        if name not in reps:
+            reps[name] = {
+                "stale_30": 0,
+                "no_activity": 0,
+                "overdue_close": 0,
+                "missing_amount": 0,
+                "missing_next_step": 0,
+                "missing_approval": 0,
+                "aging_365": 0,
+            }
+        return reps[name]
+
+    for r in pipeline:
+        rep = nested_get(r, "Owner", "Name", default="Unknown")
+        d = get_rep(rep)
+
+        stage_n = _stage_num(r)
+        arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+        activity_days = safe_num(r.get("LastActivityInDays"))
+        last_activity_date = r.get("LastActivityDate")
+        close_date = parse_date(r.get("CloseDate"))
+        next_step = r.get("NextStep")
+        approved = r.get("Stage_20_Approval__c") is True
+        opp_type = safe_str(r.get("Type"))
+        age_days = safe_num(r.get("AgeInDays"))
+
+        if activity_days > 30:
+            d["stale_30"] += 1
+        if not last_activity_date:
+            d["no_activity"] += 1
+        if close_date is not None and close_date < TODAY:
+            d["overdue_close"] += 1
+        if arr is None or arr == 0:
+            d["missing_amount"] += 1
+        if (not next_step or str(next_step).strip() == "") and 3 <= stage_n <= 5:
+            d["missing_next_step"] += 1
+        if stage_n >= 3 and opp_type == "Land" and not approved:
+            d["missing_approval"] += 1
+        if age_days > 365:
+            d["aging_365"] += 1
+
+    _write_header_row(ws, 1, DQ_HEADERS)
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(DQ_HEADERS))}1"
+
+    totals = {
+        k: 0
+        for k in [
+            "stale_30",
+            "no_activity",
+            "overdue_close",
+            "missing_amount",
+            "missing_next_step",
+            "missing_approval",
+            "aging_365",
+        ]
+    }
+
+    sorted_reps = sorted(reps.items(), key=lambda x: sum(x[1].values()), reverse=True)
+    n_cols = len(DQ_HEADERS)
+
+    for row_idx, (rep_name, d) in enumerate(sorted_reps, start=2):
+        total_issues = sum(d.values())
+        row_data = [
+            rep_name,
+            d["stale_30"],
+            d["no_activity"],
+            d["overdue_close"],
+            d["missing_amount"],
+            d["missing_next_step"],
+            d["missing_approval"],
+            d["aging_365"],
+            total_issues,
+        ]
+        for col_idx, val in enumerate(row_data, start=1):
+            ws.cell(row=row_idx, column=col_idx, value=val).font = _data_font()
+
+        if total_issues >= 5:
+            _apply_row_fill(ws, row_idx, n_cols, RED_FILL)
+        elif total_issues >= 2:
+            _apply_row_fill(ws, row_idx, n_cols, AMBER_FILL)
+
+        for k in totals:
+            totals[k] += d[k]
+
+    # TOTAL row
+    total_row = len(sorted_reps) + 2
+    grand_total = sum(totals.values())
+    total_data = [
+        "TOTAL",
+        totals["stale_30"],
+        totals["no_activity"],
+        totals["overdue_close"],
+        totals["missing_amount"],
+        totals["missing_next_step"],
+        totals["missing_approval"],
+        totals["aging_365"],
+        grand_total,
+    ]
+    for col_idx, val in enumerate(total_data, start=1):
+        cell = ws.cell(row=total_row, column=col_idx, value=val)
+        cell.font = _data_font(bold=True)
+    _apply_row_fill(ws, total_row, n_cols, "E8F4F8")
+
+    _auto_width(ws)
+
+
+# ---------------------------------------------------------------------------
 # Placeholder tabs
 # ---------------------------------------------------------------------------
 
 PLACEHOLDERS = [
-    ("Q2 Outlook", "Q2 forecast detail — to be populated"),
-    ("Commercial Approval", "Approval state + candidates from D1 — to be populated"),
-    ("Renewals & Retention", "GRR/NRR from CRMA + renewals — to be populated"),
-    ("Risk Register", "Composite risk score — to be populated"),
-    ("Data Quality", "D2 hygiene metrics by rep — to be populated"),
     (
         "Quota & Targets",
         "Placeholder — populated when Finance delivers regional targets",
@@ -932,7 +1672,27 @@ def build_workbook(director_name: str, territory: str, cache_dir: Path, out_path
     ws6 = wb.create_sheet("Sources & Lineage")
     build_sources(ws6, cache)
 
-    print("    Tabs 7-12: Placeholders")
+    print("    Tab 7: Q2 Outlook")
+    ws7 = wb.create_sheet("Q2 Outlook")
+    build_q2_outlook(ws7, cache, territory)
+
+    print("    Tab 8: Commercial Approval")
+    ws8 = wb.create_sheet("Commercial Approval")
+    build_commercial_approval(ws8, cache, territory)
+
+    print("    Tab 9: Renewals & Retention")
+    ws9 = wb.create_sheet("Renewals & Retention")
+    build_renewals_retention(ws9, cache, territory)
+
+    print("    Tab 10: Risk Register")
+    ws10 = wb.create_sheet("Risk Register")
+    build_risk_register(ws10, cache, territory)
+
+    print("    Tab 11: Data Quality")
+    ws11 = wb.create_sheet("Data Quality")
+    build_data_quality(ws11, cache, territory)
+
+    print("    Tab 12: Quota & Targets (placeholder)")
     for tab_name, message in PLACEHOLDERS:
         ws_ph = wb.create_sheet(tab_name)
         build_placeholder(ws_ph, tab_name, message)
