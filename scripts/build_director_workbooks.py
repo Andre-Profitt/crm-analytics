@@ -100,6 +100,76 @@ def fmt_pct(val) -> str:
     return f"{safe_num(val):.1f}%"
 
 
+def converted_value(record: dict, converted_key: str, raw_key: str) -> float:
+    converted = record.get(converted_key)
+    if converted is not None:
+        return safe_num(converted)
+    return safe_num(record.get(raw_key))
+
+
+def opp_arr_eur(record: dict) -> float:
+    return converted_value(record, "ConvertedARR", "APTS_Opportunity_ARR__c")
+
+
+def opp_acv_eur(record: dict) -> float:
+    return converted_value(record, "ConvertedACV", "Opportunity_Average_ACV__c")
+
+
+def renewal_acv_eur(record: dict) -> float:
+    if (
+        record.get("ConvertedRenewalACV") is not None
+        or record.get("APTS_Renewal_ACV__c") is not None
+    ):
+        return converted_value(record, "ConvertedRenewalACV", "APTS_Renewal_ACV__c")
+    return opp_acv_eur(record)
+
+
+def opp_forecast_arr_eur(record: dict) -> float:
+    return converted_value(record, "ConvertedForecastARR", "APTS_Forecast_ARR__c")
+
+
+def forecast_amount_eur(item: dict) -> float:
+    """Hierarchical rollup forecast amount for a single ForecastingItem row.
+
+    WARNING: Do NOT sum this across rows of a ForecastingItem result set —
+    each opportunity appears once per level of the forecast hierarchy
+    (rep -> manager -> regional -> CRO), so summing double-counts every deal
+    4-5x. Use forecast_owner_only_eur() to aggregate org-wide totals.
+    """
+    return converted_value(item, "ConvertedForecastAmount", "ForecastAmount")
+
+
+def forecast_adjusted_amount_eur(item: dict) -> float:
+    return converted_value(item, "ConvertedAdjAmount", "AmountWithoutAdjustments")
+
+
+def forecast_owner_only_eur(item: dict) -> float:
+    """Direct (owner-only) portion of a ForecastingItem row.
+
+    Safe to sum across rows: this is the slice of the forecast that belongs
+    directly to the row's owner, with no contribution from subordinates'
+    rollups, so it does not double-count across hierarchy levels. Sum of
+    OwnerOnlyAmount across all rows of a ForecastingItem query equals the
+    org-wide forecast for the relevant period (matches CRO forecast page).
+    """
+    return converted_value(item, "ConvertedOwnerOnlyAmount", "OwnerOnlyAmount")
+
+
+def forecast_no_mgr_adj_eur(item: dict) -> float:
+    """ForecastingItem amount excluding manager adjustments (still hierarchical)."""
+    return converted_value(
+        item, "ConvertedNoMgrAdjAmount", "AmountWithoutManagerAdjustment"
+    )
+
+
+def is_omitted(record: dict) -> bool:
+    return safe_str(record.get("ForecastCategoryName")).strip().lower() == "omitted"
+
+
+def active_pipeline_rows(records: list[dict]) -> list[dict]:
+    return [record for record in records if not is_omitted(record)]
+
+
 # ---------------------------------------------------------------------------
 # Style helpers
 # ---------------------------------------------------------------------------
@@ -255,41 +325,60 @@ def build_scorecard(ws, cache: DirectorCache, director_name: str, territory: str
         ws.cell(row=current_row, column=2).alignment = Alignment(horizontal="right")
         current_row += 1
 
-    pipeline = cache.open_pipeline
+    pipeline = active_pipeline_rows(cache.open_pipeline)
     won_q = cache.won_this_quarter
     lost_q = cache.lost_this_quarter
     won_q1 = cache.won_q1
     lost_q1 = cache.lost_q1
-    new_pipe = cache.new_pipeline
+    new_pipe = active_pipeline_rows(cache.new_pipeline)
 
     # — PIPELINE HEALTH —
     section("PIPELINE HEALTH")
-    total_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in pipeline)
+    total_arr = sum(opp_arr_eur(r) for r in pipeline)
     deal_count = len(pipeline)
     avg_deal = (total_arr / deal_count) if deal_count else 0.0
     weighted = sum(
-        safe_num(r.get("APTS_Opportunity_ARR__c"))
-        * safe_num(r.get("Probability"))
-        / 100
-        for r in pipeline
+        opp_arr_eur(r) * safe_num(r.get("Probability")) / 100 for r in pipeline
     )
-    new_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in new_pipe)
+    new_arr = sum(opp_arr_eur(r) for r in new_pipe)
 
-    kpi("Total Open Pipeline ARR", fmt_eur(total_arr))
+    # Horizon-scoped pipeline ARR — explicit close-date filters so the
+    # "all open" number is never confused with the forecast number.
+    fy26_start = date(2026, 1, 1)
+    fy26_end = date(2026, 12, 31)
+
+    def _close_in(record, start, end):
+        cd = parse_date(record.get("CloseDate"))
+        return cd is not None and start <= cd <= end
+
+    fy26_pipeline = [r for r in pipeline if _close_in(r, fy26_start, fy26_end)]
+    fy26_pipe_arr = sum(opp_arr_eur(r) for r in fy26_pipeline)
+    q2_pipeline = [r for r in pipeline if _close_in(r, Q2_START, Q2_END)]
+    q2_pipe_arr = sum(opp_arr_eur(r) for r in q2_pipeline)
+
+    kpi("Pipeline ARR — All Open (any close date)", fmt_eur(total_arr))
+    kpi(
+        "Pipeline ARR — FY26 Close Dates Only (excl. Omitted)",
+        fmt_eur(fy26_pipe_arr),
+    )
+    kpi(
+        "Pipeline ARR — Q2 2026 Close Dates Only (excl. Omitted)",
+        fmt_eur(q2_pipe_arr),
+    )
     kpi("Deal Count", deal_count)
     kpi("Avg Deal Size", fmt_eur(avg_deal))
     kpi("Weighted Pipeline (probability-adj)", fmt_eur(weighted))
     kpi("Coverage Ratio", "—")  # placeholder: needs quota target
-    kpi("New Pipeline This Quarter", fmt_eur(new_arr))
+    kpi("New Pipeline This Quarter (excl. Omitted)", fmt_eur(new_arr))
 
     current_row += 1
 
     # — EXECUTION —
     section("EXECUTION")
     won_count = len(won_q)
-    won_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in won_q)
+    won_arr = sum(opp_arr_eur(r) for r in won_q)
     lost_count = len(lost_q)
-    lost_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in lost_q)
+    lost_arr = sum(opp_arr_eur(r) for r in lost_q)
     total_closed_count = won_count + lost_count
     wr_count = (won_count / total_closed_count * 100) if total_closed_count else 0.0
     total_closed_arr = won_arr + lost_arr
@@ -307,24 +396,24 @@ def build_scorecard(ws, cache: DirectorCache, director_name: str, territory: str
     # — RISK —
     section("RISK")
     stale_30 = [r for r in pipeline if safe_num(r.get("LastActivityInDays")) > 30]
-    stale_30_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in stale_30)
+    stale_30_arr = sum(opp_arr_eur(r) for r in stale_30)
     high_stale = [
         r
         for r in pipeline
         if safe_num(r.get("LastActivityInDays")) > 60
-        and safe_num(r.get("APTS_Forecast_ARR__c")) >= 1_000_000
+        and opp_forecast_arr_eur(r) >= 1_000_000
     ]
-    high_stale_arr = sum(safe_num(r.get("APTS_Forecast_ARR__c")) for r in high_stale)
+    high_stale_arr = sum(opp_forecast_arr_eur(r) for r in high_stale)
     pushed_5 = [r for r in pipeline if safe_num(r.get("PushCount")) >= 5]
-    pushed_5_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in pushed_5)
+    pushed_5_arr = sum(opp_arr_eur(r) for r in pushed_5)
     overdue = [
         r
         for r in pipeline
         if parse_date(r.get("CloseDate")) and parse_date(r.get("CloseDate")) < TODAY
     ]
-    overdue_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in overdue)
+    overdue_arr = sum(opp_arr_eur(r) for r in overdue)
     aging_365 = [r for r in pipeline if safe_num(r.get("AgeInDays")) > 365]
-    aging_365_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in aging_365)
+    aging_365_arr = sum(opp_arr_eur(r) for r in aging_365)
 
     kpi("Stale 30d+ (count)", len(stale_30))
     kpi("Stale 30d+ (ARR)", fmt_eur(stale_30_arr))
@@ -368,8 +457,55 @@ def build_scorecard(ws, cache: DirectorCache, director_name: str, territory: str
     kpi("Approval Rate (stage 3+)", fmt_pct(approval_rate))
     kpi("Missing Approval (Land, stage 3+)", len(missing_approval))
 
+    current_row += 1
+
+    # — CRO FORECAST TIE-OUT —
+    # Sums OwnerOnlyAmount across the Q2 ForecastingItem result set so the
+    # totals match the live CRO forecast page exactly. ForecastAmount cannot
+    # be summed because each opportunity appears at every level of the
+    # forecast hierarchy (rep -> manager -> regional -> CRO).
+    section("CRO FORECAST TIE-OUT (Q2 FY2026, ARR, org-wide, EUR converted)")
+
+    fi_q2 = cache.forecast_items("Q2_2026", "ARR")
+    cro_totals = {"Pipeline": 0.0, "Best Case": 0.0, "Commit": 0.0, "Closed": 0.0}
+    for item in fi_q2:
+        cat = (
+            item.get("ForecastCategoryName")
+            or item.get("ForecastingItemCategory")
+            or ""
+        ).strip()
+        # Normalise hierarchy variants like "BestCaseOnly" / "PipelineOnly"
+        if cat in cro_totals:
+            cro_totals[cat] += forecast_owner_only_eur(item)
+        else:
+            lc = cat.lower()
+            if "pipeline" in lc:
+                cro_totals["Pipeline"] += forecast_owner_only_eur(item)
+            elif "bestcase" in lc or "best case" in lc:
+                cro_totals["Best Case"] += forecast_owner_only_eur(item)
+            elif "commit" in lc:
+                cro_totals["Commit"] += forecast_owner_only_eur(item)
+            elif "closed" in lc:
+                cro_totals["Closed"] += forecast_owner_only_eur(item)
+
+    open_total = cro_totals["Pipeline"] + cro_totals["Best Case"] + cro_totals["Commit"]
+
+    kpi("Pipeline (OwnerOnly sum)", fmt_eur(cro_totals["Pipeline"]))
+    kpi("Best Case (OwnerOnly sum)", fmt_eur(cro_totals["Best Case"]))
+    kpi("Commit (OwnerOnly sum)", fmt_eur(cro_totals["Commit"]))
+    kpi("Closed (OwnerOnly sum)", fmt_eur(cro_totals["Closed"]))
+    kpi("Open Total (Pipeline + Best Case + Commit)", fmt_eur(open_total))
+
+    ws.cell(
+        row=current_row,
+        column=1,
+        value="Reconciles to: CRO forecast page (forecastingOwnerId=0055700000747OgAAI)",
+    ).font = _data_font(size=9, color="666666")
+    ws.merge_cells(f"A{current_row}:B{current_row}")
+    current_row += 1
+
     # Column widths
-    ws.column_dimensions["A"].width = 42
+    ws.column_dimensions["A"].width = 52
     ws.column_dimensions["B"].width = 22
 
 
@@ -383,9 +519,9 @@ PIPELINE_HEADERS = [
     "Owner",
     "Stage",
     "Close Date",
-    "ARR (€)",
-    "ACV (€)",
-    "Forecast ARR (€)",
+    "ARR (€ converted)",
+    "ACV (€ converted)",
+    "Forecast ARR (€ converted)",
     "Forecast Category",
     "Probability (%)",
     "Type",
@@ -407,14 +543,14 @@ PIPELINE_HEADERS = [
 
 def build_pipeline_detail(ws, cache: DirectorCache):
     ws.title = "Pipeline Detail"
-    pipeline = cache.open_pipeline
+    pipeline = active_pipeline_rows(cache.open_pipeline)
 
     _write_header_row(ws, 1, PIPELINE_HEADERS)
     ws.auto_filter.ref = f"A1:{get_column_letter(len(PIPELINE_HEADERS))}1"
 
     n_cols = len(PIPELINE_HEADERS)
     for row_idx, r in enumerate(pipeline, start=2):
-        arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+        arr = opp_arr_eur(r)
         activity_days = safe_num(r.get("LastActivityInDays"))
         close_date = parse_date(r.get("CloseDate"))
         push_count = safe_num(r.get("PushCount"))
@@ -426,8 +562,8 @@ def build_pipeline_detail(ws, cache: DirectorCache):
             safe_str(r.get("StageName")),
             safe_str(r.get("CloseDate", ""))[:10],
             arr,
-            safe_num(r.get("Opportunity_Average_ACV__c")),
-            safe_num(r.get("APTS_Forecast_ARR__c")),
+            opp_acv_eur(r),
+            opp_forecast_arr_eur(r),
             safe_str(r.get("ForecastCategoryName")),
             safe_num(r.get("Probability")),
             safe_str(r.get("Type")),
@@ -494,9 +630,19 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
     title(f"Q1 2026 Review — {territory}")
     blank()
 
-    # — Section A: Forecast vs Actual —
-    subheader("A  Forecast vs Actual (Q1 2026 — ARR)")
-    headers_a = ["Category", "Forecast Amount (€)", "Adj Amount (€)"]
+    # — Section A: Forecast vs Actual (org-wide, OwnerOnly to avoid hierarchy double-count) —
+    subheader("A  Q1 2026 Forecast vs Actual (ARR, org-wide, EUR converted)")
+    ws.cell(
+        row=row,
+        column=1,
+        value=(
+            "Note: Org-wide ForecastingItem totals. To match the CRO forecast page exactly, "
+            "values use OwnerOnlyAmount to avoid hierarchical double-counting."
+        ),
+    ).font = _data_font(size=9, color="666666")
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
+    row += 1
+    headers_a = ["Category", "Forecast Amount (€, OwnerOnly)", "Adj Amount (€)"]
     _write_header_row(ws, row, headers_a)
     row += 1
 
@@ -509,8 +655,8 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
         )
         for c in CATEGORIES:
             if c.lower() in cat.lower():
-                totals[c]["forecast"] += safe_num(item.get("ForecastAmount"))
-                totals[c]["adj"] += safe_num(item.get("AmountWithoutAdjustments"))
+                totals[c]["forecast"] += forecast_owner_only_eur(item)
+                totals[c]["adj"] += forecast_adjusted_amount_eur(item)
                 break
 
     for cat in CATEGORIES:
@@ -526,19 +672,23 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
     # Won / Lost actuals
     won_q1 = cache.won_q1
     lost_q1 = cache.lost_q1
-    won_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in won_q1)
-    lost_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in lost_q1)
+    won_arr = sum(opp_arr_eur(r) for r in won_q1)
+    lost_arr = sum(opp_arr_eur(r) for r in lost_q1)
     blank()
     ws.cell(row=row, column=1, value="Won Q1 (count)").font = _data_font(bold=True)
     ws.cell(row=row, column=2, value=len(won_q1)).font = _data_font()
     row += 1
-    ws.cell(row=row, column=1, value="Won Q1 (ARR €)").font = _data_font(bold=True)
+    ws.cell(row=row, column=1, value="Won Q1 (ARR € converted)").font = _data_font(
+        bold=True
+    )
     ws.cell(row=row, column=2, value=round(won_arr, 2)).font = _data_font()
     row += 1
     ws.cell(row=row, column=1, value="Lost Q1 (count)").font = _data_font(bold=True)
     ws.cell(row=row, column=2, value=len(lost_q1)).font = _data_font()
     row += 1
-    ws.cell(row=row, column=1, value="Lost Q1 (ARR €)").font = _data_font(bold=True)
+    ws.cell(row=row, column=1, value="Lost Q1 (ARR € converted)").font = _data_font(
+        bold=True
+    )
     ws.cell(row=row, column=2, value=round(lost_arr, 2)).font = _data_font()
     row += 1
     blank()
@@ -549,7 +699,7 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
         "Account",
         "Opportunity",
         "Owner",
-        "ARR (€)",
+        "ARR (€ converted)",
         "Old Close",
         "New Close",
         "Stage",
@@ -581,7 +731,7 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
 
     for fh in pushed_out:
         opp = fh.get("Opportunity") or {}
-        arr = safe_num(opp.get("APTS_Opportunity_ARR__c"))
+        arr = opp_arr_eur(opp)
         ws.cell(
             row=row, column=1, value=nested_get(opp, "Account", "Name", default="")
         ).font = _data_font()
@@ -614,7 +764,7 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
     headers_c = [
         "Opportunity",
         "Owner",
-        "ARR (€)",
+        "ARR (€ converted)",
         "Old Category",
         "New Category",
         "Date",
@@ -625,7 +775,7 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
     fh_fcn = cache.field_history("ForecastCategoryName")
     for fh in fh_fcn:
         opp = fh.get("Opportunity") or {}
-        arr = safe_num(opp.get("APTS_Opportunity_ARR__c"))
+        arr = opp_arr_eur(opp)
         ws.cell(row=row, column=1, value=safe_str(opp.get("Name"))).font = _data_font()
         ws.cell(
             row=row, column=2, value=nested_get(opp, "Owner", "Name", default="")
@@ -656,11 +806,11 @@ def build_q1_review(ws, cache: DirectorCache, territory: str):
 
 REP_HEADERS = [
     "Rep",
-    "Open Pipeline ARR (€)",
+    "Open Pipeline ARR (€ converted)",
     "Deal Count",
     "Avg Deal Size (€)",
-    "Won ARR Q (€)",
-    "Lost ARR Q (€)",
+    "Won ARR Q (€ converted)",
+    "Lost ARR Q (€ converted)",
     "Win Rate %",
     "Stale Deals",
     "Pushed Deals",
@@ -671,7 +821,7 @@ REP_HEADERS = [
 def build_rep_performance(ws, cache: DirectorCache):
     ws.title = "Rep Performance"
 
-    pipeline = cache.open_pipeline
+    pipeline = active_pipeline_rows(cache.open_pipeline)
     won_q = cache.won_this_quarter
     lost_q = cache.lost_this_quarter
 
@@ -701,7 +851,7 @@ def build_rep_performance(ws, cache: DirectorCache):
     for r in pipeline:
         rep = nested_get(r, "Owner", "Name", default="Unknown")
         d = get_rep(rep)
-        arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+        arr = opp_arr_eur(r)
         d["pipeline_arr"] += arr
         d["deal_count"] += 1
         if safe_num(r.get("LastActivityInDays")) > 30:
@@ -717,11 +867,11 @@ def build_rep_performance(ws, cache: DirectorCache):
 
     for r in won_q:
         rep = nested_get(r, "Owner", "Name", default="Unknown")
-        get_rep(rep)["won_arr"] += safe_num(r.get("APTS_Opportunity_ARR__c"))
+        get_rep(rep)["won_arr"] += opp_arr_eur(r)
 
     for r in lost_q:
         rep = nested_get(r, "Owner", "Name", default="Unknown")
-        get_rep(rep)["lost_arr"] += safe_num(r.get("APTS_Opportunity_ARR__c"))
+        get_rep(rep)["lost_arr"] += opp_arr_eur(r)
 
     sorted_reps = sorted(reps.items(), key=lambda x: x[1]["pipeline_arr"], reverse=True)
 
@@ -762,8 +912,8 @@ WON_LOST_HEADERS = [
     "Owner",
     "Type",
     "Stage",
-    "ARR (€)",
-    "ACV (€)",
+    "ARR (€ converted)",
+    "ACV (€ converted)",
     "Close Date",
     "Created Date",
     "Sales Cycle (Days)",
@@ -801,8 +951,8 @@ def build_won_lost(ws, cache: DirectorCache):
             nested_get(r, "Owner", "Name", default=""),
             safe_str(r.get("Type")),
             safe_str(r.get("StageName")),
-            safe_num(r.get("APTS_Opportunity_ARR__c")),
-            safe_num(r.get("Opportunity_Average_ACV__c")),
+            opp_arr_eur(r),
+            opp_acv_eur(r),
             safe_str(r.get("CloseDate", ""))[:10],
             safe_str(r.get("CreatedDate", ""))[:10],
             cycle_days,
@@ -897,11 +1047,26 @@ def build_q2_outlook(ws, cache: DirectorCache, territory: str = ""):
         row += 1
 
     title(f"Q2 2026 Outlook — {territory}")
+    ws.cell(
+        row=row,
+        column=1,
+        value=(
+            "Q2 2026 = April 1 – June 30, 2026. "
+            "Excludes opportunities in Omitted forecast category."
+        ),
+    ).font = _data_font(size=9, color="666666")
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
+    row += 1
     blank()
 
     # --- Section A: Q2 Forecast Breakdown ---
     subheader("A  Q2 Forecast Breakdown")
-    headers_a = ["Forecast Category", "Deal Count", "ARR (€)", "ACV (€)"]
+    headers_a = [
+        "Forecast Category",
+        "Deal Count",
+        "ARR (€ converted)",
+        "ACV (€ converted)",
+    ]
     _write_header_row(ws, row, headers_a)
     row += 1
 
@@ -929,7 +1094,7 @@ def build_q2_outlook(ws, cache: DirectorCache, territory: str = ""):
 
     blank()
 
-    pipeline = cache.open_pipeline
+    pipeline = active_pipeline_rows(cache.open_pipeline)
 
     def is_q2_close(r):
         cd = parse_date(r.get("CloseDate"))
@@ -952,7 +1117,7 @@ def build_q2_outlook(ws, cache: DirectorCache, territory: str = ""):
         "Owner",
         "Stage",
         "Close Date",
-        "ARR (€)",
+        "ARR (€ converted)",
         "Probability (%)",
     ]
 
@@ -968,10 +1133,10 @@ def build_q2_outlook(ws, cache: DirectorCache, territory: str = ""):
             return
         for r in sorted(
             deals,
-            key=lambda x: safe_num(x.get("APTS_Opportunity_ARR__c")),
+            key=lambda x: opp_arr_eur(x),
             reverse=True,
         ):
-            arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+            arr = opp_arr_eur(r)
             row_data = [
                 nested_get(r, "Account", "Name", default=""),
                 safe_str(r.get("Name")),
@@ -997,17 +1162,16 @@ def build_q2_outlook(ws, cache: DirectorCache, territory: str = ""):
 
     # --- Section D: Pipeline Coverage ---
     subheader("D  Pipeline Coverage")
-    total_pipe_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in pipeline)
-    commit_arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in commit_deals)
-    bestcase_arr = sum(
-        safe_num(r.get("APTS_Opportunity_ARR__c")) for r in bestcase_deals
-    )
+    q2_active_pipeline = [r for r in pipeline if is_q2_close(r)]
+    total_pipe_arr = sum(opp_arr_eur(r) for r in q2_active_pipeline)
+    commit_arr = sum(opp_arr_eur(r) for r in commit_deals)
+    bestcase_arr = sum(opp_arr_eur(r) for r in bestcase_deals)
 
     coverage_headers = ["Metric", "Value"]
     _write_header_row(ws, row, coverage_headers)
     row += 1
     for label, val in [
-        ("Total Pipeline ARR", fmt_eur(total_pipe_arr)),
+        ("Active Pipeline ARR (Q2 close, excl. Omitted)", fmt_eur(total_pipe_arr)),
         ("Commit ARR (Q2 close)", fmt_eur(commit_arr)),
         ("Best Case ARR (Q2 close)", fmt_eur(bestcase_arr)),
         ("Gap to Quota", "Awaiting quota targets"),
@@ -1057,7 +1221,7 @@ def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
     title(f"Commercial Approval — {territory}")
     blank()
 
-    pipeline = cache.open_pipeline
+    pipeline = active_pipeline_rows(cache.open_pipeline)
 
     def is_approved(r):
         return r.get("Stage_20_Approval__c") is True
@@ -1077,7 +1241,7 @@ def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
 
     # --- Section A: Approval Summary ---
     subheader("A  Approval Summary")
-    summary_headers = ["Category", "Deal Count", "ARR (€)"]
+    summary_headers = ["Category", "Deal Count", "ARR (€ converted)"]
     _write_header_row(ws, row, summary_headers)
     row += 1
 
@@ -1086,7 +1250,7 @@ def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
         ("Pending / Missing Approval", pending_opps),
         ("No Approval Needed", no_approval_opps),
     ]:
-        arr = sum(safe_num(r.get("APTS_Opportunity_ARR__c")) for r in opps)
+        arr = sum(opp_arr_eur(r) for r in opps)
         ws.cell(row=row, column=1, value=label).font = _data_font(bold=True)
         ws.cell(row=row, column=2, value=len(opps)).font = _data_font()
         ws.cell(row=row, column=3, value=round(arr, 2)).font = _data_font()
@@ -1101,7 +1265,7 @@ def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
         "Opportunity",
         "Owner",
         "Stage",
-        "ARR (€)",
+        "ARR (€ converted)",
         "Close Date",
         "Next Step",
     ]
@@ -1113,9 +1277,7 @@ def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
         for r in pipeline
         if _stage_num(r) >= 3 and r.get("Type") == "Land" and not is_approved(r)
     ]
-    missing_sorted = sorted(
-        missing, key=lambda r: safe_num(r.get("APTS_Opportunity_ARR__c")), reverse=True
-    )
+    missing_sorted = sorted(missing, key=lambda r: opp_arr_eur(r), reverse=True)
 
     if not missing_sorted:
         ws.cell(
@@ -1124,7 +1286,7 @@ def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
         row += 1
     else:
         for r in missing_sorted:
-            arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+            arr = opp_arr_eur(r)
             row_data = [
                 nested_get(r, "Account", "Name", default=""),
                 safe_str(r.get("Name")),
@@ -1148,7 +1310,7 @@ def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
         "Opportunity",
         "Owner",
         "Stage",
-        "ARR (€)",
+        "ARR (€ converted)",
         "Approval Date",
     ]
     _write_header_row(ws, row, approved_hdrs)
@@ -1170,10 +1332,10 @@ def build_commercial_approval(ws, cache: DirectorCache, territory: str = ""):
     else:
         for r in sorted(
             approved_ytd,
-            key=lambda r: safe_num(r.get("APTS_Opportunity_ARR__c")),
+            key=lambda r: opp_arr_eur(r),
             reverse=True,
         ):
-            arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+            arr = opp_arr_eur(r)
             row_data = [
                 nested_get(r, "Account", "Name", default=""),
                 safe_str(r.get("Name")),
@@ -1263,20 +1425,29 @@ def build_renewals_retention(ws, cache: DirectorCache, territory: str = ""):
 
     blank()
 
+    pipeline = active_pipeline_rows(cache.open_pipeline)
+    open_renewals = [r for r in pipeline if r.get("Type") == "Renewal"]
+
     # --- Section B: Renewal Pipeline by Risk Level ---
     subheader("B  Renewal Pipeline by Risk Level")
-    risk_data = cache.load("crma_renewal_risk.json")
-    risk_headers = ["Risk Level", "Deal Count", "ARR (€)"]
+    risk_headers = ["Risk Level", "Deal Count", "ACV (€ converted)"]
     _write_header_row(ws, row, risk_headers)
     row += 1
 
-    if risk_data:
-        for rd in sorted(
-            risk_data, key=lambda r: safe_num(r.get("RecurringValue")), reverse=True
-        ):
-            risk_level = safe_str(rd.get("RiskLevel"))
-            ct = int(safe_num(rd.get("ct")))
-            arr = safe_num(rd.get("RecurringValue"))
+    renewals_by_risk: dict[str, dict[str, float]] = {}
+    for renewal in open_renewals:
+        risk_level = safe_str(renewal.get("Risk_Assessment_Level__c")) or "Unspecified"
+        bucket = renewals_by_risk.setdefault(risk_level, {"ct": 0, "acv": 0.0})
+        bucket["ct"] += 1
+        bucket["acv"] += renewal_acv_eur(renewal)
+
+    if renewals_by_risk:
+        sorted_risks = sorted(
+            renewals_by_risk.items(), key=lambda item: item[1]["acv"], reverse=True
+        )
+        for risk_level, stats in sorted_risks:
+            ct = int(stats["ct"])
+            acv = float(stats["acv"])
 
             fill = None
             if "high" in risk_level.lower():
@@ -1288,7 +1459,7 @@ def build_renewals_retention(ws, cache: DirectorCache, territory: str = ""):
 
             ws.cell(row=row, column=1, value=risk_level).font = _data_font()
             ws.cell(row=row, column=2, value=ct).font = _data_font()
-            ws.cell(row=row, column=3, value=round(arr, 2)).font = _data_font()
+            ws.cell(row=row, column=3, value=round(acv, 2)).font = _data_font()
             if fill:
                 _apply_row_fill(ws, row, 3, fill)
             row += 1
@@ -1306,7 +1477,7 @@ def build_renewals_retention(ws, cache: DirectorCache, territory: str = ""):
         "Account",
         "Opportunity",
         "Owner",
-        "ACV (€)",
+        "Renewal ACV (€ converted)",
         "Probability (%)",
         "Close Date",
         "Stage",
@@ -1314,8 +1485,6 @@ def build_renewals_retention(ws, cache: DirectorCache, territory: str = ""):
     _write_header_row(ws, row, renewal_hdrs)
     row += 1
 
-    pipeline = cache.open_pipeline
-    open_renewals = [r for r in pipeline if r.get("Type") == "Renewal"]
     open_renewals_sorted = sorted(
         open_renewals, key=lambda r: parse_date(r.get("CloseDate")) or date.max
     )
@@ -1327,7 +1496,7 @@ def build_renewals_retention(ws, cache: DirectorCache, territory: str = ""):
         row += 1
     else:
         for r in open_renewals_sorted:
-            acv = safe_num(r.get("Opportunity_Average_ACV__c"))
+            acv = renewal_acv_eur(r)
             row_data = [
                 nested_get(r, "Account", "Name", default=""),
                 safe_str(r.get("Name")),
@@ -1352,7 +1521,7 @@ def build_renewals_retention(ws, cache: DirectorCache, territory: str = ""):
 def build_risk_register(ws, cache: DirectorCache, territory: str = ""):
     ws.title = "Risk Register"
 
-    pipeline = cache.open_pipeline
+    pipeline = active_pipeline_rows(cache.open_pipeline)
     crma_ops = cache.load("crma_pipeline_ops.json")
 
     # Build CRMA lookup by OpportunityId
@@ -1367,7 +1536,7 @@ def build_risk_register(ws, cache: DirectorCache, territory: str = ""):
         "Opportunity",
         "Owner",
         "Stage",
-        "ARR (€)",
+        "ARR (€ converted)",
         "Close Date",
         "Push Count",
         "Activity Days Ago",
@@ -1390,7 +1559,7 @@ def build_risk_register(ws, cache: DirectorCache, territory: str = ""):
 
         push_count = safe_num(r.get("PushCount"))
         activity_days = safe_num(r.get("LastActivityInDays"))
-        arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+        arr = opp_arr_eur(r)
         close_date = parse_date(r.get("CloseDate"))
         age_days = safe_num(r.get("AgeInDays"))
         prob = safe_num(r.get("Probability"))
@@ -1448,7 +1617,7 @@ def build_risk_register(ws, cache: DirectorCache, territory: str = ""):
 
     n_cols = len(RISK_HEADERS)
     for row_idx, (score, r, crma, flags) in enumerate(scored_rows, start=2):
-        arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+        arr = opp_arr_eur(r)
         row_data = [
             nested_get(r, "Account", "Name", default=""),
             safe_str(r.get("Name")),
@@ -1490,7 +1659,7 @@ def build_risk_register(ws, cache: DirectorCache, territory: str = ""):
 def build_data_quality(ws, cache: DirectorCache, territory: str = ""):
     ws.title = "Data Quality"
 
-    pipeline = cache.open_pipeline
+    pipeline = active_pipeline_rows(cache.open_pipeline)
 
     DQ_HEADERS = [
         "Rep",
@@ -1524,7 +1693,7 @@ def build_data_quality(ws, cache: DirectorCache, territory: str = ""):
         d = get_rep(rep)
 
         stage_n = _stage_num(r)
-        arr = safe_num(r.get("APTS_Opportunity_ARR__c"))
+        arr = opp_arr_eur(r)
         activity_days = safe_num(r.get("LastActivityInDays"))
         last_activity_date = r.get("LastActivityDate")
         close_date = parse_date(r.get("CloseDate"))
