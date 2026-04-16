@@ -7,7 +7,7 @@ Supersedes: `docs/2026-04-08-sales-director-monthly-handoff.md` (commit `2550fa7
 
 ## TL;DR for a cold read
 
-Two production Salesforce dashboards serve 9 named Sales Directors (Track 1, monthly) and Sales Ops (Track 2, quarterly). As of `9e4ce63`, both are at **pristine state**: zero active drift flags, four deferred (schema change), one design warning (widget count exceeds the executive cognitive ceiling). Every improvement was applied via the Analytics REST API with verified inline GET after PATCH. The "new way of working with Salesforce" is codified in §The new way of working below and in `scripts/dashboard_state_dump.py` as a reusable audit tool. Next work is **either** the 5-minute manual UI handoff (2-3 filters + LoggedInUser flip) **or** the stakeholder conversation about widget consolidation (15 → 8 on D1) **or** the `Calendar_Quarter__c` metadata deploy that unblocks 4 fiscal-grouping widgets.
+Two production Salesforce dashboards serve 9 named Sales Directors (Track 1, monthly) and Sales Ops (Track 2, quarterly). The last successful full audit still showed **pristine state** (zero active drift flags, four deferred schema items, one design warning), and D1 has since been reshaped live into an **8-widget executive layout with 4 native dashboard filters**: `Industry`, `Legal Country`, `Sales Region`, and `Account Unit Group`. Most improvements were applied via the Analytics REST API with verified inline GET after PATCH; dashboard filter creation still required the Lightning editor. Final D1 continuation verification was done via direct Analytics API GETs because `scripts/dashboard_state_dump.py` hung on the closing pass. Next work is the running-user/distribution decision, the `Calendar_Quarter__c` metadata deploy, and the remaining D2 Forecast Accuracy / slipped-schema follow-through.
 
 ## 1. North Star — the original asks (verbatim from 2550fa7)
 
@@ -46,7 +46,7 @@ Audience: **9 named Sales Directors** (MD-1 level). Cadence: monthly. Format: on
 | 8   | Mourad Essofi     | Middle East & Africa                  | `005QA000003DawpYAC` | SC EMEA Sales          | shared       |
 | 9   | Adam Steinhaus    | NA Pension & Insurance                | `005QA000006WqODYA0` | SC NA Sales            | shared       |
 
-Role-hierarchy scoping alone does **not** cleanly slice the 9 Directors — 5 of 9 share roles with peers. Per-Director slicing comes from dashboard filters on `Sales_Region__c` + `Account.Legal Country` + (eventually) `Account.Industry`.
+Role-hierarchy scoping alone does **not** cleanly slice the 9 Directors — 5 of 9 share roles with peers. Per-Director slicing now comes from dashboard filters on `Sales_Region__c` + `ADDRESS1_COUNTRY_CODE` (`Legal Country`) + `INDUSTRY` + `Opportunity.Account_Unit_Group__c`.
 
 ### Track 2 — Sales Ops Quarterly (Report 2)
 
@@ -80,45 +80,39 @@ Both share folder `005QA000003DUwWYAW` (Andre's personal folder). Target org `ap
 | **Pristine pass**            | **2026-04-08** | **Second-pass improvement. Verified 9/9 prior inline fixes intact. Applied 8 new API-executable improvements: 5 ACV/ARR `.CONVERT` upgrades on D1, 1 FlexTable `s!AMOUNT→ARR.CONVERT` swap on D2 (required FlexTable dual-storage fix), 1 Forecast_ARR `.CONVERT` upgrade on D2, 1 cleanup pass retiring 7 stale aggregates. Empirically verified CALENDAR_QUARTER grouping is API-unfixable. Ported audit logic into reusable `scripts/dashboard_state_dump.py`. Produced pristine design doc + manual UI runbook + pristine pass handoff.** |
 | **Research addendum**        | **2026-04-09** | **3 research subagents (SF dashboard best practices, executive sales patterns, data engineering) landed with 7 load-bearing findings: executive widget count ceiling 6-9, LoggedInUser-can't-be-scheduled, slip schema recommendation, commercial approval 2x2 pattern, metric registry architecture, data quality theater avoidance. Documented concrete 8-widget D1 blueprint.**                                                                                                                                                            |
 | **Phase 5 POC + extensions** | **2026-04-09** | **Widget-count-over-exec-ceiling warning added to audit script (D1 now emits `💡 widget-count-over-max:15/12`). 2 new SF reports built via POST as infrastructure for the 8-widget blueprint: `Top 10 Deals by ARR This Qtr` and `Commercial Approval 2x2 Matrix`. Phase 5 metric registry proof-of-concept: 4 metric YAMLs + 3 source contract YAMLs at `reporting-layer/`. Locked in 3 new POST-time constraints.**                                                                                                                         |
+| **Live continuation**        | **2026-04-09** | **D1 Lightning/UI + API follow-through. Created 4 dashboard-owned filters (`Industry`, `Legal Country`, `Sales Region`, `Account Unit Group`), upgraded the weakest D1 reports/widgets into actionable worklists, and consolidated D1 from 15 widgets to 8. Final state was verified via direct Analytics API GETs and `/tmp` backups because `dashboard_state_dump.py` hung on the closing pass.**                |
 
 ## 4. Where we are now — live state
 
 ### Dashboard 1 — Sales Directors Monthly
 
-- **Components:** 15 / 20 hard cap (down from 20 after ORPHAN cleanup in Phase 2.8)
-- **Filters:** 0 (UI handoff pending)
+- **Components:** 8 / 20 hard cap (after the 2026-04-09 executive consolidation)
+- **Filters:** 4 (`Industry`, `Legal Country`, `Sales Region`, `Account Unit Group`)
 - **Running user mode:** SpecifiedUser (Andre Profitt), `canChangeRunningUser = false`
-- **Classic format** (not yet Lightning-converted; see save-failure note in §Known constraints)
+- **Lightning editor save path:** confirmed live on 2026-04-09 for filter + layout changes; REST still cannot CREATE dashboard filters
 
-**Audit state** (from `scripts/dashboard_state_dump.py`):
+**Verification state:**
 
 ```
+Last successful full audit before the final D1 continuation:
 ✓ Pristine state: 0 active flags, 4 deferred flags, 1 design warning(s).
 ```
 
-- **0 active flags** — every API-executable defect cleared
-- **3 deferred flags** — all `fiscal-grouping:FISCAL_QUARTER` on widgets that need a schema change (bucket field or `Calendar_Quarter__c` formula field)
-- **1 design warning** — `💡 widget-count-over-max:15/12` (exceeds executive cognitive ceiling per research)
+- **Direct GET verification after the final continuation** confirmed `components.length = 8` and `filters.length = 4` on `01ZTb00000FSP7hMAH`
+- **Closing-pass caveat:** `dashboard_state_dump.py` hung after the final D1 continuation, so re-run it at the start of the next session before relying on the older deferred / warning counts
 
-**Live composition (15 widgets, all with `.CONVERT` where applicable):**
+**Live composition (8 widgets):**
 
-| #   | Widget                                  | Report ID                   | Format  | Date         | Widget Agg                        | Stakeholder Ask                            |
-| --- | --------------------------------------- | --------------------------- | ------- | ------------ | --------------------------------- | ------------------------------------------ |
-| 1   | Renewal ACV by Quarter                  | `00OTb000008ekxBMAQ`        | SUMMARY | THIS_YEAR    | `APTS_Renewal_ACV__c.CONVERT`     | Renewals tracking                          |
-| 2   | Land Stage 3 Missing Approval by Region | `00OTb000008ekltMAA`        | SUMMARY | CUSTOM       | `APTS_Opportunity_ARR__c.CONVERT` | Commercial Approval (candidates by region) |
-| 3   | Pipeline Overview by Stage              | `00OTb000008fBfdMAE` (P2.7) | SUMMARY | THIS_QUARTER | `APTS_Opportunity_ARR__c.CONVERT` | Pipeline overview                          |
-| 4   | Renewal Pipeline This Quarter           | `00OTb000008ektxMAA`        | SUMMARY | THIS_QUARTER | `APTS_Renewal_ACV__c.CONVERT`     | Renewals tracking                          |
-| 5   | New Customers (Land) by Region          | `00OTb000008ekqjMAA`        | SUMMARY | THIS_YEAR    | `APTS_Opportunity_ARR__c.CONVERT` | Land deals context                         |
-| 6   | Forecast Accuracy                       | `00OTb000008TZsDMAW`        | MATRIX  | THIS_YEAR    | `APTS_Forecast_ARR__c.CONVERT`    | Forecast context                           |
-| 7   | Close Date Slipped by Stage             | `00OTb000008eknVMAQ`        | SUMMARY | LAST_QUARTER | `APTS_Opportunity_ARR__c.CONVERT` | Slipped deals                              |
-| 8   | Renewals by Quarter                     | `00OTb000008eksLMAQ`        | SUMMARY | THIS_YEAR    | `APTS_Renewal_ACV__c.CONVERT`     | Renewals tracking                          |
-| 9   | Commercial Approval Current State       | `00OTb000008fBEDMA2` (P2.7) | SUMMARY | CUSTOM       | RowCount                          | Commercial Approval (global)               |
-| 10  | Pipeline Coverage by Stage              | `00OTb000008TZc5MAG`        | SUMMARY | THIS_QUARTER | `APTS_Forecast_ARR__c.CONVERT`    | Pipeline overview (supplementary)          |
-| 11  | Business At Risk                        | `00OTb000008Ta9xMAC`        | SUMMARY | CUSTOM       | `Opportunity_Average_ACV__c`      | Churn Risk (CRM-side proxy)                |
-| 12  | Forecast and Closed Won                 | `00OTb000008TZaTMAW`        | SUMMARY | THIS_YEAR    | `APTS_Forecast_ARR__c.CONVERT`    | Forecast context                           |
-| 13  | Commercial Approval Candidates by Stage | `00OTb000008ekp7MAA`        | SUMMARY | CUSTOM       | `APTS_Opportunity_ARR__c.CONVERT` | Commercial Approval (candidates)           |
-| 14  | Commercial Approval Approved YTD (Land) | `00OTb000008aTtJMAU`        | SUMMARY | CUSTOM       | RowCount                          | Commercial Approval (approved)             |
-| 15  | Renewal Likelihood by Probability       | `00OTb000008fBULMA2` (P2.7) | SUMMARY | THIS_QUARTER | `APTS_Renewal_ACV__c.CONVERT`     | Renewals tracking (likelihood)             |
+| #   | Widget                                  | Report ID                   | Format    | Date         | Widget Agg                        | Stakeholder Ask                            |
+| --- | --------------------------------------- | --------------------------- | --------- | ------------ | --------------------------------- | ------------------------------------------ |
+| 1   | Pipeline Overview by Stage              | `00OTb000008fBfdMAE` (P2.7) | SUMMARY   | THIS_QUARTER | `APTS_Opportunity_ARR__c.CONVERT` | Pipeline overview                          |
+| 2   | Pipeline Coverage by Stage              | `00OTb000008TZc5MAG`        | SUMMARY   | THIS_QUARTER | `APTS_Forecast_ARR__c.CONVERT`    | Pipeline overview (supplementary)          |
+| 3   | Commercial Approval Current State       | `00OTb000008fBEDMA2` (P2.7) | SUMMARY   | CUSTOM       | RowCount                          | Commercial Approval (global)               |
+| 4   | Commercial Approval Candidates by Stage | `00OTb000008ekp7MAA`        | FlexTable | CUSTOM       | `APTS_Opportunity_ARR__c.CONVERT` | Commercial Approval (candidates)           |
+| 5   | Renewal ACV by Quarter                  | `00OTb000008ekxBMAQ`        | SUMMARY   | THIS_YEAR    | `APTS_Renewal_ACV__c.CONVERT`     | Renewals tracking                          |
+| 6   | Renewal Pipeline This Quarter           | `00OTb000008ektxMAA`        | FlexTable | THIS_QUARTER | `APTS_Renewal_ACV__c.CONVERT`     | Renewals tracking                          |
+| 7   | Business At Risk                        | `00OTb000008Ta9xMAC`        | FlexTable | CUSTOM       | `Opportunity_Average_ACV__c`      | Churn Risk (CRM-side proxy)                |
+| 8   | Close Date Slipped by Stage             | `00OTb000008eknVMAQ`        | FlexTable | LAST_QUARTER | `APTS_Opportunity_ARR__c.CONVERT` | Slipped deals                              |
 
 ### Dashboard 2 — Sales Ops Quarterly KPI
 
@@ -134,7 +128,7 @@ Both share folder `005QA000003DUwWYAW` (Andre's personal folder). Target org `ap
 
 ### New reports built 2026-04-09 (not yet on any dashboard)
 
-These are **infrastructure for the 8-widget pristine blueprint**. Pinned in the Phase 5 metric registry but not yet wired into any dashboard component (that step awaits stakeholder consolidation sign-off).
+These are **infrastructure for the 8-widget pristine blueprint**. `Top 10 Deals by ARR This Qtr` is already pinned in the Phase 5 metric registry; `Commercial Approval 2x2 Matrix` is live in Salesforce but still needs its `reporting-layer/contracts/` file. Neither is wired into a dashboard component yet (that step awaits stakeholder consolidation sign-off).
 
 | Report ID            | Name                           | Format  | Purpose                                        |
 | -------------------- | ------------------------------ | ------- | ---------------------------------------------- |
@@ -161,14 +155,14 @@ All work goes through `sf` CLI + `curl` (no MCP, no Python builders). The patter
 
 ```bash
 # Fresh token (expires; refresh when you get INVALID_SESSION_ID)
-sf org display --target-org apro@simcorp.com --json > /tmp/frontier-sf-auth.json
+sf org display --target-org apro@simcorp.com --json > /tmp/frontier-sf-org-display.json
 
 # Or inline into a script:
-sf org display --json | jq -r '.result.accessToken'
-sf org display --json | jq -r '.result.instanceUrl'
+sf org display --target-org apro@simcorp.com --json | jq -r '.result.accessToken'
+sf org display --target-org apro@simcorp.com --json | jq -r '.result.instanceUrl'
 ```
 
-All API calls use `https://simcorp.my.salesforce.com/services/data/v66.0/...` with `Authorization: Bearer <token>` + `Content-Type: application/json`.
+All API calls use `https://simcorp.my.salesforce.com/services/data/v66.0/...` with `Authorization: Bearer <token>` + `Content-Type: application/json`. `scripts/dashboard_state_dump.py` defaults to `--target-org apro@simcorp.com` so it cannot silently follow the wrong default org.
 
 ### 6.2 Dashboard PATCH body shape
 
@@ -297,6 +291,8 @@ The Analytics REST API **cannot create new dashboard filters** — only update e
 - `PATCH dashboardMetadata.filters[]` with new entries → HTTP 400 `"filter field is no longer available"` (because the server-assigned filter id like `0IB...` is created by the UI only)
 - `PATCH canChangeRunningUser` → HTTP 200 OK but silently ignored (also UI-only)
 
+Once the Lightning UI has created the dashboard-owned filter ids, REST can then mutate the filter labels, option lists, and widget bindings. That is how the live D1 filter set was normalized on 2026-04-09.
+
 Document this in the manual UI runbook (`docs/2026-04-08-manual-ui-runbook.md` §1).
 
 ### 6.9 Inline verification pattern
@@ -320,11 +316,11 @@ assert(verify.reportMetadata.aggregates.includes(newAgg));
 
 - **Active flags** (⚠️) — data defects that must be fixed (e.g., `no-convert:APTS_Opportunity_ARR__c`, `amount-not-arr-on-widget`, `fiscal-date-filter:THIS_FISCAL_YEAR`)
 - **Deferred flags** (🔶) — known defects awaiting schema change (allow-listed at the top of the script: `DEFERRED_FISCAL_GROUPING_REPORTS`)
-- **Design warnings** (💡) — design choices that cross best-practice thresholds (e.g., `widget-count-over-max:15/12` on executive dashboards)
+- **Design warnings** (💡) — design choices that cross best-practice thresholds (e.g., `widget-count-over-max:N/12` on executive dashboards)
 
 See §Audit + tooling cheat sheet for usage.
 
-## 7. Commit map (15 commits total, 12 from original handoff + 3 new)
+## 7. Commit map
 
 | Commit        | Date           | Scope                                                                                   |
 | ------------- | -------------- | --------------------------------------------------------------------------------------- |
@@ -344,25 +340,27 @@ See §Audit + tooling cheat sheet for usage.
 | **`5f652c8`** | **2026-04-08** | **Pristine pass: 8 improvements + audit tool + 3 docs (976 insertions)**                |
 | **`a1d4466`** | **2026-04-09** | **Research addendum: 7 load-bearing findings (328 insertions)**                         |
 | **`9e4ce63`** | **2026-04-09** | **Phase 5 metric registry POC + exec-ceiling warning + 2 new reports (626 insertions)** |
+| **`d995851`** | **2026-04-09** | **Fresh-session handoff integrating the new Salesforce way of working**                  |
 
 **Out-of-band live Salesforce changes** (no git tracking; recorded in the pristine pass handoff):
 
 - 8 API-executable improvements applied via PATCH (2026-04-08 pristine pass — see §6 for the pattern for each type)
 - 7 stale non-`.CONVERT` aggregates retired from source reports
 - 2 new reports created via POST (`00OTb000008fQ3ZMAU`, `00OTb000008fQ6nMAE`)
+- 2026-04-09 live continuation: 4 native D1 filters created, 8 D1 report/widget surfaces enriched, and D1 consolidated from 15 widgets to 8
 
 ## 8. Stakeholder coverage scorecard (updated 2026-04-09)
 
 ### Track 1 — Sales Directors Monthly
 
-| Goal                                                                  | Coverage                               | Notes                                                                                                                                                                                                                                            |
-| --------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Pipeline overview with quarterly focus (one slide per region)         | GLOBAL OK / REGIONAL blocked on filter | P2.7 `pipeline_overview_global` widget on dashboard. Per-region slices require the UI filter handoff (see §Remaining work).                                                                                                                      |
-| Commercial Approval overview (global + Land stage 3 missing approval) | OK                                     | 4 widgets cover the concept end-to-end. All with ARR.CONVERT after pristine pass. **Future: 1 consolidated 2x2 widget via the new `Commercial Approval 2x2 Matrix` report — awaits stakeholder sign-off.**                                       |
-| Renewals tracking (this quarter, value, likelihood)                   | OK                                     | 4 widgets covering renewal pipeline, ACV by quarter, renewals by quarter, and likelihood. **All ACV aggregates now use `.CONVERT` after pristine pass (3 upgrades).**                                                                            |
-| Churn Risk and trends                                                 | PROXY only                             | `Business At Risk` widget is the CRM-side fallback. Finance feed pending Alex P — not reached in any session.                                                                                                                                    |
-| Slipped deals analysis                                                | PARTIAL                                | `Close Date Slipped by Stage` provides detection (ARR-fixed Phase 2.8). Root cause commentary requires schema: `Slip_Reason__c` / `Slip_Count__c` / Flow per research (see §Remaining work). PI native source deferred to PI Lightning UI phase. |
-| 9 MD-1 Sales Directors per-person views                               | **UI HANDOFF pending**                 | Preset filter combos documented (see Phase 2.8 amendment in `specs/report-1-source-contract.md`); dashboard filters NOT YET created (Lightning-UI-only).                                                                                         |
+| Goal                                                                  | Coverage                | Notes                                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pipeline overview with quarterly focus (one slide per region)         | OK via live filters     | `Pipeline Overview by Stage` + `Pipeline Coverage by Stage` remain on D1. Per-Director regional slices now use the 4 live dashboard filters documented in the contract.                                                                                                                        |
+| Commercial Approval overview (global + Land stage 3 missing approval) | OK                      | 2 retained widgets cover the concept end-to-end on the live 8-widget D1. **Future: 1 consolidated 2x2 widget via the new `Commercial Approval 2x2 Matrix` report — awaits stakeholder sign-off.**                                                                                            |
+| Renewals tracking (this quarter, value, likelihood)                   | PARTIAL                 | The live 8-widget D1 keeps `Renewal ACV by Quarter` and `Renewal Pipeline This Quarter`, both enriched with worklist-level detail. The explicit `Renewal Likelihood by Probability` view was removed in the consolidation and can be restored if stakeholders miss it.                     |
+| Churn Risk and trends                                                 | PROXY only              | `Business At Risk` widget is the CRM-side fallback. Finance feed pending Alex P — not reached in any session.                                                                                                                                                                                 |
+| Slipped deals analysis                                                | PARTIAL                 | `Close Date Slipped by Stage` is now an actionable worklist on D1, not a thin chart. Root cause commentary still requires schema: `Slip_Reason__c` / `Slip_Count__c` / Flow per research (see §Remaining work). PI native source deferred to PI Lightning UI phase.                     |
+| 9 MD-1 Sales Directors per-person views                               | LIVE via 4-filter model | D1 now has native `Industry`, `Legal Country`, `Sales Region`, and `Account Unit Group` filters. Remaining open question is distribution mode: keep `SpecifiedUser`, flip to `LoggedInUser`, or clone for scheduled mailouts.                                                             |
 
 ### Track 2 — Sales Ops Quarterly
 
@@ -375,13 +373,15 @@ See §Audit + tooling cheat sheet for usage.
 
 ## 9. Remaining work (priority order)
 
-### P0 — 5-minute UI handoff (blocking 9 Directors)
+### P0 — Running-user / distribution decision
 
-Add 2-3 dashboard filters on D1 + flip `canChangeRunningUser` via Lightning UI. Fully documented in `docs/2026-04-08-manual-ui-runbook.md` §1. Options covered:
+D1 now already has the 4 live filters the Directors need. The remaining decision is how the dashboard should be consumed:
 
-- **LoggedInUser + dashboard filter combos** (original recommendation, still correct if no scheduled email needed)
-- **SpecifiedUser clones** (only if daily/weekly email delivery is required — LoggedInUser mode cannot be scheduled)
-- Decision tree in `docs/2026-04-09-pristine-design-research-addendum.md` §Finding 2
+- **Keep `SpecifiedUser` + shared filter presets** (lowest operational risk, current live state)
+- **Flip to `LoggedInUser`** if no scheduled email is needed and per-viewer scoping is worth the trade-off
+- **Create director-specific clones** only if recurring scheduled delivery is mandatory
+
+Decision tree remains in `docs/2026-04-09-pristine-design-research-addendum.md` §Finding 2.
 
 ### P1 — `Calendar_Quarter__c` schema deploy
 
@@ -393,19 +393,19 @@ TEXT(YEAR(CloseDate)) & "-Q" & TEXT(CEILING(MONTH(CloseDate) / 3))
 
 One-time metadata deploy. Unblocks 4 deferred fiscal-grouping widgets (D1 × 3, D2 × 1). Runbook §4.
 
-### P2 — Industry picklist investigation
+### P2 — Saved filter states / Director enablement
 
-SOQL probe to identify the SimCorp-values industry field (the Lightning filter popover shows generic SF industries but data contains Asset Management / Pension / Insurance / etc.). Runbook §3. ~30 min. Unblocks Patrick/Adam NAM sub-cuts (distinguishes NA Asset Management from NA Pension & Insurance).
+The 4-filter model is live, but the 9 Directors still need an operating pattern around it: saved browser bookmarks, one-page instructions, or user-by-user enablement. The live filter values are now documented in `docs/specs/report-1-source-contract.md` and `docs/2026-04-08-manual-ui-runbook.md`.
 
 ### P3 — Pipeline Inspection list views
 
 2 PI list views manually created in SF Lightning UI — required for 4 forecast accuracy widgets on D2 + slipped deals widgets on D1. Runbook §2.
 
-### P4 — Widget consolidation conversation (D1: 15 → 8)
+### P4 — D1 second-pass refinement on top of the live 8-widget layout
 
-Per research addendum: D1 exceeds the 6-9 executive cognitive ceiling. The 8-widget blueprint is documented in `docs/2026-04-09-pristine-design-research-addendum.md` §Finding 1 with widget-by-widget mapping from current state. **Requires stakeholder sign-off from 9 Directors** before executing. Retire 7 widgets, introduce 3 new ones (Top 10 Deals, Commercial Approval 2x2, Coverage KPI stack).
+The 15 → 8 consolidation is already live. The remaining optional refinement is whether to pull the Phase 5 blueprint the rest of the way through by introducing the new `Top 10 Deals by ARR This Qtr` and `Commercial Approval 2x2 Matrix` reports into D1.
 
-Infrastructure ready: `00OTb000008fQ3ZMAU` (Top 10 Deals) and `00OTb000008fQ6nMAE` (Commercial Approval 2x2) reports are already built and pinned in `reporting-layer/contracts/`. Binding them into dashboard components is a simple PATCH once stakeholder decision lands.
+Infrastructure ready: both reports are already built (`00OTb000008fQ3ZMAU` Top 10 Deals, `00OTb000008fQ6nMAE` Commercial Approval 2x2). `Top 10 Deals` is already pinned in `reporting-layer/contracts/`; `Commercial Approval 2x2` still needs its contract file. Binding either into dashboard components is a simple PATCH once stakeholders want the next iteration.
 
 ### P5 — Stakeholder decisions (3 items)
 
@@ -433,7 +433,7 @@ Wire `python3 scripts/dashboard_state_dump.py --fail-if-drifted` into a pre-comm
 
 ### Salesforce platform constraints
 
-1. **SF Classic dashboard Lightning save is not Playwright-automatable.** 8 click strategies tried during Phase 2.8 — none propagated the conversion + filter config back to the server. Use the manual UI runbook instead. See `feedback_sf_classic_dashboard_lightning_save.md` in project memory.
+1. **Lightning dashboard filter creation/save is still UI-only and historically flaky under automation.** Earlier Phase 2.8 browser attempts failed, but the 2026-04-09 continuation did persist D1 filter + layout changes once the dashboard was already in the Lightning editor. Manual UI remains the safest fallback if automation stalls.
 2. **Analytics REST API cannot CREATE dashboard filters** — only UPDATE existing. New filter definitions come from the Lightning UI only (server-assigned filter id `0IB...` prefix is created by the UI).
 3. **`canChangeRunningUser` PATCH silently ignored** — returns HTTP 200 but doesn't flip the flag. Lightning UI only.
 4. **SF Reports API rejects `groupingsDown` names that also appear in `detailColumns`** (specificErrorCode 113). Strip grouping names from the detail columns list before POST.
@@ -441,7 +441,7 @@ Wire `python3 scripts/dashboard_state_dump.py --fail-if-drifted` into a pre-comm
 6. **TABULAR reports cannot source dashboard components** without `dashboardSetting` + `rowLimit` config the API doesn't expose cleanly. Convert TABULAR→SUMMARY with a grouping.
 7. **20-widget hard cap** per dashboard (25 total including text/images). No workaround — split dashboards or move to CRMA.
 8. **Auto-suffix on developerName collision** even after colliding report is DELETEd (sticks for some caching window). Produces `_1`, `_2`, `_3` suffixes.
-9. **Long-lived tabs can trigger session cookie expiry on the API path** (INVALID_SESSION_ID). Refresh via `sf org display --json` and re-run.
+9. **Long-lived tabs can trigger session cookie expiry on the API path** (INVALID_SESSION_ID). Refresh via `sf org display --target-org apro@simcorp.com --json` and re-run.
 
 ### POST-time constraints discovered 2026-04-09
 
@@ -477,28 +477,26 @@ Wire `python3 scripts/dashboard_state_dump.py --fail-if-drifted` into a pre-comm
 
    ```bash
    cd /Users/test/crm-analytics
-   python3 scripts/dashboard_state_dump.py --format markdown | head -30
+   python3 scripts/dashboard_state_dump.py --summary-only
    ```
 
-   Expected output: `✓ Pristine state: 0 active flags, 4 deferred flags, 1 design warning(s)`. If you see active flags, someone has edited live state since this handoff — investigate before doing anything else.
+   Goal: no active flags. If the script hangs again, fall back to direct GETs on `/analytics/dashboards/01ZTb00000FSP7hMAH` and `/analytics/dashboards/01ZTb00000FSP9JMAX` and confirm D1 still shows 8 components / 4 filters before making more changes.
 
-2. **Answer the running-user question** — does the dashboard need to be emailed to the 9 Directors on a schedule? (Yes → can't use LoggedInUser; No → use LoggedInUser.) This single decision determines the UI handoff path.
+2. **Answer the running-user question** — does the dashboard need to be emailed to the 9 Directors on a schedule? (Yes → keep `SpecifiedUser` or clone; No → `LoggedInUser` remains viable.) This is now a distribution decision, not a filter-creation blocker.
 
-3. **Execute the UI handoff** (§9 P0) — 5 minutes, unblocks 9 Directors.
+3. **Lock the 9 Director operating model** (§9 P2) — decide whether the team wants saved bookmarks, enablement screenshots, or a lightweight SOP for the 4 live filters.
 
-4. **Decide on widget consolidation** (§9 P4) — stakeholder conversation with 9 Directors. Have them look at the 8-widget blueprint in the research addendum. Reach a verdict: Option A (consolidate) or Option B (keep 15).
+4. **Metadata deploys** (§9 P1 + P6) — `Calendar_Quarter__c` formula field (trivial) + `Slip_Reason__c` / `Slip_Count__c` schema (medium effort). These are the main remaining schema blockers.
 
-5. **Metadata deploys** (§9 P1 + P6) — `Calendar_Quarter__c` formula field (trivial) + `Slip_Reason__c` / `Slip_Count__c` schema (medium effort). Both unblock widget-count-reducing and signal-improving work.
+5. **Pipeline Inspection list views** (§9 P3) — still required for D2 Forecast Accuracy and the future PI-native slipped-deals view.
 
-6. **If widget consolidation happens, wire the 2 new reports into D1** via PATCH (`00OTb000008fQ3ZMAU`, `00OTb000008fQ6nMAE`). Already built; just need dashboard component binding.
+6. **D1 second-pass refinement** (§9 P4) — if stakeholders want the next iteration, wire the 2 new reports into D1 via PATCH (`00OTb000008fQ3ZMAU`, `00OTb000008fQ6nMAE`).
 
-7. **Industry picklist investigation** (§9 P2) — 30-min SOQL probe, then update the Dashboard 1 filter in the Lightning UI.
+7. **Phase 5 metric registry migration** (§9 P7) — incremental, per widget touched. Start with the missing contract for `00OTb000008fQ6nMAE`.
 
-8. **Phase 5 metric registry migration** (§9 P7) — incremental, per widget touched. Start with `scripts/normalize_and_hash.py`.
+8. **Phase 3 cross-check or Phase 4 deck rebuild** (§9 P8) — once the dashboards are stable, execute the deck infrastructure.
 
-9. **Phase 3 cross-check or Phase 4 deck rebuild** (§9 P8) — once the dashboards are stable, execute the deck infrastructure.
-
-10. **CI gating** (§9 P9) — wire `--fail-if-drifted` into a pre-commit or GitHub Action.
+9. **CI gating** (§9 P9) — wire `--fail-if-drifted` into a pre-commit or GitHub Action.
 
 ## 12. Audit + tooling cheat sheet
 
@@ -507,13 +505,19 @@ Wire `python3 scripts/dashboard_state_dump.py --fail-if-drifted` into a pre-comm
 The pristine-state audit tool. Run it first when starting any dashboard work.
 
 ```bash
-# Human-readable summary (both dashboards, markdown + JSON both emitted by default)
+# Fast startup check
+python3 scripts/dashboard_state_dump.py --summary-only
+
+# Full markdown report to stdout
 python3 scripts/dashboard_state_dump.py
 
 # Markdown only to file
 python3 scripts/dashboard_state_dump.py --format markdown --out-md /tmp/state.md
 
-# JSON only to file
+# JSON only to stdout
+python3 scripts/dashboard_state_dump.py --format json
+
+# Write JSON to file
 python3 scripts/dashboard_state_dump.py --format json --out-json /tmp/state.json
 
 # Single dashboard
@@ -522,6 +526,10 @@ python3 scripts/dashboard_state_dump.py --dashboard 01ZTb00000FSP7hMAH
 # CI gate — exit non-zero if any active flag is present
 python3 scripts/dashboard_state_dump.py --fail-if-drifted
 ```
+
+Defaults to `--target-org apro@simcorp.com`. Override `--target-org` only if you intentionally want a different org.
+
+Known caveat from the 2026-04-09 live continuation: the script hung on the closing pass after the D1 filter/layout consolidation. If that recurs, use direct Analytics API GETs to confirm D1 still has 8 components and 4 filters, then investigate the script separately.
 
 **Flag legend:**
 

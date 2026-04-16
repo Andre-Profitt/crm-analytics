@@ -15,6 +15,21 @@ Salesforce CRM Analytics dashboard suite — programmatic dashboard builders tha
 | **Lead Management**             | `build_lead_management.py`       | ~60     | 3     | Lead scoring, routing analysis, conversion tracking                                                                                                     |
 | **Contract Operations**         | `build_contract_operations.py`   | ~50     | 3     | Contract lifecycle, renewal tracking                                                                                                                    |
 | **Forecasting**                 | `build_forecasting.py`           | ~40     | 2     | Forecast rollup, accuracy trending                                                                                                                      |
+| **Executive Revenue & Forecast** | `build_executive_revenue_forecast.py` | ~20 | 2 | Executive surface for projected revenue, plan gap, forecast confidence, and operational risk                                                            |
+| **Executive Pipeline Risk & Process** | `build_executive_pipeline_risk_process.py` | ~24 | 2 | Executive surface for pipeline coverage, slip pressure, process hygiene, and concentrated execution risk                                                 |
+| **Executive Customer Risk & Growth** | `build_executive_customer_risk_growth.py` | ~23 | 2 | Executive surface for renewal exposure, customer health deterioration, growth concentration, and owner risk                                              |
+| **Pipeline & Opportunity Operations** | `build_pipeline_opportunity_operations.py` | ~50 | 4 | Consolidated manager surface for pipeline delivery, stage velocity, push risk, backward movement, and action queues                                     |
+| **Forecast & Revenue Motions**  | `build_forecast_revenue_motions.py` | ~50 | 4 | Consolidated manager surface for forecast delivery, motion mix, renewal risk, product drivers, and action queues                                        |
+| **Executive Product Mix & Industry** | `build_executive_product_mix_industry.py` | ~27 | 2 | Executive product dashboard for banking, insurance, asset management, pensions, and wealth mix analysis using line-item product families and industry breakdowns |
+| **Product Portfolio & Whitespace** | `build_product_portfolio_dashboard.py` | ~56 | 4 | Product-facing commercial dashboard for sold, renewal, and expansion mix, attach gaps, whitespace, expansion plays, and product mapping risk            |
+| **Product ML & Recommendations** | `build_product_ml_recommendations.py` | ~53 | 4 | Product intelligence dashboard for k-means archetypes, predictive attach models, family-affinity recommendations, and model QA                        |
+| **BDR Manager**                 | `build_bdr_operating_dashboards.py` | ~55 | 4 | BDR manager surface for SLA, meetings, sourced outcomes, source quality, and prioritized team action queues                                              |
+| **BDR Rep Queue**               | `build_bdr_operating_dashboards.py` | ~31 | 3 | BDR rep surface for personal queue execution, meeting rhythm, SLA breaches, and source/campaign quality                                                 |
+| **Customer & Account Health**   | `build_customer_account_health.py` | ~50 | 4 | Consolidated manager surface for account health, renewal pressure, data quality, expansion signals, and action queues                                   |
+| **Lead Funnel**                 | `build_lead_funnel.py` | ~50 | 4 | Consolidated manager surface for lead intake, qualification, response risk, conversion forecasting, and owner action queues                             |
+| **Contract Operations & Renewals** | `build_contract_operations_renewals.py` | ~50 | 4 | Consolidated manager surface for runway coverage, activation throughput, renewal risk, and contract backlog intervention                                |
+| **Revenue/Pipeline Analyst Lab** | `build_revenue_pipeline_analyst_lab.py` | ~33 | 3 | Analyst surface for pipeline segmentation, scenario analysis, and model-quality diagnostics                                                              |
+| **Customer/Revenue Analyst Lab** | `build_customer_revenue_analyst_lab.py` | ~33 | 3 | Analyst surface for customer value concentration, cohort analysis, renewal scenarios, and model-quality diagnostics                                      |
 | **Pipeline History**            | `build_pipeline_history.py`      | ~25     | 1     | Historical pipeline snapshots                                                                                                                           |
 
 ## Architecture
@@ -26,6 +41,7 @@ All dashboards share `crm_analytics_helpers.py` (~1,900 lines), which provides:
 - **SAQL helpers**: `sq()`, `coalesce_filter()`, `aggregate_filter()`
 - **Dataset management**: `upload_dataset()`, `create_dashboard_if_needed()`, `deploy_dashboard()`
 - **Salesforce API**: `sf_query()`, `sf_auth()`, `set_record_links_xmd()`
+- **Portfolio foundation**: `portfolio_foundation.py` provides trendline math, forecast weighting, motion normalization, and reusable scoring helpers for the redesigned dashboards
 
 ## Advanced Pipeline Analytics (flagship)
 
@@ -67,33 +83,75 @@ pip install -r requirements.txt
 
 ## Usage
 
-Deploying requires a live Salesforce org connection (instance URL + access token via the `sf` CLI). Each builder calls `get_auth()` which runs `sf org display` to get credentials from a locally authenticated org.
-
 ```bash
-# Authenticate to your org first
-sf org login web --alias crm-target
+# Deploy Advanced Pipeline Analytics
+python build_advanced_analytics.py
 
-# Then run any individual builder
-python3 build_dashboard.py
-python3 build_advanced_analytics.py
+# Deploy Book of Business
+python build_dashboard.py
 
-# Or deploy everything in dependency order
-python3 scripts/deploy_orchestrator.py
+# Deploy redesigned manager dashboard
+python build_pipeline_opportunity_operations.py
 
-# Dry-run to see the plan without executing
-python3 scripts/deploy_orchestrator.py --dry-run
+# Deploy executive pipeline risk dashboard
+python build_executive_pipeline_risk_process.py
+
+# Deploy executive customer risk dashboard
+python build_executive_customer_risk_growth.py
+
+# Deploy redesigned forecast and motions dashboard
+python build_forecast_revenue_motions.py
+
+# Deploy executive product mix and industry dashboard
+python build_executive_product_mix_industry.py
+
+# Deploy product portfolio and whitespace dashboard
+python build_product_portfolio_dashboard.py
+
+# Deploy product ML and recommendation dashboard
+python build_product_ml_recommendations.py
+
+# Deploy BDR manager and rep dashboards
+python build_bdr_operating_dashboards.py
+
+# Deploy redesigned customer and account health dashboard
+python build_customer_account_health.py
+
+# Deploy redesigned lead funnel dashboard
+python build_lead_funnel.py
+
+# Deploy redesigned contract operations and renewals dashboard
+python build_contract_operations_renewals.py
+
+# Deploy analyst revenue and pipeline lab
+python build_revenue_pipeline_analyst_lab.py
+
+# Deploy analyst customer and revenue lab
+python build_customer_revenue_analyst_lab.py
+
+# Deploy the redesigned portfolio
+make all
 ```
 
 Each builder:
 
-1. Authenticates via `sf` CLI (`sf org display` at runtime)
+1. Authenticates via `sf` CLI
 2. Queries Salesforce (Opportunities, OpportunityHistory, etc.)
 3. Runs ML models and computes analytics
 4. Uploads datasets to CRM Analytics
 5. Builds and deploys the dashboard JSON via PATCH API
 6. Sets XMD record links for drill-through navigation
 
-No `.env` files or hardcoded credentials.
+## Configuration
+
+Authentication uses the Salesforce CLI:
+
+```bash
+sf org login web --alias myorg
+sf config set target-org myorg
+```
+
+No `.env` files or hardcoded credentials — the builders call `sf org display` at runtime.
 
 ## Developer Intelligence
 

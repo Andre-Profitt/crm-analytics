@@ -18,7 +18,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+import ai_os_browser
 import analytics_intelligence as ai  # noqa: E402
+import report_surface_intelligence
 
 
 PROFILES_PATH = ROOT / "config" / "builder_brain_profiles.json"
@@ -31,6 +33,83 @@ DEFAULT_DASHBOARD_FILTER_AUTOMATION_SCRIPT = ROOT / "scripts" / "salesforce_dash
 
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _build_planning_context(
+    *,
+    plan_path: Path | None,
+    evaluation_path: Path | None,
+    query: str | None = None,
+    persona: str | None = None,
+    domain: str | None = None,
+    operation: str | None = None,
+) -> dict[str, Any] | None:
+    if plan_path is None and evaluation_path is None:
+        return None
+
+    planning_context: dict[str, Any] = {}
+    if plan_path is not None:
+        plan_payload = load_json(plan_path)
+        planning_context["plan_path"] = str(plan_path)
+        if isinstance(plan_payload.get("run_id"), str) and plan_payload["run_id"]:
+            planning_context["run_id"] = plan_payload["run_id"]
+        if isinstance(plan_payload.get("goal"), str) and plan_payload["goal"]:
+            planning_context["goal"] = plan_payload["goal"]
+        resolved = plan_payload.get("resolved")
+        if isinstance(resolved, dict):
+            for source_key, target_key in (
+                ("persona", "persona"),
+                ("domain", "domain"),
+                ("operation", "operation"),
+            ):
+                value = resolved.get(source_key)
+                if isinstance(value, str) and value:
+                    planning_context[target_key] = value
+        route = plan_payload.get("route")
+        if isinstance(route, dict):
+            surface_type = route.get("recommended_surface_type")
+            if isinstance(surface_type, str) and surface_type:
+                planning_context["surface_type"] = surface_type
+        candidate_surface = plan_payload.get("candidate_surface")
+        if isinstance(candidate_surface, dict):
+            candidate_surface_id = candidate_surface.get("id")
+            if isinstance(candidate_surface_id, str) and candidate_surface_id:
+                planning_context["candidate_surface_id"] = candidate_surface_id
+        required_evidence = plan_payload.get("required_evidence")
+        if isinstance(required_evidence, list) and required_evidence:
+            planning_context["required_evidence"] = [
+                item for item in required_evidence if isinstance(item, str) and item
+            ]
+        memory_summary = plan_payload.get("memory_summary")
+        if isinstance(memory_summary, dict):
+            memory_health = memory_summary.get("memory_health")
+            if isinstance(memory_health, dict) and memory_health:
+                planning_context["memory_health"] = memory_health
+
+    if evaluation_path is not None:
+        evaluation_payload = load_json(evaluation_path)
+        evaluation = evaluation_payload.get("evaluation")
+        if not isinstance(evaluation, dict):
+            evaluation = evaluation_payload
+        planning_context["evaluation_path"] = str(evaluation_path)
+        verdict = evaluation.get("verdict")
+        if isinstance(verdict, str) and verdict:
+            planning_context["evaluation_verdict"] = verdict
+        if "run_id" not in planning_context:
+            run_id = evaluation.get("run_id")
+            if isinstance(run_id, str) and run_id:
+                planning_context["run_id"] = run_id
+
+    if "goal" not in planning_context and isinstance(query, str) and query:
+        planning_context["goal"] = query
+    if "persona" not in planning_context and isinstance(persona, str) and persona:
+        planning_context["persona"] = persona
+    if "domain" not in planning_context and isinstance(domain, str) and domain:
+        planning_context["domain"] = domain
+    if "operation" not in planning_context and isinstance(operation, str) and operation:
+        planning_context["operation"] = operation
+
+    return planning_context
 
 
 def _resolve_manifest_relative_path(manifest_path: Path, raw_path: str) -> Path:
@@ -376,6 +455,8 @@ def _select_primary_surface(
     route: dict[str, Any],
     profiles: dict[str, Any],
     surface_override: str | None,
+    metric_roles: list[dict[str, str]],
+    recommended_filters: list[str],
 ) -> tuple[str, str | None, str]:
     adapters = profiles["surface_adapters"]
     if surface_override:
@@ -398,6 +479,23 @@ def _select_primary_surface(
             any(token in query_text for token in ("report", "owner list", "follow up", "follow-up", "tabular"))
             or question_id in {"which_deals_need_intervention", "who_needs_work_now", "renewal_risk_queue"}
         ) and persona in {"manager", "individual"}:
+            report_probe = _report_action_surface_assessment(
+                {
+                    "query": resolution["query"],
+                    "persona": persona,
+                    "domain": resolution.get("resolved_domain"),
+                    "question_id": question_id,
+                    "metric_roles": metric_roles,
+                    "recommended_filters": recommended_filters,
+                    "primary_surface": "salesforce_report",
+                    "secondary_surface": "crma_dashboard",
+                    "excellence_target": {},
+                }
+            )
+            if report_probe.get("verdict") == "weak_follow_up_fit" or (
+                not report_probe.get("queue_ready_format") and not _queue_like(question_id)
+            ):
+                return "crma_dashboard", "salesforce_report", "hybrid_story_plus_action_report_demoted"
             return "salesforce_report", "crma_dashboard", "hybrid_queue_handoff"
         if any(token in query_text for token in ("native dashboard", "simple summary", "headline", "headline rollup")):
             return "salesforce_dashboard", "salesforce_report", "hybrid_native_summary"
@@ -697,11 +795,16 @@ def build_spec(
     route = ai.route_surface(inputs, resolution)
     review = ai.build_review_plan(inputs, resolved=resolution, route=route)
     builder_profiles = inputs["builder_profiles"]
+    candidate = _candidate_surface(resolution)
+    recommended_filters = _default_filters(builder_profiles, resolution.get("resolved_domain"))
+    metric_roles = _metric_roles(candidate, resolution.get("resolved_domain"))
     default_primary_surface, default_secondary_surface, _ = _select_primary_surface(
         resolution=resolution,
         route=route,
         profiles=builder_profiles,
         surface_override=None,
+        metric_roles=metric_roles,
+        recommended_filters=recommended_filters,
     )
 
     primary_surface, secondary_surface, selection_reason = _select_primary_surface(
@@ -709,8 +812,9 @@ def build_spec(
         route=route,
         profiles=builder_profiles,
         surface_override=surface_override,
+        metric_roles=metric_roles,
+        recommended_filters=recommended_filters,
     )
-    candidate = _candidate_surface(resolution)
     reference_exemplar = _reference_exemplar(inputs, candidate)
     build_mode = _build_mode(
         candidate=candidate,
@@ -743,7 +847,7 @@ def build_spec(
         builder_profiles["persona_layouts"]["manager"],
     )
 
-    return {
+    spec = {
         "query": query,
         "persona": resolution.get("resolved_persona"),
         "domain": resolution.get("resolved_domain"),
@@ -763,8 +867,8 @@ def build_spec(
         "decision_statement": _decision_statement(resolution, primary_surface, secondary_surface),
         "primary_adapter": primary_adapter["draft_shape"],
         "persona_layout": persona_layout["section_order"],
-        "recommended_filters": _default_filters(builder_profiles, resolution.get("resolved_domain")),
-        "metric_roles": _metric_roles(candidate, resolution.get("resolved_domain")),
+        "recommended_filters": recommended_filters,
+        "metric_roles": metric_roles,
         "review_gate_ids": [gate["id"] for gate in review["gates"]],
         "routing": {
             "recommended_surface_type": route["recommended_surface_type"],
@@ -780,6 +884,9 @@ def build_spec(
             else "executive summary to manager handoff"
         ),
     }
+    if primary_surface == "salesforce_report" or secondary_surface == "salesforce_report":
+        spec["report_action_surface_assessment"] = _report_action_surface_assessment(spec)
+    return spec
 
 
 def _queue_like(question_id: str | None) -> bool:
@@ -826,6 +933,55 @@ def _group_by(spec: dict[str, Any]) -> list[str]:
     if domain in {"revenue", "retention"}:
         return ["Manager", "Owner"]
     return ["Team", "Owner"]
+
+
+def _report_surface_contract_for_assessment(
+    spec: dict[str, Any],
+    draft: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    handoff_surface = None
+    if draft is not None:
+        handoff_surface = draft.get("handoff_surface")
+    if not isinstance(handoff_surface, str) or not handoff_surface:
+        if spec.get("primary_surface") == "salesforce_report":
+            handoff_surface = spec.get("secondary_surface")
+        else:
+            handoff_surface = spec.get("primary_surface")
+    if not isinstance(handoff_surface, str) or not handoff_surface or handoff_surface == "salesforce_report":
+        handoff_surface = "crma_dashboard"
+
+    metric_roles = spec.get("metric_roles", [])
+    action_metric = None
+    if isinstance(metric_roles, list) and len(metric_roles) >= 4 and isinstance(metric_roles[3], dict):
+        action_metric = metric_roles[3].get("metric")
+
+    return {
+        "surface_type": "salesforce_report",
+        "report_format": draft.get("report_format") if draft is not None else _report_format(spec),
+        "group_by": draft.get("group_by", []) if draft is not None else _group_by(spec),
+        "columns": draft.get("columns", []) if draft is not None else _report_columns(spec),
+        "filters": draft.get("filters", []) if draft is not None else spec.get("recommended_filters", []),
+        "sort_by": (
+            draft.get("sort_by", [])
+            if draft is not None
+            else [item for item in (action_metric, "Owner") if isinstance(item, str) and item]
+        ),
+        "handoff_surface": handoff_surface,
+        "page_blueprint": draft.get("page_blueprint", []) if draft is not None else [],
+        "handoff_target": {
+            "surface_type": handoff_surface,
+            "destination_type": "report" if handoff_surface == "salesforce_report" else "dashboard",
+        },
+    }
+
+
+def _report_action_surface_assessment(
+    spec: dict[str, Any],
+    draft: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return report_surface_intelligence.assess_report_action_surface_contract(
+        _report_surface_contract_for_assessment(spec, draft)
+    )
 
 
 def _dashboard_blocks(spec: dict[str, Any], inputs: dict[str, Any]) -> list[dict[str, Any]]:
@@ -923,6 +1079,7 @@ def build_draft(spec: dict[str, Any], inputs: dict[str, Any]) -> dict[str, Any]:
             or primary_adapter.get("default_handoff_surface"),
             "page_model": page_model,
         }
+        draft["action_surface_assessment"] = _report_action_surface_assessment(spec, draft)
     else:
         draft = {
             "shape": primary_adapter["draft_shape"],
@@ -1355,6 +1512,9 @@ def critique_draft(spec: dict[str, Any], draft: dict[str, Any], inputs: dict[str
             strengths.append("Executive headline visual is using a scan-fast story shape.")
 
     if primary_surface == "salesforce_report":
+        action_surface_assessment = draft.get("action_surface_assessment")
+        if not isinstance(action_surface_assessment, dict):
+            action_surface_assessment = spec.get("report_action_surface_assessment")
         if persona in {"manager", "individual"} and draft.get("report_format") != "tabular":
             add_finding(
                 "surface_visual_fit",
@@ -1362,6 +1522,25 @@ def critique_draft(spec: dict[str, Any], draft: dict[str, Any], inputs: dict[str
             )
         elif draft.get("report_format") == "tabular":
             strengths.append("Report format is queue-first and aligned to operating use.")
+        if isinstance(action_surface_assessment, dict):
+            verdict = action_surface_assessment.get("verdict")
+            if verdict == "weak_follow_up_fit":
+                add_finding(
+                    "surface_fit",
+                    "The report package is too weak to carry the primary operating surface and should stay a follow-up handoff instead.",
+                )
+            elif (
+                not action_surface_assessment.get("queue_ready_format")
+                and not _queue_like(spec.get("question_id"))
+            ):
+                add_finding(
+                    "surface_fit",
+                    "The report resolves as a diagnostic shape instead of a queue-first operating surface for this ask.",
+                )
+            elif verdict in {"moderate_follow_up_fit", "strong_follow_up_fit"}:
+                strengths.append(
+                    f"Report action-surface assessment is {str(verdict).replace('_', ' ')} with explicit ownership/time/value cues."
+                )
 
     if primary_surface == "salesforce_dashboard":
         if len(draft.get("page_model", [])) > 2:
@@ -2179,10 +2358,17 @@ def build_package(
     critique_before: dict[str, Any],
     critique_after: dict[str, Any],
     revisions: list[dict[str, str]],
+    planning_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     execution = _execution_profile(spec["primary_surface"])
     surface_contract = _surface_contract(spec, draft)
     surface_contract["handoff_target"] = _handoff_target(inputs, spec, surface_contract.get("handoff_surface"))
+    report_action_surface_assessment = None
+    if spec["primary_surface"] == "salesforce_report":
+        report_action_surface_assessment = report_surface_intelligence.assess_report_action_surface_contract(
+            surface_contract
+        )
+        surface_contract["action_surface_assessment"] = report_action_surface_assessment
     critic_rationale = _critic_rationale(critique_before, critique_after, revisions)
     design_constraints = _design_constraints(critic_rationale)
     execution_plan = _execution_plan(
@@ -2192,7 +2378,7 @@ def build_package(
         spec.get("review_gate_ids", []),
         design_constraints,
     )
-    return {
+    package = {
         "package_version": 1,
         "package_status": (
             "ready_for_execution"
@@ -2221,6 +2407,11 @@ def build_package(
         "revision_summary": [item["change"] for item in revisions],
         "next_steps": _next_steps(spec, draft),
     }
+    if planning_context:
+        package["planning_context"] = planning_context
+    if report_action_surface_assessment:
+        package["report_action_surface_assessment"] = report_action_surface_assessment
+    return package
 
 
 def _package_slug(spec: dict[str, Any]) -> str:
@@ -2253,6 +2444,267 @@ def _command_entry(
     }
 
 
+def _append_evaluation_arg(command: str, planning_context: dict[str, Any] | None) -> str:
+    if not planning_context:
+        return command
+    evaluation_path = planning_context.get("evaluation_path")
+    if not isinstance(evaluation_path, str) or not evaluation_path:
+        return command
+    return f"{command} --evaluation {json.dumps(evaluation_path)}"
+
+
+def _write_memory_health_artifacts(
+    *,
+    output_dir: Path,
+    planning_context: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, Path | None, Path | None]:
+    if not isinstance(planning_context, dict):
+        return None, None, None
+    memory_health = planning_context.get("memory_health")
+    if not isinstance(memory_health, dict) or not memory_health:
+        return None, None, None
+
+    summary_payload = {
+        "artifact_type": "memory_health",
+        "goal": planning_context.get("goal"),
+        "run_id": planning_context.get("run_id"),
+        "domain": planning_context.get("domain"),
+        "operation": planning_context.get("operation"),
+        "memory_health": memory_health,
+    }
+    summary_path = output_dir / "memory_health.json"
+    summary_path.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
+
+    report_lines = [
+        "# Memory Health",
+        "",
+        f"- Goal: {planning_context.get('goal') or 'unknown'}",
+        f"- Run ID: {planning_context.get('run_id') or 'unknown'}",
+        f"- Considered hits: {memory_health.get('considered_hits', 0)}",
+        f"- Excluded policy-exception hits: {memory_health.get('policy_exception_hits_excluded', 0)}",
+        f"- Included failing hits: {memory_health.get('included_fail_count', 0)}",
+        f"- Included needs-more-evidence hits: {memory_health.get('included_needs_more_evidence_count', 0)}",
+        f"- Included generic-goal hits: {memory_health.get('included_generic_goal_count', 0)}",
+        f"- Included missing-context hits: {memory_health.get('included_missing_context_count', 0)}",
+    ]
+    excluded_runs = memory_health.get("excluded_policy_exception_runs") or []
+    if excluded_runs:
+        report_lines.extend(["", "## Excluded Policy-Exception Runs"])
+        for item in excluded_runs:
+            if not isinstance(item, dict):
+                continue
+            report_lines.append(
+                f"- {item.get('run_id')}: {item.get('goal')} [{', '.join(item.get('policy_exceptions') or [])}]"
+            )
+    report_path = output_dir / "memory_health.md"
+    report_path.write_text("\n".join(report_lines) + "\n", encoding="utf-8")
+    return memory_health, summary_path, report_path
+
+
+def _write_handoff_review_artifact(
+    *,
+    output_dir: Path,
+    handoff: dict[str, Any],
+) -> Path:
+    lines = [
+        "# Executor Handoff Review",
+        "",
+        f"- Primary lane: {handoff.get('primary_lane') or 'unknown'}",
+        f"- Repo execution fit: {handoff.get('repo_execution_fit') or 'unknown'}",
+    ]
+    memory_health = handoff.get("memory_health")
+    if isinstance(memory_health, dict):
+        lines.extend(
+            [
+                f"- Excluded policy-exception hits: {memory_health.get('policy_exception_hits_excluded', 0)}",
+                f"- Included failing hits: {memory_health.get('included_fail_count', 0)}",
+                f"- Included generic-goal hits: {memory_health.get('included_generic_goal_count', 0)}",
+            ]
+        )
+
+    lines.extend(["", "## Artifacts"])
+    artifact_fields = (
+        ("package_artifact", "Build package"),
+        ("execution_plan_artifact", "Execution plan"),
+        ("wave_patch_payload_artifact", "Wave patch payload"),
+        ("memory_health_artifact", "Memory health JSON"),
+        ("memory_health_report_artifact", "Memory health review"),
+    )
+    for field, label in artifact_fields:
+        value = handoff.get(field)
+        if isinstance(value, str) and value:
+            lines.append(f"- {label}: `{value}`")
+
+    commands = handoff.get("available_commands") or []
+    if commands:
+        lines.extend(["", "## Available Commands"])
+        for item in commands:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name") or "command"
+            purpose = item.get("purpose") or ""
+            command = item.get("command") or ""
+            lines.append(f"- `{name}`: {purpose}")
+            if command:
+                lines.append(f"  Command: `{command}`")
+
+    external_steps = handoff.get("external_steps") or []
+    if external_steps:
+        lines.extend(["", "## External Steps"])
+        for step in external_steps:
+            lines.append(f"- {step}")
+
+    report_path = output_dir / "handoff.md"
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return report_path
+
+
+def _write_probe_matrix_review_artifact(
+    *,
+    matrix_root: Path,
+    summary: dict[str, Any],
+    probe_runs: list[dict[str, Any]],
+) -> tuple[Path, Path]:
+    lines = [
+        "# Probe Matrix Review",
+        "",
+        f"- Completed: {summary.get('completed', 0)} / {summary.get('total_requested', 0)}",
+        f"- OK: {summary.get('ok_count', 0)}",
+        f"- Warn: {summary.get('warn_count', 0)}",
+        f"- Error: {summary.get('error_count', 0)}",
+        f"- Cleanup requested: {summary.get('cleanup_requested_count', 0)}",
+        f"- Stopped early: {summary.get('stopped_early', False)}",
+    ]
+    lines.extend(["", "## Probe Runs"])
+    for run in probe_runs:
+        if not isinstance(run, dict):
+            continue
+        run_summary = run.get("summary") if isinstance(run.get("summary"), dict) else {}
+        lines.append(
+            f"- Probe {run.get('index')}: {run.get('status')} :: {run.get('name') or Path(str(run.get('result_path') or '')).stem}"
+        )
+        result_path = run.get("result_path")
+        if isinstance(result_path, str) and result_path:
+            lines.append(f"  Result: `{result_path}`")
+        review_path = run_summary.get("handoff_review_artifact")
+        if isinstance(review_path, str) and review_path:
+            lines.append(f"  Handoff review: `{review_path}`")
+        memory_review_path = run_summary.get("memory_health_report_artifact")
+        if isinstance(memory_review_path, str) and memory_review_path:
+            lines.append(f"  Memory health review: `{memory_review_path}`")
+        created_asset_id = run_summary.get("created_asset_id")
+        if isinstance(created_asset_id, str) and created_asset_id:
+            lines.append(f"  Created asset: `{created_asset_id}`")
+
+    review_path = matrix_root / "probe_matrix_review.md"
+    review_text = "\n".join(lines) + "\n"
+    review_path.write_text(review_text, encoding="utf-8")
+    readme_path = matrix_root / "README.md"
+    readme_path.write_text(review_text, encoding="utf-8")
+    return review_path, readme_path
+
+
+def _render_builder_brain_collection_entry(item: dict[str, Any]) -> list[str]:
+    run_label = item.get("label") or Path(str(item.get("run_dir") or "")).name or "run"
+    lines = [
+        f"### {run_label}",
+        f"- Command: `{item.get('command') or 'unknown'}`",
+        f"- Status: `{item.get('status') or 'unknown'}`",
+        f"- Updated: `{item.get('updated_at') or 'unknown'}`",
+    ]
+    if isinstance(item.get("run_dir"), str) and item["run_dir"]:
+        lines.append(f"- Run dir: `{item['run_dir']}`")
+    if isinstance(item.get("landing_artifact"), str) and item["landing_artifact"]:
+        lines.append(f"- Landing page: `{item['landing_artifact']}`")
+    if (
+        isinstance(item.get("review_artifact"), str)
+        and item["review_artifact"]
+        and item["review_artifact"] != item.get("landing_artifact")
+    ):
+        lines.append(f"- Review artifact: `{item['review_artifact']}`")
+    if isinstance(item.get("manifest_path"), str) and item["manifest_path"]:
+        lines.append(f"- Manifest: `{item['manifest_path']}`")
+    if isinstance(item.get("completed"), int) and isinstance(item.get("total_requested"), int):
+        lines.append(f"- Progress: `{item['completed']}/{item['total_requested']}`")
+    if all(isinstance(item.get(key), int) for key in ("ok_count", "warn_count", "error_count")):
+        lines.append(
+            f"- Status counts: `ok={item['ok_count']}` `warn={item['warn_count']}` `error={item['error_count']}`"
+        )
+    return lines
+
+
+def _write_builder_brain_collection_index(
+    *,
+    collection_root: Path,
+    entry: dict[str, Any],
+) -> tuple[Path, Path]:
+    return ai_os_browser.write_run_collection_index(
+        collection_root=collection_root,
+        index_filename="builder_brain_run_index.json",
+        overview_filename="README.md",
+        title="# Builder Brain Runs",
+        entry={
+            "command": entry.get("command"),
+            "status": entry.get("status"),
+            "label": entry.get("label"),
+            "run_dir": entry.get("run_dir"),
+            "landing_artifact": entry.get("landing_artifact"),
+            "review_artifact": entry.get("review_artifact"),
+            "manifest_path": entry.get("manifest_path"),
+            "completed": entry.get("completed"),
+            "total_requested": entry.get("total_requested"),
+            "ok_count": entry.get("ok_count"),
+            "warn_count": entry.get("warn_count"),
+            "error_count": entry.get("error_count"),
+        },
+        render_entry_lines=_render_builder_brain_collection_entry,
+    )
+
+
+def _resolve_builder_brain_browser_root(*, collection_root: Path) -> Path:
+    resolved_root = collection_root.resolve()
+    for candidate in (resolved_root, *resolved_root.parents):
+        if candidate.name == "builder_brain":
+            return candidate
+    return collection_root
+
+
+def _render_builder_brain_browser_collection(item: dict[str, Any]) -> list[str]:
+    collection_label = Path(str(item.get("collection_dir") or "")).name or "collection"
+    lines = [f"### {collection_label}"]
+    if isinstance(item.get("updated_at"), str) and item["updated_at"]:
+        lines.append(f"- Updated: `{item['updated_at']}`")
+    if isinstance(item.get("collection_dir"), str) and item["collection_dir"]:
+        lines.append(f"- Collection dir: `{item['collection_dir']}`")
+    if isinstance(item.get("collection_landing_artifact"), str) and item["collection_landing_artifact"]:
+        lines.append(f"- Collection landing page: `{item['collection_landing_artifact']}`")
+    if isinstance(item.get("collection_index_artifact"), str) and item["collection_index_artifact"]:
+        lines.append(f"- Collection index: `{item['collection_index_artifact']}`")
+    if isinstance(item.get("latest_label"), str) and item["latest_label"]:
+        lines.append(f"- Latest run: `{item['latest_label']}`")
+    if isinstance(item.get("latest_status"), str) and item["latest_status"]:
+        lines.append(f"- Latest status: `{item['latest_status']}`")
+    if isinstance(item.get("latest_run_dir"), str) and item["latest_run_dir"]:
+        lines.append(f"- Latest run dir: `{item['latest_run_dir']}`")
+    if isinstance(item.get("latest_landing_artifact"), str) and item["latest_landing_artifact"]:
+        lines.append(f"- Latest landing page: `{item['latest_landing_artifact']}`")
+    if isinstance(item.get("run_count"), int):
+        lines.append(f"- Indexed runs: `{item['run_count']}`")
+    return lines
+
+
+def _write_builder_brain_browser_index(*, browser_root: Path) -> tuple[Path, Path]:
+    return ai_os_browser.write_collection_browser_index(
+        browser_root=browser_root,
+        source_index_filename="builder_brain_run_index.json",
+        collection_landing_filename="README.md",
+        output_index_filename="builder_brain_collections_index.json",
+        output_overview_filename="builder_brain_overview.md",
+        title="# Builder Brain Collections",
+        render_collection_lines=_render_builder_brain_browser_collection,
+    )
+
+
 def build_executor_handoff(
     *,
     inputs: dict[str, Any],
@@ -2269,6 +2721,13 @@ def build_executor_handoff(
     if execution_plan:
         execution_plan_path = output_dir / "execution_plan.json"
         execution_plan_path.write_text(json.dumps(execution_plan, indent=2), encoding="utf-8")
+    planning_context = build_package_payload.get("planning_context")
+    if not isinstance(planning_context, dict):
+        planning_context = None
+    memory_health, memory_health_path, memory_health_report_path = _write_memory_health_artifacts(
+        output_dir=output_dir,
+        planning_context=planning_context,
+    )
     wave_patch_payload = None
     wave_patch_payload_path = None
     if spec["primary_surface"] == "crma_dashboard" and execution_plan:
@@ -2276,9 +2735,12 @@ def build_executor_handoff(
             if phase.get("phase") == "storyboard_patch" and phase.get("wave_patch_payload"):
                 wave_patch_payload = phase["wave_patch_payload"]
                 break
-        if wave_patch_payload:
-            wave_patch_payload_path = output_dir / "wave_patch_payload.json"
-            wave_patch_payload_path.write_text(json.dumps(wave_patch_payload, indent=2), encoding="utf-8")
+    if wave_patch_payload:
+        wave_patch_payload = deepcopy(wave_patch_payload)
+        if planning_context:
+            wave_patch_payload["planning_context"] = planning_context
+        wave_patch_payload_path = output_dir / "wave_patch_payload.json"
+        wave_patch_payload_path.write_text(json.dumps(wave_patch_payload, indent=2), encoding="utf-8")
 
     primary_surface = spec["primary_surface"]
     candidate_label = None
@@ -2290,6 +2752,45 @@ def build_executor_handoff(
 
     available_commands: list[dict[str, Any]] = []
     external_steps: list[str] = []
+    memory_health = memory_health if isinstance(memory_health, dict) else None
+    if isinstance(memory_health, dict):
+        excluded_hits = memory_health.get("policy_exception_hits_excluded")
+        fail_hits = memory_health.get("included_fail_count")
+        generic_hits = memory_health.get("included_generic_goal_count")
+        if any(isinstance(value, int) and value > 0 for value in (excluded_hits, fail_hits, generic_hits)):
+            goal = planning_context.get("goal")
+            if isinstance(goal, str) and goal:
+                command_parts = [
+                    "python3 scripts/run_memory.py search",
+                    f"--goal {json.dumps(goal)}",
+                ]
+                domain = planning_context.get("domain")
+                if isinstance(domain, str) and domain:
+                    command_parts.append(f"--domain {json.dumps(domain)}")
+                operation = planning_context.get("operation")
+                if isinstance(operation, str) and operation:
+                    command_parts.append(f"--operation {json.dumps(operation)}")
+                command_parts.append("--include-policy-exceptions --json")
+                available_commands.append(
+                    _command_entry(
+                        inputs=inputs,
+                        script_path="scripts/run_memory.py",
+                        command=" ".join(command_parts),
+                        purpose="Inspect similar run memory, including excluded policy-exception hits, before trusting reuse.",
+                    )
+                )
+            if isinstance(excluded_hits, int) and excluded_hits > 0:
+                external_steps.append(
+                    f"Review {excluded_hits} excluded policy-exception memory hit(s) before relying on prior run patterns."
+                )
+            if isinstance(fail_hits, int) and fail_hits > 0:
+                external_steps.append(
+                    f"Review {fail_hits} prior failing memory hit(s) before live execution."
+                )
+            if isinstance(generic_hits, int) and generic_hits > 0:
+                external_steps.append(
+                    f"Audit {generic_hits} generic-goal memory hit(s); quarantine them if they are polluting reuse quality."
+                )
 
     if primary_surface == "crma_dashboard":
         if candidate_label:
@@ -2323,11 +2824,14 @@ def build_executor_handoff(
                 _command_entry(
                     inputs=inputs,
                     script_path="scripts/wave_patch_executor.py",
-                    command=(
+                    command=_append_evaluation_arg(
+                        (
                         f"python3 scripts/wave_patch_executor.py bundle "
                         f"--payload {json.dumps(str(wave_patch_payload_path))} "
                         f"--baseline {json.dumps(str(baseline_dashboard_path))} "
                         f"--output-dir {json.dumps(str(bundle_output_dir))} --json"
+                        ),
+                        planning_context,
                     ),
                     purpose="Compile the packaged CRMA payload and exported baseline into a normalized Wave patch bundle.",
                 )
@@ -2337,11 +2841,14 @@ def build_executor_handoff(
                 _command_entry(
                     inputs=inputs,
                     script_path="scripts/wave_patch_executor.py",
-                    command=(
+                    command=_append_evaluation_arg(
+                        (
                         f"python3 scripts/wave_patch_executor.py deploy "
                         f"--state {json.dumps(str(bundle_output_dir / 'dashboard_state.patch.json'))} "
                         f"--baseline {json.dumps(str(baseline_dashboard_path))} "
                         f"--output-dir {json.dumps(str(deploy_output_dir))} --json"
+                        ),
+                        planning_context,
                     ),
                     purpose="Preview the final Wave PATCH request against the inferred live dashboard target before any live mutation.",
                 )
@@ -2415,10 +2922,13 @@ def build_executor_handoff(
             _command_entry(
                 inputs=inputs,
                 script_path="scripts/salesforce_report_executor.py",
-                command=(
+                command=_append_evaluation_arg(
+                    (
                     f"python3 scripts/salesforce_report_executor.py apply "
                     f"--package {json.dumps(str(package_path))} "
                     f"--output-dir {json.dumps(str(report_bundle_dir))} --json"
+                    ),
+                    planning_context,
                 ),
                 purpose="Preview the executable Reports REST request sequence and confirm whether the package is mutation-ready.",
             )
@@ -2427,11 +2937,14 @@ def build_executor_handoff(
             _command_entry(
                 inputs=inputs,
                 script_path="scripts/salesforce_report_executor.py",
-                command=(
+                command=_append_evaluation_arg(
+                    (
                     f"python3 scripts/salesforce_report_executor.py complete "
                     f"--package {json.dumps(str(package_path))} "
                     f"--target-org __FILL_TARGET_ORG__ "
                     f"--output-dir {json.dumps(str(report_bundle_dir))} --json"
+                    ),
+                    planning_context,
                 ),
                 purpose="Apply the native report and immediately verify the authored live result in one CLI flow.",
             )
@@ -2508,10 +3021,13 @@ def build_executor_handoff(
             _command_entry(
                 inputs=inputs,
                 script_path="scripts/salesforce_dashboard_executor.py",
-                command=(
+                command=_append_evaluation_arg(
+                    (
                     f"python3 scripts/salesforce_dashboard_executor.py apply "
                     f"--package {json.dumps(str(package_path))} "
                     f"--output-dir {json.dumps(str(dashboard_bundle_dir))} --json"
+                    ),
+                    planning_context,
                 ),
                 purpose="Preview the executable Dashboards REST request sequence and confirm whether the package is mutation-ready.",
             )
@@ -2520,12 +3036,15 @@ def build_executor_handoff(
             _command_entry(
                 inputs=inputs,
                 script_path="scripts/salesforce_dashboard_executor.py",
-                command=(
+                command=_append_evaluation_arg(
+                    (
                     f"python3 scripts/salesforce_dashboard_executor.py complete "
                     f"--package {json.dumps(str(package_path))} "
                     f"--session __FILL_PLAYWRIGHT_SESSION__ "
                     f"--target-org __FILL_TARGET_ORG__ "
                     f"--output-dir {json.dumps(str(dashboard_bundle_dir))} --json"
+                    ),
+                    planning_context,
                 ),
                 purpose="Apply the native dashboard, author all planned manual filters in one browser flow, and verify the finished live asset.",
             )
@@ -2562,14 +3081,25 @@ def build_executor_handoff(
         "critic_rationale": build_package_payload.get("critic_rationale", []),
         "execution_plan": execution_plan,
         "wave_patch_payload": wave_patch_payload,
+        "planning_context": planning_context,
+        "memory_health": memory_health if isinstance(memory_health, dict) else None,
+        "memory_health_artifact": str(memory_health_path) if memory_health_path else None,
+        "memory_health_report_artifact": str(memory_health_report_path) if memory_health_report_path else None,
         "available_commands": available_commands,
         "external_steps": external_steps,
     }
+    handoff_review_path = _write_handoff_review_artifact(output_dir=output_dir, handoff=handoff)
+    handoff["handoff_review_artifact"] = str(handoff_review_path)
     artifacts = [{"type": "build_package", "path": str(package_path)}]
     if execution_plan_path:
         artifacts.append({"type": "execution_plan", "path": str(execution_plan_path)})
     if wave_patch_payload_path:
         artifacts.append({"type": "wave_patch_payload", "path": str(wave_patch_payload_path)})
+    if memory_health_path:
+        artifacts.append({"type": "memory_health", "path": str(memory_health_path)})
+    if memory_health_report_path:
+        artifacts.append({"type": "memory_health_report", "path": str(memory_health_report_path)})
+    artifacts.append({"type": "handoff_review", "path": str(handoff_review_path)})
     return handoff, artifacts
 
 
@@ -2807,7 +3337,25 @@ def build_package_result(
     domain: str | None,
     operation: str | None,
     surface_override: str | None,
+    plan_path: Path | None,
+    evaluation_path: Path | None,
 ) -> dict[str, Any]:
+    try:
+        planning_context = _build_planning_context(
+            plan_path=plan_path,
+            evaluation_path=evaluation_path,
+            query=query,
+            persona=persona,
+            domain=domain,
+            operation=operation,
+        )
+    except Exception as exc:
+        return make_result(
+            status="error",
+            command="package",
+            messages=[ai.make_message("error", "planning_context_invalid", str(exc))],
+        )
+
     spec = build_spec(
         inputs,
         query=query,
@@ -2827,6 +3375,7 @@ def build_package_result(
         critique_before,
         critique_after,
         revision_log,
+        planning_context,
     )
     return make_result(
         status=critique_after["status"],
@@ -2858,7 +3407,25 @@ def build_handoff_result(
     operation: str | None,
     surface_override: str | None,
     output_dir: Path | None,
+    plan_path: Path | None,
+    evaluation_path: Path | None,
 ) -> dict[str, Any]:
+    try:
+        planning_context = _build_planning_context(
+            plan_path=plan_path,
+            evaluation_path=evaluation_path,
+            query=query,
+            persona=persona,
+            domain=domain,
+            operation=operation,
+        )
+    except Exception as exc:
+        return make_result(
+            status="error",
+            command="handoff",
+            messages=[ai.make_message("error", "planning_context_invalid", str(exc))],
+        )
+
     spec = build_spec(
         inputs,
         query=query,
@@ -2878,6 +3445,7 @@ def build_handoff_result(
         critique_before,
         critique_after,
         revision_log,
+        planning_context,
     )
     effective_output_dir = output_dir or (ROOT / "output" / "builder_brain" / _package_slug(revised_spec))
     executor_handoff, artifacts = build_executor_handoff(
@@ -2964,6 +3532,8 @@ def build_probe_result(
                 operation=operation,
                 surface_override=surface_override,
                 output_dir=handoff_root / "00_handoff",
+                plan_path=None,
+                evaluation_path=None,
             )
     except Exception as exc:
         return make_result(
@@ -3036,6 +3606,7 @@ def build_probe_result(
             "--autofill-live",
             "--target-org",
             target_org,
+            "--allow-missing-evaluation",
             "--output-dir",
             str(execute_output_dir),
             "--json",
@@ -3079,6 +3650,7 @@ def build_probe_result(
             "--autofill-live",
             "--target-org",
             target_org,
+            "--allow-missing-evaluation",
             "--session",
             session,
             "--dashboard-filter-automation-script",
@@ -3255,6 +3827,11 @@ def build_probe_result(
         "cleanup_requested": cleanup,
         "created_asset_id": applied_asset_id,
         "package_source": "provided_package" if package_path is not None else "query_routing",
+        "package_artifact": executor_handoff.get("package_artifact"),
+        "execution_plan_artifact": executor_handoff.get("execution_plan_artifact"),
+        "memory_health_artifact": executor_handoff.get("memory_health_artifact"),
+        "memory_health_report_artifact": executor_handoff.get("memory_health_report_artifact"),
+        "handoff_review_artifact": executor_handoff.get("handoff_review_artifact"),
     }
     if cleanup_result is not None:
         probe_summary["cleanup_status"] = cleanup_result.get("status")
@@ -3478,6 +4055,49 @@ def build_probe_matrix_result(
         "cleanup_requested_count": cleanup_requested_count,
         "stopped_early": stopped_early,
     }
+    matrix_review_path, matrix_readme_path = _write_probe_matrix_review_artifact(
+        matrix_root=matrix_root,
+        summary=summary,
+        probe_runs=probe_runs,
+    )
+    collection_index_path, collection_readme_path = _write_builder_brain_collection_index(
+        collection_root=matrix_root.parent,
+        entry={
+            "command": "probe-matrix",
+            "status": overall_status,
+            "label": matrix_root.name,
+            "run_dir": str(matrix_root),
+            "landing_artifact": str(matrix_readme_path),
+            "review_artifact": str(matrix_review_path),
+            "manifest_path": str(manifest_file),
+            "completed": len(probe_runs),
+            "total_requested": len(probes),
+            "ok_count": ok_count,
+            "warn_count": warn_count,
+            "error_count": error_count,
+        },
+    )
+    browser_index_path, browser_overview_path = _write_builder_brain_browser_index(
+        browser_root=_resolve_builder_brain_browser_root(collection_root=matrix_root.parent),
+    )
+    ai_os_browser_index_path, ai_os_browser_overview_path = ai_os_browser.write_ai_os_browser_index(
+        browser_root=ai_os_browser.resolve_ai_os_browser_root(collection_root=matrix_root.parent),
+    )
+    ai_os_health_summary = ai_os_browser.load_ai_os_browser_health_summary(index_path=ai_os_browser_index_path)
+    ai_os_health_index_path, ai_os_health_overview_path = ai_os_browser.resolve_ai_os_health_paths(
+        browser_root=ai_os_browser_index_path.parent,
+    )
+    summary["review_artifact"] = str(matrix_review_path)
+    summary["landing_artifact"] = str(matrix_readme_path)
+    summary["collection_index_artifact"] = str(collection_index_path)
+    summary["collection_landing_artifact"] = str(collection_readme_path)
+    summary["browser_index_artifact"] = str(browser_index_path)
+    summary["browser_landing_artifact"] = str(browser_overview_path)
+    summary["ai_os_browser_index_artifact"] = str(ai_os_browser_index_path)
+    summary["ai_os_browser_landing_artifact"] = str(ai_os_browser_overview_path)
+    summary["ai_os_health_index_artifact"] = str(ai_os_health_index_path)
+    summary["ai_os_health_landing_artifact"] = str(ai_os_health_overview_path)
+    summary["ai_os_health_summary"] = ai_os_health_summary
     summary_path = matrix_root / "probe_matrix_summary.json"
     summary_path.write_text(
         json.dumps(
@@ -3495,7 +4115,32 @@ def build_probe_matrix_result(
             "error" if overall_status == "error" else "warn" if overall_status == "warn" else "info",
             "probe_matrix_complete",
             f"Completed {len(probe_runs)} of {len(probes)} probe run(s).",
-        )
+        ),
+        ai.make_message(
+            "info",
+            "probe_matrix_review_ready",
+            f"Operator landing page: {matrix_readme_path}",
+        ),
+        ai.make_message(
+            "info",
+            "builder_brain_collection_index_ready",
+            f"Collection landing page: {collection_readme_path}",
+        ),
+        ai.make_message(
+            "info",
+            "builder_brain_browser_ready",
+            f"Builder-brain browser: {browser_overview_path}",
+        ),
+        ai.make_message(
+            "info",
+            "ai_os_browser_ready",
+            f"AI OS browser: {ai_os_browser_overview_path}",
+        ),
+        ai.make_message(
+            "info",
+            "ai_os_health_ready",
+            f"AI OS health: {ai_os_health_overview_path}",
+        ),
     ]
     return make_result(
         status=overall_status,
@@ -3504,6 +4149,16 @@ def build_probe_matrix_result(
         artifacts=[
             {"type": "probe_matrix_manifest", "path": str(manifest_copy_path)},
             {"type": "probe_matrix_summary", "path": str(summary_path)},
+            {"type": "probe_matrix_review", "path": str(matrix_review_path)},
+            {"type": "probe_matrix_readme", "path": str(matrix_readme_path)},
+            {"type": "builder_brain_run_index", "path": str(collection_index_path)},
+            {"type": "builder_brain_collection_readme", "path": str(collection_readme_path)},
+            {"type": "builder_brain_collections_index", "path": str(browser_index_path)},
+            {"type": "builder_brain_overview", "path": str(browser_overview_path)},
+            {"type": "ai_os_collections_index", "path": str(ai_os_browser_index_path)},
+            {"type": "ai_os_overview", "path": str(ai_os_browser_overview_path)},
+            {"type": "ai_os_health", "path": str(ai_os_health_index_path)},
+            {"type": "ai_os_health_overview", "path": str(ai_os_health_overview_path)},
             *({"type": "probe_result", "path": run["result_path"]} for run in probe_runs),
         ],
         command_class="mutating",
@@ -3571,6 +4226,11 @@ def print_text(payload: dict[str, Any]) -> None:
         print(f"repo_execution_fit: {package['repo_execution_fit']}")
         print(f"revised_primary_surface: {payload['revised_spec']['primary_surface']}")
         print(f"execution_plan: {package['execution_plan']['plan_type']}")
+        memory_health = (package.get("planning_context") or {}).get("memory_health")
+        if isinstance(memory_health, dict):
+            excluded_hits = memory_health.get("policy_exception_hits_excluded")
+            if isinstance(excluded_hits, int) and excluded_hits > 0:
+                print(f"excluded_policy_exception_hits: {excluded_hits}")
         for item in package.get("critic_rationale", []):
             print(f"- critic: {item['critic']} ({item['status_before']} -> {item['status_after']})")
         for step in package["next_steps"]:
@@ -3580,10 +4240,21 @@ def print_text(payload: dict[str, Any]) -> None:
         print(f"primary_lane: {handoff['primary_lane']}")
         print(f"repo_execution_fit: {handoff['repo_execution_fit']}")
         print(f"package_artifact: {handoff['package_artifact']}")
+        memory_health = handoff.get("memory_health")
+        if isinstance(memory_health, dict):
+            excluded_hits = memory_health.get("policy_exception_hits_excluded")
+            if isinstance(excluded_hits, int) and excluded_hits > 0:
+                print(f"excluded_policy_exception_hits: {excluded_hits}")
         if handoff.get("execution_plan_artifact"):
             print(f"execution_plan_artifact: {handoff['execution_plan_artifact']}")
         if handoff.get("wave_patch_payload_artifact"):
             print(f"wave_patch_payload_artifact: {handoff['wave_patch_payload_artifact']}")
+        if handoff.get("memory_health_artifact"):
+            print(f"memory_health_artifact: {handoff['memory_health_artifact']}")
+        if handoff.get("memory_health_report_artifact"):
+            print(f"memory_health_report_artifact: {handoff['memory_health_report_artifact']}")
+        if handoff.get("handoff_review_artifact"):
+            print(f"handoff_review_artifact: {handoff['handoff_review_artifact']}")
         for item in handoff.get("design_constraints", []):
             print(f"- constraint: {item}")
         for item in handoff["available_commands"]:
@@ -3597,6 +4268,10 @@ def print_text(payload: dict[str, Any]) -> None:
         print(f"created_asset_id: {summary.get('created_asset_id')}")
         print(f"cleanup_requested: {summary['cleanup_requested']}")
         print(f"package_source: {summary.get('package_source')}")
+        if summary.get("handoff_review_artifact"):
+            print(f"handoff_review_artifact: {summary['handoff_review_artifact']}")
+        if summary.get("memory_health_report_artifact"):
+            print(f"memory_health_report_artifact: {summary['memory_health_report_artifact']}")
         if "cleanup_status" in summary:
             print(f"cleanup_status: {summary['cleanup_status']}")
     if payload["command"] == "probe-matrix":
@@ -3607,8 +4282,38 @@ def print_text(payload: dict[str, Any]) -> None:
         print(f"error_count: {summary['error_count']}")
         print(f"cleanup_requested_count: {summary['cleanup_requested_count']}")
         print(f"stopped_early: {summary['stopped_early']}")
+        if summary.get("ai_os_browser_landing_artifact"):
+            print(f"ai_os_browser_landing_artifact: {summary['ai_os_browser_landing_artifact']}")
+        if summary.get("ai_os_browser_index_artifact"):
+            print(f"ai_os_browser_index_artifact: {summary['ai_os_browser_index_artifact']}")
+        if summary.get("ai_os_health_landing_artifact"):
+            print(f"ai_os_health_landing_artifact: {summary['ai_os_health_landing_artifact']}")
+        if summary.get("ai_os_health_index_artifact"):
+            print(f"ai_os_health_index_artifact: {summary['ai_os_health_index_artifact']}")
+        ai_os_health_summary = summary.get("ai_os_health_summary") or {}
+        if isinstance(ai_os_health_summary, dict) and ai_os_health_summary:
+            print(f"ai_os_risk_run_count: {ai_os_health_summary.get('risk_run_count', 0)}")
+            print(f"ai_os_attention_run_count: {ai_os_health_summary.get('attention_run_count', 0)}")
+            print(f"ai_os_evaluation_bypass_count: {ai_os_health_summary.get('evaluation_bypass_count', 0)}")
+            print(f"ai_os_stale_collection_count: {ai_os_health_summary.get('stale_collection_count', 0)}")
+        if summary.get("browser_landing_artifact"):
+            print(f"builder_brain_browser_landing_artifact: {summary['browser_landing_artifact']}")
+        if summary.get("browser_index_artifact"):
+            print(f"builder_brain_browser_index_artifact: {summary['browser_index_artifact']}")
+        if summary.get("collection_landing_artifact"):
+            print(f"builder_brain_collection_landing_artifact: {summary['collection_landing_artifact']}")
+        if summary.get("collection_index_artifact"):
+            print(f"builder_brain_collection_index_artifact: {summary['collection_index_artifact']}")
+        if summary.get("landing_artifact"):
+            print(f"probe_matrix_landing_artifact: {summary['landing_artifact']}")
+        if summary.get("review_artifact"):
+            print(f"probe_matrix_review_artifact: {summary['review_artifact']}")
         for run in payload.get("probe_runs", []):
-            print(f"- probe[{run['index']}]: {run['status']} -> {run['result_path']}")
+            review_path = (run.get("summary") or {}).get("handoff_review_artifact")
+            if isinstance(review_path, str) and review_path:
+                print(f"- probe[{run['index']}]: {run['status']} -> {run['result_path']} :: review={review_path}")
+            else:
+                print(f"- probe[{run['index']}]: {run['status']} -> {run['result_path']}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -3632,6 +4337,13 @@ def build_parser() -> argparse.ArgumentParser:
             default=None,
             help="Optional forced primary surface (salesforce_report, salesforce_dashboard, crma_dashboard).",
         )
+        if command == "package":
+            subparser.add_argument("--plan", default=None, help="Optional path to plan.json from the planner.")
+            subparser.add_argument(
+                "--evaluation",
+                default=None,
+                help="Optional path to evaluation.json from the plan evaluator.",
+            )
         subparser.add_argument("--json", action="store_true", help="Print JSON output.")
 
     handoff = subparsers.add_parser("handoff", help="Build an executor-facing handoff from the revised package.")
@@ -3648,6 +4360,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         default=None,
         help="Optional directory for the emitted build package artifact.",
+    )
+    handoff.add_argument("--plan", default=None, help="Optional path to plan.json from the planner.")
+    handoff.add_argument(
+        "--evaluation",
+        default=None,
+        help="Optional path to evaluation.json from the plan evaluator.",
     )
     handoff.add_argument("--json", action="store_true", help="Print JSON output.")
 
@@ -3816,6 +4534,8 @@ def main() -> int:
                 domain=args.domain,
                 operation=args.operation,
                 surface_override=surface_override,
+                plan_path=Path(args.plan).expanduser() if args.plan else None,
+                evaluation_path=Path(args.evaluation).expanduser() if args.evaluation else None,
             )
         elif args.command == "probe":
             payload = build_probe_result(
@@ -3855,6 +4575,8 @@ def main() -> int:
                 operation=args.operation,
                 surface_override=surface_override,
                 output_dir=Path(args.output_dir).expanduser() if args.output_dir else None,
+                plan_path=Path(args.plan).expanduser() if args.plan else None,
+                evaluation_path=Path(args.evaluation).expanduser() if args.evaluation else None,
             )
 
     if getattr(args, "json", False):

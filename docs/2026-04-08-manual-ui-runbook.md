@@ -1,7 +1,8 @@
 # Manual UI Runbook — Sales Director Monthly + Sales Ops Quarterly
 
 Date: 2026-04-08
-For: the 5-minute UI handoff that unblocks per-Director scoping, plus the deferred PI list view work and schema change.
+Updated: 2026-04-09
+For: the UI-only dashboard / report work the REST API cannot do. Section 1 was completed live on 2026-04-09 and is now the recovery/edit procedure for D1 rather than an unmet handoff.
 
 Every step below is something the REST API either cannot do or silently refuses to do. The issues are documented in the session handoffs (`feedback_sf_classic_dashboard_lightning_save.md`) and the deep audit.
 
@@ -12,9 +13,9 @@ Every step below is something the REST API either cannot do or silently refuses 
 - Dashboard 1 URL: `https://simcorp.lightning.force.com/lightning/r/Dashboard/01ZTb00000FSP7hMAH/view`
 - Dashboard 2 URL: `https://simcorp.lightning.force.com/lightning/r/Dashboard/01ZTb00000FSP9JMAX/view`
 
-## Section 1 — Dashboard 1 filters + running user (5 minutes)
+## Section 1 — Dashboard 1 filters + running user (current live state + recovery procedure)
 
-This is the single highest-leverage manual step. Every step is UI-only because the Analytics REST API cannot CREATE dashboard filters and `PATCH canChangeRunningUser` returns 200 but silently ignores the change.
+D1 now has 4 saved native dashboard filters. Use this section if you need to recreate them, change their value lists, or recover from a future save/regression. Filter creation remains UI-only because the Analytics REST API cannot CREATE dashboard filters and `PATCH canChangeRunningUser` still returns 200 but silently ignores the change.
 
 ### Step 1.1 — Open Dashboard 1 in edit mode
 
@@ -44,63 +45,74 @@ This is the single highest-leverage manual step. Every step is UI-only because t
 3. Display label: `Legal Country`
 4. Values to add:
    - Canada
-   - United States
+   - Exclude Canada
 5. Click **Add**
 
-### Step 1.4 — Add filter 3: Industry (if possible)
+### Step 1.4 — Add filter 3: Industry
 
-**Warning:** the Lightning filter popover for `Account.Industry` shows generic SF industries (Accommodations, Banking, ...) but the actual SimCorp data uses custom values (Asset Management, Pension, Insurance, Bank, Asset Servicer, ...). This is the **Industry picklist mismatch** noted in the handoff.
-
-Options:
-
-- **(A)** Use `Account: Industry` anyway, add the generic picklist values you see, and note that Patrick + Adam's NAM sub-cuts will not work cleanly.
-- **(B)** Skip this filter; address after the Industry investigation (see §Section 3).
-
-If you choose (A):
+The correct live field is the standard `Account: Industry` filter. This was verified on 2026-04-09; the custom `ZIMIT__zIndustry__c` field is not the right one for the D1 operating model.
 
 1. Click **+ Filter**
 2. Filter field: `Account: Industry`
-3. Values: whatever is shown (Asset Management, Pension, Insurance, Bank, Wealth Management if present, Asset Servicer, Other)
+3. Values:
+   - Asset Management
+   - Bank
+   - Insurance
+   - Pension
+   - Wealth Management
+   - Asset Servicer
+   - Other
 4. Click **Add**
 
-### Step 1.5 — Flip `canChangeRunningUser`
+### Step 1.5 — Add filter 4: Account Unit Group
+
+1. Click **+ Filter**
+2. Filter field: `Opportunity: Account Unit Group` (`Opportunity.Account_Unit_Group__c`)
+3. Display label: `Account Unit Group`
+4. Values:
+   - SC North America
+   - SC Asia
+   - SC EMEA
+5. Click **Add**
+
+### Step 1.6 — Optional: flip `canChangeRunningUser`
 
 1. Click the **gear icon** (Edit Dashboard Properties)
 2. Under "View Dashboard As", select **The dashboard viewer** (equivalent to `LoggedInUser`)
 3. Check the box: **Let dashboard viewers choose whom they view the dashboard as** (this is the `canChangeRunningUser = true` flag)
 4. Click **Save** inside the properties modal
 
-### Step 1.6 — Save the dashboard
+### Step 1.7 — Save the dashboard
 
 1. Click **Save** in the top toolbar (NOT "Save As")
 2. Click **Done** to exit edit mode
 
-**⚠️ Known issue:** the Save button on SF Classic dashboards running in Lightning Experience can silently fail under browser automation (Playwright, Puppeteer, CDP click simulation). Manual click works. If the Save button appears to do nothing on manual click, reload the page and try again — this has been observed once per session occasionally.
+**⚠️ Known issue:** this save path was flaky during earlier classic→Lightning automation attempts, but the 2026-04-09 filter/layout pass did persist successfully once the dashboard was already in the Lightning editor. Manual click is still the safe fallback if automation stalls.
 
-### Step 1.7 — Verify
+### Step 1.8 — Verify
 
 1. Reload `https://simcorp.lightning.force.com/lightning/r/Dashboard/01ZTb00000FSP7hMAH/view`
-2. Confirm 2 or 3 filters appear in the top filter bar (depending on whether you added Industry)
-3. Confirm there's a "View As" dropdown in the top-right (the running-user selector)
-4. Try applying **Sales Region = APAC** → verify Jesper Tyrer's pipeline slice appears
+2. Confirm 4 filters appear in the top filter bar: `Industry`, `Legal Country`, `Sales Region`, `Account Unit Group`
+3. If you changed running-user mode, confirm there's a "View As" dropdown in the top-right
+4. Try applying **Sales Region = APAC** + **Account Unit Group = SC Asia** → verify Jesper Tyrer's pipeline slice appears
 
 ### The 9 Director preset filter combos
 
 Once filters exist, the 9 Directors each open the dashboard and apply their combo:
 
-| Director                       | Filter combo                                                                                       |
-| ------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Jesper Tyrer (APAC)            | Sales Region = APAC                                                                                |
-| Sarah Pittroff (CE)            | Sales Region = Central Europe                                                                      |
-| Francois Thaury (SE)           | Sales Region = Southwestern Europe                                                                 |
-| Dan Peppett (UK&I)             | Sales Region = United Kingdom & Ireland                                                            |
-| Christian Ebbesen (NL&Nordics) | Sales Region = Northern Europe                                                                     |
-| Mourad Essofi (MEA)            | Sales Region = Middle East & Africa                                                                |
-| Megan Miceli (Canada)          | Legal Country = Canada                                                                             |
-| Patrick Gaughan (NA rest)      | Sales Region = North America AND Legal Country = United States                                     |
-| Adam Steinhaus (NA P&I)        | Sales Region = North America AND Legal Country = United States AND Industry ∈ (Pension, Insurance) |
+| Director                       | Filter combo                                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Jesper Tyrer (APAC)            | Sales Region = APAC AND Account Unit Group = SC Asia                                                                             |
+| Sarah Pittroff (CE)            | Sales Region = Central Europe AND Account Unit Group = SC EMEA                                                                   |
+| Francois Thaury (SE)           | Sales Region = Southwestern Europe AND Account Unit Group = SC EMEA                                                              |
+| Dan Peppett (UK&I)             | Sales Region = United Kingdom & Ireland AND Account Unit Group = SC EMEA                                                         |
+| Christian Ebbesen (NL&Nordics) | Sales Region = Northern Europe AND Account Unit Group = SC EMEA                                                                  |
+| Mourad Essofi (MEA)            | Sales Region = Middle East & Africa AND Account Unit Group = SC EMEA                                                             |
+| Megan Miceli (Canada)          | Sales Region = North America AND Legal Country = Canada AND Account Unit Group = SC North America                                |
+| Patrick Gaughan (NA rest)      | Sales Region = North America AND Legal Country = Exclude Canada AND Account Unit Group = SC North America                       |
+| Adam Steinhaus (NA P&I)        | Sales Region = North America AND Legal Country = Exclude Canada AND Account Unit Group = SC North America AND Industry ∈ (Pension, Insurance) |
 
-Note: Patrick and Adam will be indistinguishable until the Industry filter is correctly set up (see §Section 3).
+If the dashboard UI only allows one Industry value at a time for Adam, use 2 saved states or bookmarks: one for `Pension`, one for `Insurance`.
 
 ## Section 2 — Pipeline Inspection list views (manual, ~15 minutes)
 
@@ -133,23 +145,19 @@ Context: PI's `ChangePeriodLiteralType` enum in this org currently has only `STA
 5. Summary field: ARR
 6. Save
 
-## Section 3 — Industry picklist investigation (~30 minutes)
+## Section 3 — Industry field verification (completed 2026-04-09)
 
-Context: `Account.Industry` in the Lightning filter popover shows generic SF standard industries (Accommodations, Banking, Construction, ...) but the actual SimCorp data contains custom values (Asset Management, Pension, Insurance, Bank, Asset Servicer, ...). Need to identify which field holds the SimCorp values.
+Result from the live continuation:
 
-### Investigation steps
+1. The correct D1 filter field is the standard `Account: Industry` field.
+2. The live D1 filter values are the SimCorp values the Directors actually use: `Asset Management`, `Bank`, `Insurance`, `Pension`, `Wealth Management`, `Asset Servicer`, `Other`.
+3. The custom `ZIMIT__zIndustry__c` path is not the field to use for the dashboard operating model.
 
-1. SOQL: list all Industry-shaped fields on Account:
-   ```bash
-   sf data query --query "SELECT QualifiedApiName, Label FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = 'Account' AND (QualifiedApiName LIKE '%ndustry%' OR Label LIKE '%ndustry%')" --target-org apro@simcorp.com --json
-   ```
-2. For each candidate field (expect: `Industry`, `ZIMIT__zIndustry__c`, `Industry_Classification__c`, or similar), run a distinct-values query:
-   ```bash
-   sf data query --query "SELECT <field>, COUNT(Id) FROM Account WHERE <field> != NULL GROUP BY <field> LIMIT 50" --target-org apro@simcorp.com --json
-   ```
-3. The field whose distinct values contain "Asset Management", "Pension", "Insurance", "Bank", "Asset Servicer", "Wealth Management", "Other" is the one the Directors care about.
-4. Once identified, **update the Dashboard 1 filter** in the Lightning UI: remove the generic `Account: Industry` filter (if you added it per §1.4 Option A) and replace with a filter on the correct field.
-5. **Update `report-1-source-contract.md`** §Phase 2.8 amendment §9 Sales Directors table with the correct Industry filter field name.
+If this ever drifts and you need to re-probe, the old SOQL workflow is still valid:
+
+```bash
+sf data query --query "SELECT QualifiedApiName, Label FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = 'Account' AND (QualifiedApiName LIKE '%ndustry%' OR Label LIKE '%ndustry%')" --target-org apro@simcorp.com --json
+```
 
 ## Section 4 — Calendar-quarter grouping schema change (metadata deploy)
 

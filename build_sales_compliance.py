@@ -57,6 +57,14 @@ DASHBOARD_LABEL = "Sales Process Compliance KPIs"
 # Today's date for past-due comparisons (SAQL string comparison on yyyy-MM-dd)
 TODAY = "2026-03-03"
 
+# Consulting-grade facet scope: KPI tiles listen to all filter pillboxes
+KPI_FACET_SCOPE = {
+    "receiveFacetSource": {
+        "mode": "include",
+        "steps": ["f_unit", "f_region", "f_type", "f_stage"],
+    },
+}
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  SAQL fragments
 # ═══════════════════════════════════════════════════════════════════════════
@@ -85,6 +93,12 @@ _PRIOR_FY = "q = filter q by FiscalYear == 2025;\n"
 
 
 def build_steps():
+    # Helper: wrap a SAQL step with KPI facet scope so filters drive KPI tiles
+    def _kpi(saql):
+        s = sq(saql)
+        s.update(KPI_FACET_SCOPE)
+        return s
+
     return {
         # ── Filter steps (aggregateflex) ──────────────────────────────────
         "f_unit": af("UnitGroup", DS_META),
@@ -186,7 +200,7 @@ def build_steps():
             + "q = foreach q generate count() as cnt;"
         ),
         # Number: ARR of past-due opps
-        "s_pastdue_arr": sq(
+        "s_pastdue_arr": _kpi(
             L
             + FY
             + OPEN
@@ -199,7 +213,7 @@ def build_steps():
             + "q = foreach q generate sum(ARR) as sum_acv;"
         ),
         # Gauge: Pipeline hygiene score (% of open opps with future close dates)
-        "s_hygiene": sq(
+        "s_hygiene": _kpi(
             L
             + FY
             + OPEN

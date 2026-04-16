@@ -51,6 +51,9 @@ from crm_analytics_helpers import (
     create_dataflow,
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
+    compare_table,
+    line_chart,
+    KPI_CARD_STYLE,
 )
 
 DS = "Contract_Operations"
@@ -69,6 +72,14 @@ UF = coalesce_filter("f_unit", "UnitGroup")
 TF = coalesce_filter("f_type", "AgreementType")
 WF = coalesce_filter("f_window", "RenewalWindow")
 SF = coalesce_filter("f_status", "Status")
+
+# Consulting-grade facet scope: KPI tiles listen to all filter pillboxes
+KPI_FACET_SCOPE = {
+    "receiveFacetSource": {
+        "mode": "include",
+        "steps": ["f_unit", "f_type", "f_window", "f_status"],
+    },
+}
 
 
 # =========================================================================
@@ -223,6 +234,12 @@ def build_steps(ds_id):
     EXPIRING = "q = filter q by DaysToExpiry > 0;\n"
     NEXT12 = "q = filter q by DaysToExpiry > 0 && DaysToExpiry <= 365;\n"
 
+    # Helper: create a KPI step with facet scope so pillbox filters apply
+    def _kpi_step(saql):
+        s = sq(saql)
+        s.update(KPI_FACET_SCOPE)
+        return s
+
     return {
         # ── Filter steps (aggregateflex) ──
         "f_unit": af("UnitGroup", DS_META),
@@ -231,7 +248,7 @@ def build_steps(ds_id):
         "f_status": af("Status", DS_META),
         # ===== PAGE 1: Active Book =====
         # Active contract count
-        "s_active_count": sq(
+        "s_active_count": _kpi_step(
             L
             + ACTIVE
             + UF
@@ -242,7 +259,7 @@ def build_steps(ds_id):
             + "q = foreach q generate count() as cnt;"
         ),
         # Total contract count (for active rate gauge)
-        "s_total_count": sq(
+        "s_total_count": _kpi_step(
             L
             + UF
             + TF
@@ -252,7 +269,7 @@ def build_steps(ds_id):
             + "q = foreach q generate count() as total;"
         ),
         # Active rate: active / total * 100
-        "s_active_rate": sq(
+        "s_active_rate": _kpi_step(
             L
             + UF
             + TF
@@ -338,7 +355,7 @@ def build_steps(ds_id):
             + "q = limit q 25;"
         ),
         # Gauge: renewal coverage (% with DaysToExpiry > 90)
-        "s_renewal_coverage": sq(
+        "s_renewal_coverage": _kpi_step(
             L
             + EXPIRING
             + UF
@@ -374,7 +391,7 @@ def build_steps(ds_id):
             + "q = order q by CreatedMonth asc;"
         ),
         # Number: legacy agreements count
-        "s_legacy_count": sq(
+        "s_legacy_count": _kpi_step(
             L
             + 'q = filter q by AgreementType == "Legacy";\n'
             + UF
@@ -458,7 +475,7 @@ def build_steps(ds_id):
             + "q = order q by StartMonth asc;"
         ),
         # NUM: Total contract count
-        "s_total_num": sq(
+        "s_total_num": _kpi_step(
             L
             + UF
             + TF
@@ -468,7 +485,7 @@ def build_steps(ds_id):
             + "q = foreach q generate count() as total;"
         ),
         # NUM: Average contract term in months
-        "s_avg_term": sq(
+        "s_avg_term": _kpi_step(
             L
             + ACTIVE
             + UF
@@ -479,7 +496,7 @@ def build_steps(ds_id):
             + "q = foreach q generate avg(ContractTermNum) as avg_term;"
         ),
         # NUM: Contracts expiring in next 90 days
-        "s_expiring_90d": sq(
+        "s_expiring_90d": _kpi_step(
             L
             + "q = filter q by DaysToExpiry > 0 && DaysToExpiry <= 90;\n"
             + UF
@@ -679,6 +696,7 @@ def build_widgets():
             compact=False,
             size=28,
         ),
+        "p1_sec_overview": section_label("Active Contract Overview"),
         "p1_ch_type": rich_chart(
             "s_by_type",
             "donut",
@@ -746,12 +764,27 @@ def build_widgets():
             "cnt",
         ),
         "p2_sec_risk": section_label("At-Risk Expirations (High/Medium, <=90 Days)"),
-        "p2_ch_at_risk": rich_chart(
+        "p2_ch_at_risk": compare_table(
             "s_at_risk",
-            "comparisontable",
             "At-Risk Contracts Expiring Soon",
-            ["ContractNumber", "AccountName", "AgreementType", "RiskLevel"],
-            ["DaysToExpiry"],
+            columns=[
+                "ContractNumber",
+                "AccountName",
+                "AgreementType",
+                "RiskLevel",
+                "DaysToExpiry",
+            ],
+            format_rules=[
+                {
+                    "type": "threshold",
+                    "field": "DaysToExpiry",
+                    "rules": [
+                        {"value": 30, "color": "#D4504C", "operator": "lte"},
+                        {"value": 60, "color": "#FFB75D", "operator": "lte"},
+                    ],
+                },
+            ],
+            subtitle="High/Medium risk contracts expiring within 90 days",
         ),
         "p2_gauge": gauge(
             "s_renewal_coverage",
@@ -779,6 +812,7 @@ def build_widgets():
         "p3_f_type": pillbox("f_type", "Agreement Type"),
         "p3_f_window": pillbox("f_window", "Renewal Window"),
         "p3_f_status": pillbox("f_status", "Status"),
+        "p3_sec_dist": section_label("Agreement Type Breakdown"),
         "p3_ch_dist": rich_chart(
             "s_type_dist",
             "donut",
@@ -827,6 +861,7 @@ def build_widgets():
         "p4_f_type": pillbox("f_type", "Agreement Type"),
         "p4_f_window": pillbox("f_window", "Renewal Window"),
         "p4_f_status": pillbox("f_status", "Status"),
+        "p4_sec_status": section_label("Status Distribution"),
         "p4_ch_status": rich_chart(
             "s_status_type",
             "stackhbar",
@@ -838,39 +873,77 @@ def build_widgets():
             axis_title="Count",
         ),
         "p4_sec_detail": section_label("Contract Detail (Most Urgent First)"),
-        "p4_ch_detail": rich_chart(
+        "p4_ch_detail": compare_table(
             "s_contract_detail",
-            "comparisontable",
             "Contract Detail - Top 50 by Days to Expiry",
-            [
+            columns=[
                 "ContractNumber",
                 "AccountName",
                 "Status",
                 "AgreementType",
                 "UnitGroup",
                 "RiskLevel",
+                "DaysToExpiry",
+                "ContractTermNum",
             ],
-            ["DaysToExpiry", "ContractTermNum"],
+            row_limit=50,
+            format_rules=[
+                {
+                    "type": "threshold",
+                    "field": "DaysToExpiry",
+                    "rules": [
+                        {"value": 30, "color": "#D4504C", "operator": "lte"},
+                        {"value": 90, "color": "#FFB75D", "operator": "lte"},
+                    ],
+                },
+            ],
+            subtitle="Sorted by days to expiry ascending",
         ),
     }
 
     # ═══ ITERATION 3: New widgets (line, combo, num, aging) ═══
     # Page 1 — Hero KPI nums
-    w["p1_n_total"] = num("s_total_num", "total", "Total Contracts", "#2A2F3A")
-    w["p1_n_avg_term"] = num("s_avg_term", "avg_term", "Avg Term (Months)", "#0070D2")
+    w["p1_sec_kpis"] = section_label("Key Metrics")
+    w["p1_n_total"] = num(
+        "s_total_num",
+        "total",
+        "Total Contracts",
+        "#2A2F3A",
+        tier="primary",
+        widget_style=KPI_CARD_STYLE,
+    )
+    w["p1_n_avg_term"] = num(
+        "s_avg_term",
+        "avg_term",
+        "Avg Term (Months)",
+        "#0070D2",
+        tier="secondary",
+        suffix=" mo",
+        widget_style=KPI_CARD_STYLE,
+    )
     # Page 2 — Expiring 90d num + line chart
     w["p2_n_expiring_90"] = num(
-        "s_expiring_90d", "cnt", "Expiring Next 90 Days", "#D4504C"
+        "s_expiring_90d",
+        "cnt",
+        "Expiring Next 90 Days",
+        "#D4504C",
+        tier="secondary",
+        widget_style=KPI_CARD_STYLE,
     )
     # Page 3 — Activation trend (LINE — fills missing viz type)
     w["p3_sec_activation"] = section_label("Monthly Contract Activations")
-    w["p3_ch_activation"] = rich_chart(
+    w["p3_ch_activation"] = line_chart(
         "s_monthly_activation",
-        "line",
         "Contracts Activated by Month",
-        ["StartMonth"],
-        ["cnt"],
         axis_title="Count",
+        reference_lines=[
+            {
+                "value": 10,
+                "label": "Monthly Target",
+                "color": "#04844B",
+                "style": "dashed",
+            },
+        ],
     )
     # Page 4 — New vs Expiry combo (COMBO — fills missing viz type)
     w["p4_sec_lifecycle"] = section_label("Contract Lifecycle Analysis")
@@ -881,6 +954,14 @@ def build_widgets():
         ["CreatedMonth"],
         ["new_cnt"],
         axis_title="Count",
+        reference_lines=[
+            {
+                "value": 8,
+                "label": "Avg Monthly New",
+                "color": "#0070D2",
+                "style": "dashed",
+            },
+        ],
     )
     # Page 5 (NEW) — Contract Aging (Additive CRO #5)
     w["p5_nav1"] = nav_link("active_book", "Active Book")
@@ -1005,12 +1086,10 @@ def build_widgets():
     )
     # Stats: Term distribution
     w["p7_sec_term_dist"] = section_label("Contract Term Distribution")
-    w["p7_stat_term_dist"] = rich_chart(
+    w["p7_stat_term_dist"] = compare_table(
         "s_stat_term_dist",
-        "comparisontable",
         "Contract Term Percentiles (P25/Median/P75/Max)",
-        [],
-        [
+        columns=[
             "min_term",
             "p25",
             "median_term",
@@ -1020,15 +1099,26 @@ def build_widgets():
             "std_dev",
             "contract_count",
         ],
+        show_totals=False,
+        subtitle="Statistical distribution of active contract terms in months",
     )
     # Stats: Type summary
     w["p7_sec_type_summary"] = section_label("Agreement Type Summary")
-    w["p7_stat_type_summary"] = rich_chart(
+    w["p7_stat_type_summary"] = compare_table(
         "s_stat_type_summary",
-        "comparisontable",
         "Contract Count, Avg Term & Days to Expiry by Type",
-        ["AgreementType"],
-        ["cnt", "avg_term", "avg_days_expiry"],
+        columns=["AgreementType", "cnt", "avg_term", "avg_days_expiry"],
+        format_rules=[
+            {
+                "type": "threshold",
+                "field": "avg_days_expiry",
+                "rules": [
+                    {"value": 60, "color": "#D4504C", "operator": "lte"},
+                    {"value": 120, "color": "#FFB75D", "operator": "lte"},
+                ],
+            },
+        ],
+        subtitle="Active contracts grouped by agreement type",
     )
     # Cumulative contracts running total
     w["p7_sec_running"] = section_label("Cumulative Contracts Over Time")
@@ -1467,7 +1557,9 @@ def main():
     steps = build_steps(ds_id)
     widgets = build_widgets()
     layout = build_layout()
-    state = build_dashboard_state(steps, widgets, layout)
+    state = build_dashboard_state(
+        steps, widgets, layout, bg_color="#F4F6F9", cell_spacing=8, row_height="normal"
+    )
     deploy_dashboard(instance_url, token, dashboard_id, state)
 
 

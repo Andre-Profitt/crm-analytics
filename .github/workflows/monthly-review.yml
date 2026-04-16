@@ -2,11 +2,10 @@ name: Sales Director Monthly Review — Auto Build
 
 on:
   schedule:
-    # Runs at 6am UTC on the 28th-31st of every month.
-    # The pipeline script handles "last business day" logic internally —
-    # if the 28th isn't month-end, it overwrites on the 29th/30th/31st.
-    # Net effect: latest run each month = the freshest deck.
-    - cron: "0 6 28-31 * *"
+    # Runs at midnight UTC on the 1st of every month.
+    # Pulls the prior month's final state — all deals closed, all
+    # forecasts locked, all activity logged. Decks are ready by morning.
+    - cron: "0 0 1 * *"
   workflow_dispatch:
     # Manual trigger for ad-hoc rebuilds (e.g. mid-month refresh before a QBR)
     inputs:

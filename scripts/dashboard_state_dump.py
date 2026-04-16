@@ -15,15 +15,17 @@ drift report with one flag per detectable defect:
 A "pristine" dashboard emits zero flags.
 
 Usage:
-  python3 scripts/dashboard_state_dump.py                     # both dashboards, markdown + JSON
+  python3 scripts/dashboard_state_dump.py                     # full markdown report to stdout
+  python3 scripts/dashboard_state_dump.py --summary-only      # concise startup check
   python3 scripts/dashboard_state_dump.py --format json       # JSON only
   python3 scripts/dashboard_state_dump.py --format markdown   # Markdown only
+  python3 scripts/dashboard_state_dump.py --target-org apro@simcorp.com
   python3 scripts/dashboard_state_dump.py --dashboard 01ZTb00000FSP7hMAH
   python3 scripts/dashboard_state_dump.py --out-md /tmp/state.md --out-json /tmp/state.json
 
-Auth: reads sf CLI default-org access token via `sf org display --json`.
-No additional credentials needed — same auth path as all other CRM Analytics
-scripts in this repo.
+Auth: reads sf CLI access token for the target org via
+`sf org display --target-org <username> --json`. Defaults to the production
+org used by this repo (`apro@simcorp.com`).
 
 CI gate idea: add `python3 scripts/dashboard_state_dump.py --fail-if-drifted`
 to a pre-commit or GitHub Action. Exits non-zero when any flag other than the
@@ -41,6 +43,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 API_VERSION = "v66.0"
+TARGET_ORG_DEFAULT = "apro@simcorp.com"
 
 # Both production dashboards.
 DEFAULT_DASHBOARDS = [
@@ -101,8 +104,8 @@ def sh(*args: str, capture: bool = True) -> str:
     return result.stdout
 
 
-def auth() -> tuple[str, str]:
-    raw = sh("sf", "org", "display", "--json")
+def auth(target_org: str) -> tuple[str, str]:
+    raw = sh("sf", "org", "display", "--target-org", target_org, "--json")
     data = json.loads(raw)
     inst = data["result"]["instanceUrl"]
     token = data["result"]["accessToken"]
@@ -368,6 +371,35 @@ def to_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def to_summary(report: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for label, s in report["summary"].items():
+        warning_count = len(s.get("warnings") or [])
+        warn_str = f", {warning_count} warning(s)" if warning_count else ""
+        lines.append(
+            f"{label}: {s['widgets']} widgets, "
+            f"{s['active_flags']} active, "
+            f"{s['deferred_flags']} deferred"
+            f"{warn_str}"
+        )
+
+    total_active = sum(s["active_flags"] for s in report["summary"].values())
+    total_deferred = sum(s["deferred_flags"] for s in report["summary"].values())
+    total_warnings = sum(
+        len(s.get("warnings") or []) for s in report["summary"].values()
+    )
+    if total_active == 0:
+        warn_suffix = f", {total_warnings} design warning(s)" if total_warnings else ""
+        lines.append(
+            f"✓ Pristine state: 0 active flags, {total_deferred} deferred flags{warn_suffix}."
+        )
+    else:
+        lines.append(
+            f"⚠️ {total_active} active flag(s) still drifted, {total_deferred} deferred."
+        )
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Dashboard state dump — pristine-state audit for Sales Director Monthly + Sales Ops Quarterly"
@@ -376,12 +408,22 @@ def main() -> int:
         "--format",
         choices=["markdown", "json", "both"],
         default="both",
-        help="Output format (default: both)",
+        help="Output format (default: both; stdout is markdown unless --format json is used)",
+    )
+    ap.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Print only the per-dashboard counts and final pristine/drift verdict",
     )
     ap.add_argument(
         "--dashboard",
         action="append",
         help="Dashboard id to audit (repeatable). Default: both production dashboards.",
+    )
+    ap.add_argument(
+        "--target-org",
+        default=TARGET_ORG_DEFAULT,
+        help=f"Salesforce org username/alias to query (default: {TARGET_ORG_DEFAULT})",
     )
     ap.add_argument("--out-md", help="Write markdown to this path instead of stdout")
     ap.add_argument("--out-json", help="Write JSON to this path instead of stdout")
@@ -397,20 +439,25 @@ def main() -> int:
     else:
         dashboards = DEFAULT_DASHBOARDS
 
-    inst, token = auth()
+    inst, token = auth(args.target_org)
     report = build_report(dashboards, inst, token)
 
     json_str = json.dumps(report, indent=2)
     md_str = to_markdown(report)
+    summary_str = to_summary(report)
 
-    if args.format in ("markdown", "both"):
+    summary_only_stdout = args.summary_only and not args.out_md and not args.out_json
+    if summary_only_stdout:
+        print(summary_str, end="")
+
+    if not summary_only_stdout and args.format in ("markdown", "both"):
         if args.out_md:
             with open(args.out_md, "w") as f:
                 f.write(md_str)
             print(f"wrote {args.out_md}", file=sys.stderr)
         else:
             print(md_str)
-    if args.format in ("json", "both"):
+    if not summary_only_stdout and args.format in ("json", "both"):
         if args.out_json:
             with open(args.out_json, "w") as f:
                 f.write(json_str)

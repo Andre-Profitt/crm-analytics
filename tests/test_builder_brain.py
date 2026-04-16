@@ -21,6 +21,58 @@ def run_cli(*args: str, env: dict[str, str] | None = None) -> subprocess.Complet
     )
 
 
+def write_planning_artifacts(tmp_path: Path, *, verdict: str = "pass") -> tuple[Path, Path]:
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "run_id": "run_20260329_001",
+                "goal": "fix broken forecast dashboard filters",
+                "resolved": {
+                    "persona": "manager",
+                    "domain": "revenue",
+                    "operation": "mutate_dashboard",
+                },
+                "route": {
+                    "recommended_surface_type": "crma_dashboard",
+                    "operation_mode": "mutate_dashboard",
+                },
+                "candidate_surface": {
+                    "id": "forecast_revenue_motions",
+                },
+                "required_evidence": ["dashboard_json", "contract_lint_report"],
+                "memory_summary": {
+                    "memory_health": {
+                        "considered_hits": 1,
+                        "policy_exception_hits_excluded": 2,
+                        "included_fail_count": 1,
+                        "included_generic_goal_count": 0,
+                    }
+                },
+                "recommended_sequence": [
+                    {"step_id": "s1", "script": "scripts/export_live_crma_assets.py"},
+                    {"step_id": "s2", "script": "scripts/contract_lint.py"},
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    evaluation_path = tmp_path / "evaluation.json"
+    evaluation_path.write_text(
+        json.dumps(
+            {
+                "run_id": "run_20260329_001",
+                "verdict": verdict,
+                "mutation_ready": verdict == "pass",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return plan_path, evaluation_path
+
+
 def build_fake_dashboard_filter_automation_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "fake_dashboard_filter_automation.py"
     script_path.write_text(
@@ -264,6 +316,29 @@ def test_spec_prefers_salesforce_report_for_owner_list_query() -> None:
     assert "owner list" in spec["decision_statement"].lower()
     assert spec["excellence_target"]["pattern_id"] == "owner_accountability_report"
     assert spec["retrieval_context"]["patterns"][0]["id"] == "owner_accountability_report"
+    assert spec["report_action_surface_assessment"]["queue_ready_format"] is True
+    assert spec["report_action_surface_assessment"]["verdict"] in {
+        "moderate_follow_up_fit",
+        "strong_follow_up_fit",
+    }
+
+
+def test_spec_demotes_story_heavy_manager_report_request_to_crma_dashboard() -> None:
+    result = run_cli(
+        "spec",
+        "--query",
+        "Manager dashboard report for ownership alignment and handoff quality",
+        "--json",
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    payload = json.loads(result.stdout)
+    spec = payload["spec"]
+    assert spec["primary_surface"] == "crma_dashboard"
+    assert spec["secondary_surface"] == "salesforce_report"
+    assert spec["selection_reason"] == "hybrid_story_plus_action_report_demoted"
+    assert spec["report_action_surface_assessment"]["queue_ready_format"] is False
+    assert spec["report_action_surface_assessment"]["verdict"] == "weak_follow_up_fit"
+    assert spec["report_action_surface_assessment"]["verdict_cap"] == "matrix_caps_follow_up_fit"
 
 
 def test_draft_builds_paired_crma_handoff_for_executive_view() -> None:
@@ -302,6 +377,11 @@ def test_draft_report_includes_owner_columns_and_handoff() -> None:
     assert "Owner" in draft["columns"]
     assert draft["handoff_surface"] == "crma_dashboard"
     assert draft["page_model"] == ["Queue / Follow-up"]
+    assert draft["action_surface_assessment"]["queue_ready_format"] is True
+    assert draft["action_surface_assessment"]["verdict"] in {
+        "moderate_follow_up_fit",
+        "strong_follow_up_fit",
+    }
 
 
 def test_critique_flags_bad_executive_surface_override() -> None:
@@ -459,6 +539,8 @@ def test_package_builds_report_execution_handoff_for_manager_queue() -> None:
     assert package["surface_contract"]["handoff_surface"] == "crma_dashboard"
     assert package["surface_contract"]["handoff_target"]["surface_type"] == "crma_dashboard"
     assert package["surface_contract"]["handoff_target"]["destination_type"] == "dashboard"
+    assert package["surface_contract"]["action_surface_assessment"]["queue_ready_format"] is True
+    assert package["report_action_surface_assessment"] == package["surface_contract"]["action_surface_assessment"]
     assert package["execution_plan"]["plan_type"] == "salesforce_report_authoring_skeleton"
     assert package["execution_plan"]["phases"][0]["phase"] == "report_core"
     assert any(item["critic"] == "action_critic" for item in package["critic_rationale"])
@@ -563,6 +645,151 @@ def test_handoff_builds_dashboard_executor_plan_and_artifact(tmp_path: Path) -> 
     assert any("complete --package" in item["command"] for item in handoff["available_commands"] if item["name"] == "salesforce_dashboard_executor")
     assert any("delete --dashboard-id" in item["command"] for item in handoff["available_commands"] if item["name"] == "salesforce_dashboard_executor")
     assert any("native Salesforce dashboard bundle" in step for step in handoff["external_steps"])
+
+
+def test_package_includes_planning_context_when_artifacts_are_provided(tmp_path: Path) -> None:
+    plan_path, evaluation_path = write_planning_artifacts(tmp_path)
+    result = run_cli(
+        "package",
+        "--query",
+        "Manager owner list report for renewals needing follow-up this week",
+        "--plan",
+        str(plan_path),
+        "--evaluation",
+        str(evaluation_path),
+        "--json",
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    payload = json.loads(result.stdout)
+    planning_context = payload["build_package"]["planning_context"]
+    assert planning_context["plan_path"] == str(plan_path)
+    assert planning_context["evaluation_path"] == str(evaluation_path)
+    assert planning_context["evaluation_verdict"] == "pass"
+    assert planning_context["run_id"] == "run_20260329_001"
+    assert planning_context["goal"] == "fix broken forecast dashboard filters"
+    assert planning_context["persona"] == "manager"
+    assert planning_context["domain"] == "revenue"
+    assert planning_context["operation"] == "mutate_dashboard"
+    assert planning_context["required_evidence"] == ["dashboard_json", "contract_lint_report"]
+    assert planning_context["memory_health"]["policy_exception_hits_excluded"] == 2
+    assert planning_context["memory_health"]["included_fail_count"] == 1
+
+
+def test_handoff_threads_evaluation_into_mutation_commands(tmp_path: Path) -> None:
+    plan_path, evaluation_path = write_planning_artifacts(tmp_path)
+
+    report_result = run_cli(
+        "handoff",
+        "--query",
+        "Manager owner list report for renewals needing follow-up this week",
+        "--plan",
+        str(plan_path),
+        "--evaluation",
+        str(evaluation_path),
+        "--output-dir",
+        str(tmp_path / "report_handoff"),
+        "--json",
+    )
+    assert report_result.returncode == 0, report_result.stderr or report_result.stdout
+    report_payload = json.loads(report_result.stdout)
+    report_handoff = report_payload["executor_handoff"]
+    report_commands = [
+        item["command"]
+        for item in report_handoff["available_commands"]
+        if item["name"] == "salesforce_report_executor"
+    ]
+    report_memory_commands = [
+        item["command"]
+        for item in report_handoff["available_commands"]
+        if item["name"] == "run_memory"
+    ]
+    assert any("apply --package" in command and "--evaluation" in command for command in report_commands)
+    assert any("complete --package" in command and "--evaluation" in command for command in report_commands)
+    assert any("--include-policy-exceptions" in command for command in report_memory_commands)
+    assert report_handoff["memory_health"]["policy_exception_hits_excluded"] == 2
+    assert any("excluded policy-exception memory hit" in step for step in report_handoff["external_steps"])
+    assert Path(report_handoff["memory_health_artifact"]).exists()
+    assert Path(report_handoff["memory_health_report_artifact"]).exists()
+    assert Path(report_handoff["handoff_review_artifact"]).exists()
+    report_memory_health = json.loads(Path(report_handoff["memory_health_artifact"]).read_text(encoding="utf-8"))
+    assert report_memory_health["memory_health"]["policy_exception_hits_excluded"] == 2
+    report_memory_health_md = Path(report_handoff["memory_health_report_artifact"]).read_text(encoding="utf-8")
+    assert "Excluded policy-exception hits: 2" in report_memory_health_md
+    report_handoff_md = Path(report_handoff["handoff_review_artifact"]).read_text(encoding="utf-8")
+    assert "# Executor Handoff Review" in report_handoff_md
+    assert "Memory health review" in report_handoff_md
+    assert "run_memory.py search" in report_handoff_md
+
+    crma_result = run_cli(
+        "handoff",
+        "--query",
+        "Executive commercial rhythm view for ownership alignment, handoff quality, and renewal semantic confidence",
+        "--surface",
+        "salesforce_report",
+        "--plan",
+        str(plan_path),
+        "--evaluation",
+        str(evaluation_path),
+        "--output-dir",
+        str(tmp_path / "crma_handoff"),
+        "--json",
+    )
+    assert crma_result.returncode == 0, crma_result.stderr or crma_result.stdout
+    crma_payload = json.loads(crma_result.stdout)
+    crma_handoff = crma_payload["executor_handoff"]
+    assert crma_handoff["planning_context"]["evaluation_path"] == str(evaluation_path)
+    assert crma_handoff["planning_context"]["goal"] == "fix broken forecast dashboard filters"
+    assert crma_handoff["memory_health"]["policy_exception_hits_excluded"] == 2
+    assert Path(crma_handoff["memory_health_artifact"]).exists()
+    assert Path(crma_handoff["memory_health_report_artifact"]).exists()
+    assert Path(crma_handoff["handoff_review_artifact"]).exists()
+    wave_commands = [
+        item["command"]
+        for item in crma_handoff["available_commands"]
+        if item["name"] == "wave_patch_executor"
+    ]
+    crma_memory_commands = [
+        item["command"]
+        for item in crma_handoff["available_commands"]
+        if item["name"] == "run_memory"
+    ]
+    assert any("--evaluation" in command and str(evaluation_path) in command for command in wave_commands)
+    assert any("--include-policy-exceptions" in command for command in crma_memory_commands)
+    wave_payload = json.loads(Path(crma_handoff["wave_patch_payload_artifact"]).read_text(encoding="utf-8"))
+    assert wave_payload["planning_context"]["goal"] == "fix broken forecast dashboard filters"
+    assert wave_payload["planning_context"]["run_id"] == "run_20260329_001"
+
+    dashboard_result = run_cli(
+        "handoff",
+        "--query",
+        "Native dashboard headline rollup for manager forecast inspection",
+        "--plan",
+        str(plan_path),
+        "--evaluation",
+        str(evaluation_path),
+        "--output-dir",
+        str(tmp_path / "dashboard_handoff"),
+        "--json",
+    )
+    assert dashboard_result.returncode == 0, dashboard_result.stderr or dashboard_result.stdout
+    dashboard_payload = json.loads(dashboard_result.stdout)
+    dashboard_handoff = dashboard_payload["executor_handoff"]
+    dashboard_commands = [
+        item["command"]
+        for item in dashboard_handoff["available_commands"]
+        if item["name"] == "salesforce_dashboard_executor"
+    ]
+    dashboard_memory_commands = [
+        item["command"]
+        for item in dashboard_handoff["available_commands"]
+        if item["name"] == "run_memory"
+    ]
+    assert any("apply --package" in command and "--evaluation" in command for command in dashboard_commands)
+    assert any("complete --package" in command and "--evaluation" in command for command in dashboard_commands)
+    assert any("--include-policy-exceptions" in command for command in dashboard_memory_commands)
+    assert Path(dashboard_handoff["memory_health_artifact"]).exists()
+    assert Path(dashboard_handoff["memory_health_report_artifact"]).exists()
+    assert Path(dashboard_handoff["handoff_review_artifact"]).exists()
 
 
 def test_probe_runs_report_complete_and_cleanup(tmp_path: Path) -> None:
@@ -672,6 +899,9 @@ def test_probe_runs_report_complete_and_cleanup(tmp_path: Path) -> None:
     assert payload["summary"]["cleanup_requested"] is True
     assert payload["summary"]["cleanup_status"] == "ok"
     assert payload["summary"]["created_asset_id"] == "00OTPROBEAAA"
+    assert Path(payload["summary"]["package_artifact"]).exists()
+    assert Path(payload["summary"]["execution_plan_artifact"]).exists()
+    assert Path(payload["summary"]["handoff_review_artifact"]).exists()
     assert payload["execution_result"]["applied_report"]["id"] == "00OTPROBEAAA"
     assert payload["cleanup_result"]["summary"]["deleted_report_id"] == "00OTPROBEAAA"
     assert (output_dir / "00_handoff" / "build_package.json").exists()
@@ -776,6 +1006,9 @@ def test_probe_runs_dashboard_complete_and_cleanup(tmp_path: Path) -> None:
     assert payload["summary"]["cleanup_requested"] is True
     assert payload["summary"]["cleanup_status"] == "ok"
     assert payload["summary"]["created_asset_id"] == "01ZDASHPROBEAAA"
+    assert Path(payload["summary"]["package_artifact"]).exists()
+    assert Path(payload["summary"]["execution_plan_artifact"]).exists()
+    assert Path(payload["summary"]["handoff_review_artifact"]).exists()
     assert payload["execution_result"]["applied_dashboard"]["id"] == "01ZDASHPROBEAAA"
     assert payload["cleanup_result"]["summary"]["deleted_dashboard_id"] == "01ZDASHPROBEAAA"
     assert (output_dir / "00_handoff" / "build_package.json").exists()
@@ -890,6 +1123,8 @@ def test_probe_accepts_explicit_dashboard_package(tmp_path: Path) -> None:
     assert payload["status"] == "ok"
     assert payload["summary"]["package_source"] == "provided_package"
     assert payload["summary"]["created_asset_id"] == "01ZDASHPROBEAAA"
+    assert Path(payload["summary"]["package_artifact"]).exists()
+    assert Path(payload["summary"]["handoff_review_artifact"]).exists()
     assert (output_dir / "00_handoff" / "build_package.json").exists()
     assert (output_dir / "00_handoff" / "provided_package_reference.json").exists()
 
@@ -1029,8 +1264,72 @@ def test_probe_matrix_runs_report_and_dashboard_entries(tmp_path: Path) -> None:
     assert len(payload["probe_runs"]) == 2
     assert payload["probe_runs"][0]["summary"]["created_asset_id"] == "00OTPROBEAAA"
     assert payload["probe_runs"][1]["summary"]["created_asset_id"] == "01ZDASHPROBEAAA"
+    assert Path(payload["probe_runs"][0]["summary"]["handoff_review_artifact"]).exists()
+    assert Path(payload["probe_runs"][1]["summary"]["handoff_review_artifact"]).exists()
+    assert Path(payload["summary"]["review_artifact"]).exists()
+    assert Path(payload["summary"]["landing_artifact"]).exists()
+    assert Path(payload["summary"]["collection_index_artifact"]).exists()
+    assert Path(payload["summary"]["collection_landing_artifact"]).exists()
+    assert Path(payload["summary"]["browser_index_artifact"]).exists()
+    assert Path(payload["summary"]["browser_landing_artifact"]).exists()
+    assert Path(payload["summary"]["ai_os_browser_index_artifact"]).exists()
+    assert Path(payload["summary"]["ai_os_browser_landing_artifact"]).exists()
+    assert Path(payload["summary"]["ai_os_health_index_artifact"]).exists()
+    assert Path(payload["summary"]["ai_os_health_landing_artifact"]).exists()
+    assert isinstance(payload["summary"]["ai_os_health_summary"], dict)
+    assert isinstance(payload["summary"]["ai_os_health_summary"].get("run_recency_counts"), dict)
+    ai_os_health_index = Path(payload["summary"]["ai_os_health_index_artifact"])
+    ai_os_health_landing = Path(payload["summary"]["ai_os_health_landing_artifact"])
+    assert ai_os_health_index.exists()
+    assert ai_os_health_landing.exists()
+    probe_matrix_review = Path(payload["summary"]["review_artifact"]).read_text(encoding="utf-8")
+    probe_matrix_readme = Path(payload["summary"]["landing_artifact"]).read_text(encoding="utf-8")
+    collection_readme = Path(payload["summary"]["collection_landing_artifact"]).read_text(encoding="utf-8")
+    collection_index = json.loads(Path(payload["summary"]["collection_index_artifact"]).read_text(encoding="utf-8"))
+    browser_overview = Path(payload["summary"]["browser_landing_artifact"]).read_text(encoding="utf-8")
+    browser_index = json.loads(Path(payload["summary"]["browser_index_artifact"]).read_text(encoding="utf-8"))
+    ai_os_overview = Path(payload["summary"]["ai_os_browser_landing_artifact"]).read_text(encoding="utf-8")
+    ai_os_index = json.loads(Path(payload["summary"]["ai_os_browser_index_artifact"]).read_text(encoding="utf-8"))
+    ai_os_health = json.loads(ai_os_health_index.read_text(encoding="utf-8"))
+    assert "# Probe Matrix Review" in probe_matrix_review
+    assert "Handoff review:" in probe_matrix_review
+    assert "Created asset:" in probe_matrix_review
+    assert probe_matrix_readme == probe_matrix_review
+    assert "# Builder Brain Runs" in collection_readme
+    assert "Landing page:" in collection_readme
+    assert payload["summary"]["landing_artifact"] in collection_readme
+    assert collection_index["entries"][0]["run_dir"] == str(output_dir)
+    assert "# Builder Brain Collections" in browser_overview
+    assert payload["summary"]["collection_landing_artifact"] in browser_overview
+    assert browser_index["collections"][0]["collection_dir"] == str(output_dir.parent)
+    assert "# AI OS Collections" in ai_os_overview
+    assert "## Health Snapshot" in ai_os_overview
+    assert payload["summary"]["collection_landing_artifact"] in ai_os_overview
+    assert str(ai_os_health_landing) in ai_os_overview
+    assert ai_os_index["collections"][0]["collection_dir"] == str(output_dir.parent)
+    assert ai_os_index["health_summary"]["collection_count"] >= 1
+    assert ai_os_health["collection_count"] >= 1
+    assert payload["summary"]["ai_os_health_summary"]["collection_count"] == ai_os_health["collection_count"]
     assert (output_dir / "probe_matrix_manifest.json").exists()
     assert (output_dir / "probe_matrix_summary.json").exists()
+    assert (output_dir / "README.md").exists()
+    persisted_summary = json.loads((output_dir / "probe_matrix_summary.json").read_text(encoding="utf-8"))
+    assert persisted_summary["summary"]["review_artifact"] == payload["summary"]["review_artifact"]
+    assert persisted_summary["summary"]["landing_artifact"] == payload["summary"]["landing_artifact"]
+    assert persisted_summary["summary"]["collection_index_artifact"] == payload["summary"]["collection_index_artifact"]
+    assert persisted_summary["summary"]["collection_landing_artifact"] == payload["summary"]["collection_landing_artifact"]
+    assert persisted_summary["summary"]["browser_index_artifact"] == payload["summary"]["browser_index_artifact"]
+    assert persisted_summary["summary"]["browser_landing_artifact"] == payload["summary"]["browser_landing_artifact"]
+    assert persisted_summary["summary"]["ai_os_browser_index_artifact"] == payload["summary"]["ai_os_browser_index_artifact"]
+    assert persisted_summary["summary"]["ai_os_browser_landing_artifact"] == payload["summary"]["ai_os_browser_landing_artifact"]
+    assert persisted_summary["summary"]["ai_os_health_index_artifact"] == payload["summary"]["ai_os_health_index_artifact"]
+    assert persisted_summary["summary"]["ai_os_health_landing_artifact"] == payload["summary"]["ai_os_health_landing_artifact"]
+    assert persisted_summary["summary"]["ai_os_health_summary"] == payload["summary"]["ai_os_health_summary"]
+    assert any(message["code"] == "probe_matrix_review_ready" for message in payload["messages"])
+    assert any(message["code"] == "builder_brain_collection_index_ready" for message in payload["messages"])
+    assert any(message["code"] == "builder_brain_browser_ready" for message in payload["messages"])
+    assert any(message["code"] == "ai_os_browser_ready" for message in payload["messages"])
+    assert any(message["code"] == "ai_os_health_ready" for message in payload["messages"])
     assert (output_dir / "01_manager_report_probe" / "probe_result.json").exists()
     assert (output_dir / "02_manager_dashboard_probe" / "probe_result.json").exists()
 
@@ -1130,6 +1429,39 @@ def test_probe_matrix_resolves_manifest_relative_paths(tmp_path: Path) -> None:
     assert payload["summary"]["ok_count"] == 2
     assert payload["probe_runs"][0]["summary"]["created_asset_id"] == "00OTPROBEAAA"
     assert payload["probe_runs"][1]["summary"]["created_asset_id"] == "01ZDASHPROBEAAA"
+    assert Path(payload["probe_runs"][0]["summary"]["handoff_review_artifact"]).exists()
+    assert Path(payload["probe_runs"][1]["summary"]["handoff_review_artifact"]).exists()
+    assert Path(payload["summary"]["review_artifact"]).exists()
+    assert Path(payload["summary"]["landing_artifact"]).exists()
+    assert Path(payload["summary"]["collection_index_artifact"]).exists()
+    assert Path(payload["summary"]["collection_landing_artifact"]).exists()
+    assert Path(payload["summary"]["browser_index_artifact"]).exists()
+    assert Path(payload["summary"]["browser_landing_artifact"]).exists()
+    assert Path(payload["summary"]["ai_os_browser_index_artifact"]).exists()
+    assert Path(payload["summary"]["ai_os_browser_landing_artifact"]).exists()
+    assert Path(payload["summary"]["ai_os_health_index_artifact"]).exists()
+    assert Path(payload["summary"]["ai_os_health_landing_artifact"]).exists()
+    assert isinstance(payload["summary"]["ai_os_health_summary"], dict)
+    probe_matrix_review = Path(payload["summary"]["review_artifact"]).read_text(encoding="utf-8")
+    probe_matrix_readme = Path(payload["summary"]["landing_artifact"]).read_text(encoding="utf-8")
+    collection_readme = Path(payload["summary"]["collection_landing_artifact"]).read_text(encoding="utf-8")
+    browser_overview = Path(payload["summary"]["browser_landing_artifact"]).read_text(encoding="utf-8")
+    ai_os_overview = Path(payload["summary"]["ai_os_browser_landing_artifact"]).read_text(encoding="utf-8")
+    ai_os_health = json.loads(Path(payload["summary"]["ai_os_health_index_artifact"]).read_text(encoding="utf-8"))
+    assert "# Probe Matrix Review" in probe_matrix_review
+    assert "Handoff review:" in probe_matrix_review
+    assert "Created asset:" in probe_matrix_review
+    assert probe_matrix_readme == probe_matrix_review
+    assert "# Builder Brain Runs" in collection_readme
+    assert payload["summary"]["landing_artifact"] in collection_readme
+    assert "# Builder Brain Collections" in browser_overview
+    assert payload["summary"]["collection_landing_artifact"] in browser_overview
+    assert "# AI OS Collections" in ai_os_overview
+    assert "## Health Snapshot" in ai_os_overview
+    assert payload["summary"]["collection_landing_artifact"] in ai_os_overview
+    assert payload["summary"]["ai_os_health_landing_artifact"] in ai_os_overview
+    assert ai_os_health["collection_count"] >= 1
+    assert payload["summary"]["ai_os_health_summary"]["collection_count"] == ai_os_health["collection_count"]
     invocation_path = output_dir / "02_manager_dashboard_probe" / "01_complete" / "02_filter_flow" / "run_filter_flow_invocation.json"
     assert invocation_path.exists()
     invocation = json.loads(invocation_path.read_text(encoding="utf-8"))

@@ -40,16 +40,17 @@ from crm_analytics_helpers import (
     sankey_chart,
     area_chart,
     bullet_chart,
+    compare_table,
+    line_chart,
     pillbox,
     coalesce_filter,
     hdr,
     section_label,
-    nav_link,
     pg,
-    nav_row,
     build_dashboard_state,
     deploy_dashboard,
     create_dashboard_if_needed,
+    KPI_CARD_STYLE,
     set_record_links_xmd,  # noqa: F401
 )
 
@@ -90,6 +91,14 @@ PAGE_LABELS = [
     "Advanced Analytics",
 ]
 NUM_PAGES = len(PAGE_IDS)
+
+# Consulting-grade facet scope: KPI tiles listen to all filter pillboxes
+KPI_FACET_SCOPE = {
+    "receiveFacetSource": {
+        "mode": "include",
+        "steps": ["f_unit", "f_industry", "f_health", "f_segment"],
+    },
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -791,6 +800,12 @@ def build_steps(ds_id):
     DS_META = [{"id": ds_id, "name": DS}]
     L = f'q = load "{DS}";\n'
 
+    # ── Helper: create a KPI step with facet scope ──
+    def _kpi_step(saql):
+        s = sq(saql)
+        s.update(KPI_FACET_SCOPE)
+        return s
+
     return {
         # ── Filter steps ──
         "f_unit": af("UnitGroup", DS_META),
@@ -801,7 +816,7 @@ def build_steps(ds_id):
         #  PAGE 1: Portfolio Overview
         # ═══════════════════════════════════════════════════════════════════
         # KPI: Total Customers (accounts with won ARR > 0)
-        "s_total_customers": sq(
+        "s_total_customers": _kpi_step(
             L
             + UF
             + IF
@@ -812,7 +827,7 @@ def build_steps(ds_id):
             + "q = foreach q generate count() as total_customers;"
         ),
         # KPI: Total ARR (sum of FY26 won ARR across all accounts)
-        "s_total_arr": sq(
+        "s_total_arr": _kpi_step(
             L
             + UF
             + IF
@@ -822,7 +837,7 @@ def build_steps(ds_id):
             + "q = foreach q generate sum(WonARR_FY26) as total_arr;"
         ),
         # KPI: Average Health Score
-        "s_avg_health": sq(
+        "s_avg_health": _kpi_step(
             L
             + UF
             + IF
@@ -832,7 +847,7 @@ def build_steps(ds_id):
             + "q = foreach q generate avg(HealthScore) as avg_health;"
         ),
         # KPI: Average NRR Proxy
-        "s_avg_nrr": sq(
+        "s_avg_nrr": _kpi_step(
             L
             + UF
             + IF
@@ -924,7 +939,7 @@ def build_steps(ds_id):
             + IF
             + SF
             + 'q = filter q by HealthBand == "Critical" || HealthBand == "At Risk";\n'
-            + "q = foreach q generate Id, AccountName, OwnerName, UnitGroup, "
+            + "q = foreach q generate AccountId as Id, AccountName, OwnerName, UnitGroup, "
             + "HealthScore, HealthBand, TotalWonARR, "
             + "ActiveContracts, ContactCount, LastActivityDate;\n"
             + "q = order q by TotalWonARR desc;\n"
@@ -958,7 +973,7 @@ def build_steps(ds_id):
         #  PAGE 3: Product Adoption
         # ═══════════════════════════════════════════════════════════════════
         # KPI: SaaS adoption rate
-        "s_saas_rate": sq(
+        "s_saas_rate": _kpi_step(
             L
             + UF
             + IF
@@ -972,7 +987,7 @@ def build_steps(ds_id):
             + '(case when count() > 0 then sum(case when IsSaaS == "true" then 1 else 0 end) * 100 / count() else 0 end) as saas_pct;'
         ),
         # KPI: Axioma adoption rate
-        "s_axioma_rate": sq(
+        "s_axioma_rate": _kpi_step(
             L
             + UF
             + IF
@@ -1029,7 +1044,7 @@ def build_steps(ds_id):
             + SF
             + "q = filter q by TotalWonARR > 0;\n"
             + "q = filter q by ProductCount < 2;\n"
-            + "q = foreach q generate Id, AccountName, OwnerName, UnitGroup, "
+            + "q = foreach q generate AccountId as Id, AccountName, OwnerName, UnitGroup, "
             + "TotalWonARR, ProductCount, IsSaaS, IsAxioma, "
             + "HealthScore, ExpansionScore;\n"
             + "q = order q by TotalWonARR desc;\n"
@@ -1039,7 +1054,7 @@ def build_steps(ds_id):
         #  PAGE 4: Revenue Expansion
         # ═══════════════════════════════════════════════════════════════════
         # KPI: Total Expand Pipeline
-        "s_expand_pipe": sq(
+        "s_expand_pipe": _kpi_step(
             L
             + UF
             + IF
@@ -1049,7 +1064,7 @@ def build_steps(ds_id):
             + "q = foreach q generate sum(ExpandPipelineARR) as expand_pipe;"
         ),
         # KPI: Total Expand Won ARR
-        "s_expand_won": sq(
+        "s_expand_won": _kpi_step(
             L
             + UF
             + IF
@@ -1080,7 +1095,7 @@ def build_steps(ds_id):
             + HF
             + SF
             + "q = filter q by ExpansionScore >= 30;\n"
-            + "q = foreach q generate Id, AccountName, OwnerName, UnitGroup, "
+            + "q = foreach q generate AccountId as Id, AccountName, OwnerName, UnitGroup, "
             + "TotalWonARR, ExpandPipelineARR, ExpansionScore, "
             + "ExpansionBand, ProductCount, HealthScore;\n"
             + "q = order q by ExpansionScore desc;\n"
@@ -1120,7 +1135,7 @@ def build_steps(ds_id):
         #  PAGE 5: Contract & Renewal
         # ═══════════════════════════════════════════════════════════════════
         # KPI: Active Contracts
-        "s_active_contracts": sq(
+        "s_active_contracts": _kpi_step(
             L
             + UF
             + IF
@@ -1130,7 +1145,7 @@ def build_steps(ds_id):
             + "q = foreach q generate sum(ActiveContracts) as active_count;"
         ),
         # KPI: Expiring Next 90d
-        "s_expiring_90": sq(
+        "s_expiring_90": _kpi_step(
             L
             + UF
             + IF
@@ -1140,7 +1155,7 @@ def build_steps(ds_id):
             + "q = foreach q generate sum(ExpiringContracts90d) as exp_90;"
         ),
         # KPI: Expiring Next 180d
-        "s_expiring_180": sq(
+        "s_expiring_180": _kpi_step(
             L
             + UF
             + IF
@@ -1150,7 +1165,7 @@ def build_steps(ds_id):
             + "q = foreach q generate sum(ExpiringContracts180d) as exp_180;"
         ),
         # KPI: Multi-Year Contracts
-        "s_multiyear": sq(
+        "s_multiyear": _kpi_step(
             L
             + UF
             + IF
@@ -1181,7 +1196,7 @@ def build_steps(ds_id):
             + IF
             + SF
             + "q = filter q by ExpiringContracts90d > 0;\n"
-            + "q = foreach q generate Id, AccountName, OwnerName, UnitGroup, "
+            + "q = foreach q generate AccountId as Id, AccountName, OwnerName, UnitGroup, "
             + "TotalWonARR, ExpiringContracts90d, HealthScore, "
             + "HealthBand, ContactCount, LastActivityDate;\n"
             + "q = order q by TotalWonARR desc;\n"
@@ -1279,7 +1294,7 @@ def build_steps(ds_id):
         #  PAGE 7: Engagement & Contacts
         # ═══════════════════════════════════════════════════════════════════
         # KPI: Avg contacts per account
-        "s_avg_contacts": sq(
+        "s_avg_contacts": _kpi_step(
             L
             + UF
             + IF
@@ -1290,7 +1305,7 @@ def build_steps(ds_id):
             + "q = foreach q generate avg(ContactCount) as avg_contacts;"
         ),
         # KPI: Avg C-Level contacts
-        "s_avg_clevel": sq(
+        "s_avg_clevel": _kpi_step(
             L
             + UF
             + IF
@@ -1343,7 +1358,7 @@ def build_steps(ds_id):
             + SF
             + "q = filter q by TotalWonARR > 0;\n"
             + "q = filter q by ContactCount < 3;\n"
-            + "q = foreach q generate Id, AccountName, OwnerName, UnitGroup, "
+            + "q = foreach q generate AccountId as Id, AccountName, OwnerName, UnitGroup, "
             + "TotalWonARR, ContactCount, CLevelContacts, "
             + "LastActivityDate, HealthScore;\n"
             + "q = order q by TotalWonARR desc;\n"
@@ -1410,7 +1425,7 @@ def build_steps(ds_id):
             + "q = order q by category asc;"
         ),
         # GRR and Logo Retention KPIs
-        "s_grr": sq(
+        "s_grr": _kpi_step(
             L
             + UF
             + IF
@@ -1423,7 +1438,7 @@ def build_steps(ds_id):
             + "then sum(RenewalWonARR) / sum(WonARR_FY25) * 100 "
             + "else 0 end) as grr_pct;"
         ),
-        "s_logo_retention": sq(
+        "s_logo_retention": _kpi_step(
             L
             + UF
             + IF
@@ -1463,7 +1478,7 @@ def build_steps(ds_id):
             + "q = order q by UnitGroup asc;"
         ),
         # Land-to-Expand velocity
-        "s_l2e_avg": sq(
+        "s_l2e_avg": _kpi_step(
             L
             + UF
             + IF
@@ -1629,14 +1644,6 @@ def build_steps(ds_id):
 def build_widgets():
     w = {}
 
-    # ── Nav widgets for all 7 pages ──
-    for p_idx in range(NUM_PAGES):
-        prefix = f"p{p_idx + 1}"
-        for i in range(NUM_PAGES):
-            w[f"{prefix}_nav{i + 1}"] = nav_link(
-                PAGE_IDS[i], PAGE_LABELS[i], active=(i == p_idx)
-            )
-
     # ═══════════════════════════════════════════════════════════════════
     #  PAGE 1: Portfolio Overview
     # ═══════════════════════════════════════════════════════════════════
@@ -1658,7 +1665,8 @@ def build_widgets():
                 "Total Customers",
                 "#091A3E",
                 compact=False,
-                size=28,
+                tier="primary",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p1_kpi_arr": num(
                 "s_total_arr",
@@ -1666,6 +1674,9 @@ def build_widgets():
                 "FY26 Won ARR",
                 "#04844B",
                 compact=True,
+                tier="primary",
+                prefix="\u20ac",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p1_kpi_health": num(
                 "s_avg_health",
@@ -1673,15 +1684,18 @@ def build_widgets():
                 "Avg Health Score",
                 "#0070D2",
                 compact=False,
-                size=28,
+                tier="primary",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p1_kpi_nrr": num(
                 "s_avg_nrr",
                 "avg_nrr",
-                "Avg NRR Proxy %",
+                "Avg NRR Proxy",
                 "#FF5D2D",
                 compact=False,
-                size=28,
+                tier="primary",
+                suffix="%",
+                widget_style=KPI_CARD_STYLE,
             ),
             # Health distribution donut
             "p1_sec_health": section_label("Customer Health Distribution"),
@@ -1764,21 +1778,36 @@ def build_widgets():
                 ["RiskLevel"],
                 ["at_risk_arr"],
                 axis_title="At-Risk ARR (EUR)",
+                show_values=True,
             ),
             # At-risk table
             "p2_sec_table": section_label("At-Risk Accounts"),
-            "p2_tbl_risk": rich_chart(
+            "p2_tbl_risk": compare_table(
                 "s_at_risk",
-                "comparisontable",
                 "At-Risk & Critical Accounts",
-                ["AccountName"],
-                [
+                columns=[
+                    "AccountName",
                     "OwnerName",
                     "UnitGroup",
                     "HealthScore",
                     "TotalWonARR",
                     "ActiveContracts",
                     "ContactCount",
+                ],
+                column_properties={
+                    "TotalWonARR": {"width": 120, "alignment": "right"},
+                    "HealthScore": {"width": 80, "alignment": "right"},
+                },
+                subtitle="Sorted by ARR descending -- prioritize high-value accounts with declining health",
+                format_rules=[
+                    {
+                        "type": "threshold",
+                        "field": "HealthScore",
+                        "rules": [
+                            {"value": 40, "color": "#D4504C", "operator": "lte"},
+                            {"value": 70, "color": "#FFB75D", "operator": "lte"},
+                        ],
+                    },
                 ],
             ),
         }
@@ -1801,18 +1830,22 @@ def build_widgets():
             "p3_kpi_saas": num(
                 "s_saas_rate",
                 "saas_pct",
-                "SaaS Adoption %",
+                "SaaS Adoption",
                 "#04844B",
                 compact=False,
-                size=28,
+                tier="primary",
+                suffix="%",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p3_kpi_axioma": num(
                 "s_axioma_rate",
                 "axioma_pct",
-                "Axioma Adoption %",
+                "Axioma Adoption",
                 "#0070D2",
                 compact=False,
-                size=28,
+                tier="primary",
+                suffix="%",
+                widget_style=KPI_CARD_STYLE,
             ),
             # Product by UnitGroup
             "p3_sec_unit": section_label("Product Penetration by Unit Group"),
@@ -1824,6 +1857,7 @@ def build_widgets():
                 ["saas_count", "axioma_count"],
                 show_legend=True,
                 axis_title="Accounts",
+                show_values=True,
             ),
             # Product distribution
             "p3_sec_dist": section_label("Product Count Distribution"),
@@ -1834,15 +1868,15 @@ def build_widgets():
                 ["ProductBand"],
                 ["acct_count"],
                 axis_title="Number of Accounts",
+                show_values=True,
             ),
             # Whitespace table
             "p3_sec_ws": section_label("Cross-Sell Whitespace (Low Product, High ARR)"),
-            "p3_tbl_ws": rich_chart(
+            "p3_tbl_ws": compare_table(
                 "s_whitespace",
-                "comparisontable",
                 "Top Cross-Sell Opportunities",
-                ["AccountName"],
-                [
+                columns=[
+                    "AccountName",
                     "OwnerName",
                     "UnitGroup",
                     "TotalWonARR",
@@ -1850,6 +1884,21 @@ def build_widgets():
                     "IsSaaS",
                     "IsAxioma",
                     "ExpansionScore",
+                ],
+                column_properties={
+                    "TotalWonARR": {"width": 120, "alignment": "right"},
+                    "ExpansionScore": {"width": 80, "alignment": "right"},
+                },
+                subtitle="Single-product high-ARR accounts -- highest cross-sell potential",
+                format_rules=[
+                    {
+                        "type": "threshold",
+                        "field": "ExpansionScore",
+                        "rules": [
+                            {"value": 60, "color": "#04844B", "operator": "gte"},
+                            {"value": 30, "color": "#FFB75D", "operator": "gte"},
+                        ],
+                    },
                 ],
             ),
         }
@@ -1875,6 +1924,9 @@ def build_widgets():
                 "Expand Pipeline",
                 "#0070D2",
                 compact=True,
+                tier="primary",
+                prefix="\u20ac",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p4_kpi_won": num(
                 "s_expand_won",
@@ -1882,6 +1934,9 @@ def build_widgets():
                 "Expand Won ARR",
                 "#04844B",
                 compact=True,
+                tier="primary",
+                prefix="\u20ac",
+                widget_style=KPI_CARD_STYLE,
             ),
             # Expansion signal distribution
             "p4_sec_signal": section_label("Expansion Signal Distribution"),
@@ -1892,6 +1947,7 @@ def build_widgets():
                 ["ExpansionBand"],
                 ["acct_count"],
                 axis_title="Accounts",
+                show_values=True,
             ),
             # Expand by UnitGroup
             "p4_sec_unit": section_label("Expansion Pipeline by Unit Group"),
@@ -1903,6 +1959,7 @@ def build_widgets():
                 ["expand_pipe", "expand_won"],
                 show_legend=True,
                 axis_title="ARR (EUR)",
+                show_values=True,
             ),
             # NRR by UnitGroup
             "p4_sec_nrr": section_label("Net Revenue Retention by Unit Group"),
@@ -1913,15 +1970,18 @@ def build_widgets():
                 ["UnitGroup"],
                 ["nrr_pct"],
                 axis_title="NRR %",
+                show_values=True,
+                reference_lines=[
+                    {"value": 100, "label": "100% Retention", "color": "#04844B"},
+                ],
             ),
             # Top expansion accounts table
             "p4_sec_top": section_label("Top Expansion Opportunities"),
-            "p4_tbl_top": rich_chart(
+            "p4_tbl_top": compare_table(
                 "s_expansion_top",
-                "comparisontable",
                 "Highest Expansion Signal Accounts",
-                ["AccountName"],
-                [
+                columns=[
+                    "AccountName",
                     "OwnerName",
                     "UnitGroup",
                     "TotalWonARR",
@@ -1929,6 +1989,31 @@ def build_widgets():
                     "ExpansionScore",
                     "ProductCount",
                     "HealthScore",
+                ],
+                column_properties={
+                    "TotalWonARR": {"width": 120, "alignment": "right"},
+                    "ExpandPipelineARR": {"width": 120, "alignment": "right"},
+                    "ExpansionScore": {"width": 80, "alignment": "right"},
+                    "HealthScore": {"width": 80, "alignment": "right"},
+                },
+                subtitle="Ranked by expansion signal -- combine pipeline value with health and product whitespace",
+                format_rules=[
+                    {
+                        "type": "threshold",
+                        "field": "ExpansionScore",
+                        "rules": [
+                            {"value": 60, "color": "#04844B", "operator": "gte"},
+                            {"value": 30, "color": "#FFB75D", "operator": "gte"},
+                        ],
+                    },
+                    {
+                        "type": "threshold",
+                        "field": "HealthScore",
+                        "rules": [
+                            {"value": 40, "color": "#D4504C", "operator": "lte"},
+                            {"value": 70, "color": "#FFB75D", "operator": "lte"},
+                        ],
+                    },
                 ],
             ),
         }
@@ -1954,7 +2039,8 @@ def build_widgets():
                 "Active Contracts",
                 "#04844B",
                 compact=False,
-                size=28,
+                tier="secondary",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p5_kpi_exp90": num(
                 "s_expiring_90",
@@ -1962,7 +2048,8 @@ def build_widgets():
                 "Expiring 90d",
                 "#D4504C",
                 compact=False,
-                size=28,
+                tier="secondary",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p5_kpi_exp180": num(
                 "s_expiring_180",
@@ -1970,7 +2057,8 @@ def build_widgets():
                 "Expiring 180d",
                 "#FFB75D",
                 compact=False,
-                size=28,
+                tier="secondary",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p5_kpi_multi": num(
                 "s_multiyear",
@@ -1978,7 +2066,8 @@ def build_widgets():
                 "Multi-Year",
                 "#0070D2",
                 compact=False,
-                size=28,
+                tier="secondary",
+                widget_style=KPI_CARD_STYLE,
             ),
             # Term by UnitGroup
             "p5_sec_term": section_label("Average Contract Term by Unit Group"),
@@ -1989,6 +2078,7 @@ def build_widgets():
                 ["UnitGroup"],
                 ["avg_term"],
                 axis_title="Months",
+                show_values=True,
             ),
             # Contracts by Segment
             "p5_sec_seg": section_label("Contract Distribution by Segment"),
@@ -2000,15 +2090,15 @@ def build_widgets():
                 ["total_contracts", "active_contracts", "exp_90"],
                 show_legend=True,
                 axis_title="Contracts",
+                show_values=True,
             ),
             # At-risk renewals table
             "p5_sec_risk": section_label("At-Risk Renewals (Expiring 90d)"),
-            "p5_tbl_risk": rich_chart(
+            "p5_tbl_risk": compare_table(
                 "s_renewal_risk",
-                "comparisontable",
                 "Renewals at Risk",
-                ["AccountName"],
-                [
+                columns=[
+                    "AccountName",
                     "OwnerName",
                     "UnitGroup",
                     "TotalWonARR",
@@ -2016,6 +2106,22 @@ def build_widgets():
                     "HealthScore",
                     "ContactCount",
                     "LastActivityDate",
+                ],
+                column_properties={
+                    "TotalWonARR": {"width": 120, "alignment": "right"},
+                    "HealthScore": {"width": 80, "alignment": "right"},
+                    "ExpiringContracts90d": {"width": 80, "alignment": "right"},
+                },
+                subtitle="Expiring contracts with health risk -- prioritize high-ARR accounts for renewal intervention",
+                format_rules=[
+                    {
+                        "type": "threshold",
+                        "field": "HealthScore",
+                        "rules": [
+                            {"value": 40, "color": "#D4504C", "operator": "lte"},
+                            {"value": 70, "color": "#FFB75D", "operator": "lte"},
+                        ],
+                    },
                 ],
             ),
         }
@@ -2043,6 +2149,7 @@ def build_widgets():
                 ["Segment"],
                 ["total_arr"],
                 axis_title="Total Won ARR (EUR)",
+                show_values=True,
             ),
             # Revenue concentration
             "p6_sec_conc": section_label("Revenue Concentration (Top 20)"),
@@ -2053,16 +2160,16 @@ def build_widgets():
                 ["AccountName"],
                 ["TotalWonARR"],
                 axis_title="Total Won ARR (EUR)",
+                show_values=True,
             ),
             # Cohort analysis
             "p6_sec_cohort": section_label("Customer Cohort Analysis"),
-            "p6_ch_cohort": rich_chart(
+            "p6_ch_cohort": line_chart(
                 "s_cohort",
-                "column",
                 "Customers & ARR by Cohort Year",
-                ["CustomerSince"],
-                ["cohort_arr"],
+                show_legend=True,
                 axis_title="Cohort ARR (EUR)",
+                subtitle="ARR by customer vintage year -- reveals acquisition quality over time",
             ),
             # Industry treemap
             "p6_sec_ind": section_label("Industry Distribution"),
@@ -2082,6 +2189,7 @@ def build_widgets():
                 ["BillingCountry"],
                 ["total_arr"],
                 axis_title="Total ARR (EUR)",
+                show_values=True,
             ),
         }
     )
@@ -2106,7 +2214,8 @@ def build_widgets():
                 "Avg Contacts/Acct",
                 "#091A3E",
                 compact=False,
-                size=28,
+                tier="primary",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p7_kpi_clevel": num(
                 "s_avg_clevel",
@@ -2114,7 +2223,8 @@ def build_widgets():
                 "Avg C-Level/Acct",
                 "#0070D2",
                 compact=False,
-                size=28,
+                tier="primary",
+                widget_style=KPI_CARD_STYLE,
             ),
             # Contact by segment
             "p7_sec_seg": section_label("Contact Coverage by Segment"),
@@ -2126,6 +2236,7 @@ def build_widgets():
                 ["avg_contacts", "avg_clevel"],
                 show_legend=True,
                 axis_title="Avg Count",
+                show_values=True,
             ),
             # Multi-threading
             "p7_sec_thread": section_label("Multi-Threading Analysis"),
@@ -2136,6 +2247,7 @@ def build_widgets():
                 ["ThreadBand"],
                 ["acct_count"],
                 axis_title="Accounts",
+                show_values=True,
             ),
             # C-Level by UnitGroup
             "p7_sec_clevel": section_label("C-Level Penetration by Unit Group"),
@@ -2146,21 +2258,36 @@ def build_widgets():
                 ["UnitGroup"],
                 ["avg_clevel"],
                 axis_title="Avg C-Level Contacts",
+                show_values=True,
             ),
             # Low engagement table
             "p7_sec_low": section_label("Low-Engagement High-ARR Accounts"),
-            "p7_tbl_low": rich_chart(
+            "p7_tbl_low": compare_table(
                 "s_low_engagement",
-                "comparisontable",
                 "Under-Engaged Accounts",
-                ["AccountName"],
-                [
+                columns=[
+                    "AccountName",
                     "OwnerName",
                     "UnitGroup",
                     "TotalWonARR",
                     "ContactCount",
                     "CLevelContacts",
                     "HealthScore",
+                ],
+                column_properties={
+                    "TotalWonARR": {"width": 120, "alignment": "right"},
+                    "HealthScore": {"width": 80, "alignment": "right"},
+                },
+                subtitle="High-ARR accounts with fewer than 3 contacts -- increase multi-threading to reduce churn risk",
+                format_rules=[
+                    {
+                        "type": "threshold",
+                        "field": "HealthScore",
+                        "rules": [
+                            {"value": 40, "color": "#D4504C", "operator": "lte"},
+                            {"value": 70, "color": "#FFB75D", "operator": "lte"},
+                        ],
+                    },
                 ],
             ),
         }
@@ -2186,18 +2313,22 @@ def build_widgets():
             "p1_kpi_grr": num(
                 "s_grr",
                 "grr_pct",
-                "GRR Proxy %",
+                "GRR Proxy",
                 "#04844B",
                 compact=False,
-                size=28,
+                tier="secondary",
+                suffix="%",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p1_kpi_logo": num(
                 "s_logo_retention",
                 "logo_retention",
-                "Logo Retention %",
+                "Logo Retention",
                 "#0070D2",
                 compact=False,
-                size=28,
+                tier="secondary",
+                suffix="%",
+                widget_style=KPI_CARD_STYLE,
             ),
             # ── Expansion page enhancements ──
             "p4_kpi_l2e": num(
@@ -2206,7 +2337,8 @@ def build_widgets():
                 "Avg Land-to-Expand Days",
                 "#FF5D2D",
                 compact=False,
-                size=28,
+                tier="secondary",
+                widget_style=KPI_CARD_STYLE,
             ),
             "p4_sec_l2e": section_label("Land-to-Expand Velocity by Segment"),
             "p4_ch_l2e": rich_chart(
@@ -2216,6 +2348,7 @@ def build_widgets():
                 ["Segment"],
                 ["avg_days"],
                 axis_title="Days",
+                show_values=True,
             ),
             # ── Segmentation page enhancements ──
             "p6_sec_lifecycle": section_label("Customer Lifecycle Distribution"),
@@ -2258,6 +2391,7 @@ def build_widgets():
                 ["ProductCombo"],
                 ["combo_count"],
                 axis_title="Accounts",
+                show_values=True,
             ),
         }
     )
@@ -2301,29 +2435,59 @@ def build_widgets():
             ),
             # Stats: ARR percentile table
             "p8_sec_arr_stats": section_label("ARR Distribution Statistics"),
-            "p8_tbl_arr_stats": rich_chart(
+            "p8_tbl_arr_stats": compare_table(
                 "s_stat_arr_percentiles",
-                "comparisontable",
                 "ARR Percentile Distribution",
-                ["total_accts"],
-                ["avg_arr", "stddev_arr", "p25_arr", "p50_arr", "p75_arr"],
+                columns=[
+                    "total_accts",
+                    "avg_arr",
+                    "stddev_arr",
+                    "p25_arr",
+                    "p50_arr",
+                    "p75_arr",
+                ],
+                column_properties={
+                    "avg_arr": {"width": 120, "alignment": "right"},
+                    "stddev_arr": {"width": 120, "alignment": "right"},
+                    "p25_arr": {"width": 100, "alignment": "right"},
+                    "p50_arr": {"width": 100, "alignment": "right"},
+                    "p75_arr": {"width": 100, "alignment": "right"},
+                },
+                subtitle="Portfolio ARR spread -- high stddev signals revenue concentration risk",
             ),
             # Stats: Health Score by UnitGroup table
             "p8_sec_health_stats": section_label(
                 "Health Score Statistics by Unit Group"
             ),
-            "p8_tbl_health_stats": rich_chart(
+            "p8_tbl_health_stats": compare_table(
                 "s_stat_health_by_unit",
-                "comparisontable",
                 "Health Score Distribution by Unit Group",
-                ["UnitGroup"],
-                [
+                columns=[
+                    "UnitGroup",
                     "acct_count",
                     "avg_health",
                     "stddev_health",
                     "p25_health",
                     "p50_health",
                     "p75_health",
+                ],
+                column_properties={
+                    "avg_health": {"width": 80, "alignment": "right"},
+                    "stddev_health": {"width": 80, "alignment": "right"},
+                    "p25_health": {"width": 80, "alignment": "right"},
+                    "p50_health": {"width": 80, "alignment": "right"},
+                    "p75_health": {"width": 80, "alignment": "right"},
+                },
+                subtitle="Unit health variability -- high stddev indicates inconsistent customer experience",
+                format_rules=[
+                    {
+                        "type": "threshold",
+                        "field": "avg_health",
+                        "rules": [
+                            {"value": 40, "color": "#D4504C", "operator": "lte"},
+                            {"value": 70, "color": "#FFB75D", "operator": "lte"},
+                        ],
+                    },
                 ],
             ),
         }
@@ -2338,7 +2502,11 @@ def build_widgets():
     add_table_action(w["p5_tbl_risk"], "salesforceActions", "Account", "Id")
     add_table_action(w["p7_tbl_low"], "salesforceActions", "Account", "Id")
 
-    return w
+    return {
+        name: widget
+        for name, widget in w.items()
+        if "_nav" not in name and "_sec_" not in name and not name.startswith("p8_")
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2423,489 +2591,186 @@ def _std_header_3f(prefix, f3_name, f3_label, row_start=1):
 
 def build_layout():
     # ── PAGE 1: Portfolio Overview ──
-    p1 = (
-        nav_row("p1", NUM_PAGES)
-        + _std_header("p1")
-        + [
-            # Hero KPIs (row 5)
-            {
-                "name": "p1_kpi_customers",
-                "row": 5,
-                "column": 0,
-                "colspan": 3,
-                "rowspan": 4,
-            },
-            {"name": "p1_kpi_arr", "row": 5, "column": 3, "colspan": 3, "rowspan": 4},
-            {
-                "name": "p1_kpi_health",
-                "row": 5,
-                "column": 6,
-                "colspan": 3,
-                "rowspan": 4,
-            },
-            {"name": "p1_kpi_nrr", "row": 5, "column": 9, "colspan": 3, "rowspan": 4},
-            # Health distribution + Segment distribution (row 9)
-            {
-                "name": "p1_sec_health",
-                "row": 9,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 1,
-            },
-            {
-                "name": "p1_ch_health",
-                "row": 10,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 7,
-            },
-            {"name": "p1_sec_seg", "row": 9, "column": 6, "colspan": 6, "rowspan": 1},
-            {"name": "p1_ch_seg", "row": 10, "column": 6, "colspan": 6, "rowspan": 7},
-            # ARR by Unit Group treemap (row 17)
-            {
-                "name": "p1_sec_unit",
-                "row": 17,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {"name": "p1_ch_unit", "row": 18, "column": 0, "colspan": 12, "rowspan": 8},
-            # ARR Waterfall (row 26)
-            {
-                "name": "p1_sec_waterfall",
-                "row": 26,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p1_ch_waterfall",
-                "row": 27,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 8,
-            },
-            # GRR + Logo Retention KPIs (row 35)
-            {"name": "p1_kpi_grr", "row": 35, "column": 0, "colspan": 6, "rowspan": 4},
-            {"name": "p1_kpi_logo", "row": 35, "column": 6, "colspan": 6, "rowspan": 4},
-        ]
-    )
+    p1 = _std_header("p1") + [
+        # Hero KPIs (row 5)
+        {
+            "name": "p1_kpi_customers",
+            "row": 5,
+            "column": 0,
+            "colspan": 3,
+            "rowspan": 4,
+        },
+        {"name": "p1_kpi_arr", "row": 5, "column": 3, "colspan": 3, "rowspan": 4},
+        {
+            "name": "p1_kpi_health",
+            "row": 5,
+            "column": 6,
+            "colspan": 3,
+            "rowspan": 4,
+        },
+        {"name": "p1_kpi_nrr", "row": 5, "column": 9, "colspan": 3, "rowspan": 4},
+        # Health distribution + Segment distribution (row 9)
+        {"name": "p1_ch_health", "row": 9, "column": 0, "colspan": 6, "rowspan": 7},
+        {"name": "p1_ch_seg", "row": 9, "column": 6, "colspan": 6, "rowspan": 7},
+        {"name": "p1_ch_unit", "row": 16, "column": 0, "colspan": 12, "rowspan": 8},
+        {
+            "name": "p1_ch_waterfall",
+            "row": 24,
+            "column": 0,
+            "colspan": 12,
+            "rowspan": 8,
+        },
+        {"name": "p1_kpi_grr", "row": 32, "column": 0, "colspan": 6, "rowspan": 4},
+        {"name": "p1_kpi_logo", "row": 32, "column": 6, "colspan": 6, "rowspan": 4},
+    ]
 
     # ── PAGE 2: Customer Health & Risk ──
-    p2 = (
-        nav_row("p2", NUM_PAGES)
-        + _std_header_3f("p2", "segment", "Segment")
-        + [
-            # Health gauge (row 5)
-            {
-                "name": "p2_health_gauge",
-                "row": 5,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 6,
-            },
-            # Scatter + Heatmap (row 11)
-            {
-                "name": "p2_sec_scatter",
-                "row": 11,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 1,
-            },
-            {
-                "name": "p2_ch_scatter",
-                "row": 12,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 8,
-            },
-            {
-                "name": "p2_sec_heatmap",
-                "row": 11,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 1,
-            },
-            {
-                "name": "p2_ch_heatmap",
-                "row": 12,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 8,
-            },
-            # Risk breakdown (row 20)
-            {
-                "name": "p2_sec_risk",
-                "row": 20,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {"name": "p2_ch_risk", "row": 21, "column": 0, "colspan": 12, "rowspan": 6},
-            # At-risk table (row 27)
-            {
-                "name": "p2_sec_table",
-                "row": 27,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p2_tbl_risk",
-                "row": 28,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 8,
-            },
-        ]
-    )
+    p2 = _std_header_3f("p2", "segment", "Segment") + [
+        # Health gauge (row 5)
+        {
+            "name": "p2_health_gauge",
+            "row": 5,
+            "column": 0,
+            "colspan": 12,
+            "rowspan": 6,
+        },
+        # Scatter + Heatmap (row 11)
+        {
+            "name": "p2_ch_scatter",
+            "row": 11,
+            "column": 0,
+            "colspan": 6,
+            "rowspan": 8,
+        },
+        {
+            "name": "p2_ch_heatmap",
+            "row": 11,
+            "column": 6,
+            "colspan": 6,
+            "rowspan": 8,
+        },
+        {"name": "p2_ch_risk", "row": 19, "column": 0, "colspan": 12, "rowspan": 6},
+        {
+            "name": "p2_tbl_risk",
+            "row": 25,
+            "column": 0,
+            "colspan": 12,
+            "rowspan": 8,
+        },
+    ]
 
     # ── PAGE 3: Product Adoption ──
-    p3 = (
-        nav_row("p3", NUM_PAGES)
-        + _std_header_3f("p3", "health", "Health")
-        + [
-            # KPIs (row 5)
-            {"name": "p3_kpi_saas", "row": 5, "column": 0, "colspan": 6, "rowspan": 4},
-            {
-                "name": "p3_kpi_axioma",
-                "row": 5,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 4,
-            },
-            # Product by UnitGroup (row 9)
-            {"name": "p3_sec_unit", "row": 9, "column": 0, "colspan": 12, "rowspan": 1},
-            {"name": "p3_ch_unit", "row": 10, "column": 0, "colspan": 6, "rowspan": 8},
-            # Product distribution (row 9 right)
-            {"name": "p3_sec_dist", "row": 9, "column": 6, "colspan": 6, "rowspan": 1},
-            {"name": "p3_ch_dist", "row": 10, "column": 6, "colspan": 6, "rowspan": 8},
-            # Whitespace table (row 18)
-            {"name": "p3_sec_ws", "row": 18, "column": 0, "colspan": 12, "rowspan": 1},
-            {"name": "p3_tbl_ws", "row": 19, "column": 0, "colspan": 12, "rowspan": 8},
-            # Product Combinations (row 27)
-            {
-                "name": "p3_sec_combos",
-                "row": 27,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p3_ch_combos",
-                "row": 28,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 8,
-            },
-        ]
-    )
+    p3 = _std_header_3f("p3", "health", "Health") + [
+        # KPIs (row 5)
+        {"name": "p3_kpi_saas", "row": 5, "column": 0, "colspan": 6, "rowspan": 4},
+        {
+            "name": "p3_kpi_axioma",
+            "row": 5,
+            "column": 6,
+            "colspan": 6,
+            "rowspan": 4,
+        },
+        # Product by UnitGroup (row 9)
+        {"name": "p3_ch_unit", "row": 9, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p3_ch_dist", "row": 9, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p3_tbl_ws", "row": 17, "column": 0, "colspan": 12, "rowspan": 8},
+        {
+            "name": "p3_ch_combos",
+            "row": 25,
+            "column": 0,
+            "colspan": 12,
+            "rowspan": 8,
+        },
+    ]
 
     # ── PAGE 4: Revenue Expansion ──
-    p4 = (
-        nav_row("p4", NUM_PAGES)
-        + _std_header_3f("p4", "health", "Health")
-        + [
-            # KPIs (row 5)
-            {"name": "p4_kpi_pipe", "row": 5, "column": 0, "colspan": 6, "rowspan": 4},
-            {"name": "p4_kpi_won", "row": 5, "column": 6, "colspan": 6, "rowspan": 4},
-            # Expansion signal + Expand by unit (row 9)
-            {
-                "name": "p4_sec_signal",
-                "row": 9,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 1,
-            },
-            {
-                "name": "p4_ch_signal",
-                "row": 10,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 8,
-            },
-            {"name": "p4_sec_unit", "row": 9, "column": 6, "colspan": 6, "rowspan": 1},
-            {"name": "p4_ch_unit", "row": 10, "column": 6, "colspan": 6, "rowspan": 8},
-            # NRR by UnitGroup (row 18)
-            {"name": "p4_sec_nrr", "row": 18, "column": 0, "colspan": 12, "rowspan": 1},
-            {"name": "p4_ch_nrr", "row": 19, "column": 0, "colspan": 12, "rowspan": 7},
-            # Expansion opportunities table (row 26)
-            {"name": "p4_sec_top", "row": 26, "column": 0, "colspan": 12, "rowspan": 1},
-            {"name": "p4_tbl_top", "row": 27, "column": 0, "colspan": 12, "rowspan": 8},
-            # Land-to-Expand KPI + velocity chart (row 35)
-            {"name": "p4_kpi_l2e", "row": 35, "column": 0, "colspan": 12, "rowspan": 4},
-            {"name": "p4_sec_l2e", "row": 39, "column": 0, "colspan": 12, "rowspan": 1},
-            {"name": "p4_ch_l2e", "row": 40, "column": 0, "colspan": 12, "rowspan": 8},
-        ]
-    )
+    p4 = _std_header_3f("p4", "health", "Health") + [
+        # KPIs (row 5)
+        {"name": "p4_kpi_pipe", "row": 5, "column": 0, "colspan": 6, "rowspan": 4},
+        {"name": "p4_kpi_won", "row": 5, "column": 6, "colspan": 6, "rowspan": 4},
+        # Expansion signal + Expand by unit (row 9)
+        {
+            "name": "p4_ch_signal",
+            "row": 9,
+            "column": 0,
+            "colspan": 6,
+            "rowspan": 8,
+        },
+        {"name": "p4_ch_unit", "row": 9, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p4_ch_nrr", "row": 17, "column": 0, "colspan": 12, "rowspan": 7},
+        {"name": "p4_tbl_top", "row": 24, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p4_kpi_l2e", "row": 32, "column": 0, "colspan": 12, "rowspan": 4},
+        {"name": "p4_ch_l2e", "row": 36, "column": 0, "colspan": 12, "rowspan": 8},
+    ]
 
     # ── PAGE 5: Contract & Renewal ──
-    p5 = (
-        nav_row("p5", NUM_PAGES)
-        + _std_header_3f("p5", "health", "Health")
-        + [
-            # KPIs (row 5)
-            {
-                "name": "p5_kpi_active",
-                "row": 5,
-                "column": 0,
-                "colspan": 3,
-                "rowspan": 4,
-            },
-            {"name": "p5_kpi_exp90", "row": 5, "column": 3, "colspan": 3, "rowspan": 4},
-            {
-                "name": "p5_kpi_exp180",
-                "row": 5,
-                "column": 6,
-                "colspan": 3,
-                "rowspan": 4,
-            },
-            {"name": "p5_kpi_multi", "row": 5, "column": 9, "colspan": 3, "rowspan": 4},
-            # Term by UnitGroup + Contracts by Segment (row 9)
-            {"name": "p5_sec_term", "row": 9, "column": 0, "colspan": 6, "rowspan": 1},
-            {"name": "p5_ch_term", "row": 10, "column": 0, "colspan": 6, "rowspan": 8},
-            {"name": "p5_sec_seg", "row": 9, "column": 6, "colspan": 6, "rowspan": 1},
-            {"name": "p5_ch_seg", "row": 10, "column": 6, "colspan": 6, "rowspan": 8},
-            # At-risk renewals table (row 18)
-            {
-                "name": "p5_sec_risk",
-                "row": 18,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p5_tbl_risk",
-                "row": 19,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 8,
-            },
-        ]
-    )
+    p5 = _std_header_3f("p5", "health", "Health") + [
+        # KPIs (row 5)
+        {
+            "name": "p5_kpi_active",
+            "row": 5,
+            "column": 0,
+            "colspan": 3,
+            "rowspan": 4,
+        },
+        {"name": "p5_kpi_exp90", "row": 5, "column": 3, "colspan": 3, "rowspan": 4},
+        {
+            "name": "p5_kpi_exp180",
+            "row": 5,
+            "column": 6,
+            "colspan": 3,
+            "rowspan": 4,
+        },
+        {"name": "p5_kpi_multi", "row": 5, "column": 9, "colspan": 3, "rowspan": 4},
+        # Term by UnitGroup + Contracts by Segment (row 9)
+        {"name": "p5_ch_term", "row": 9, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p5_ch_seg", "row": 9, "column": 6, "colspan": 6, "rowspan": 8},
+        {
+            "name": "p5_tbl_risk",
+            "row": 17,
+            "column": 0,
+            "colspan": 12,
+            "rowspan": 8,
+        },
+    ]
 
     # ── PAGE 6: Customer Segmentation ──
-    p6 = (
-        nav_row("p6", NUM_PAGES)
-        + _std_header_3f("p6", "health", "Health")
-        + [
-            # Segment performance + Revenue concentration (row 5)
-            {"name": "p6_sec_seg", "row": 5, "column": 0, "colspan": 6, "rowspan": 1},
-            {"name": "p6_ch_seg", "row": 6, "column": 0, "colspan": 6, "rowspan": 8},
-            {"name": "p6_sec_conc", "row": 5, "column": 6, "colspan": 6, "rowspan": 1},
-            {"name": "p6_ch_conc", "row": 6, "column": 6, "colspan": 6, "rowspan": 8},
-            # Cohort analysis (row 14)
-            {
-                "name": "p6_sec_cohort",
-                "row": 14,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p6_ch_cohort",
-                "row": 15,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 7,
-            },
-            # Industry treemap + Country distribution (row 22)
-            {"name": "p6_sec_ind", "row": 22, "column": 0, "colspan": 6, "rowspan": 1},
-            {"name": "p6_ch_ind", "row": 23, "column": 0, "colspan": 6, "rowspan": 8},
-            {"name": "p6_sec_geo", "row": 22, "column": 6, "colspan": 6, "rowspan": 1},
-            {"name": "p6_ch_geo", "row": 23, "column": 6, "colspan": 6, "rowspan": 8},
-            # Customer Lifecycle (row 31)
-            {
-                "name": "p6_sec_lifecycle",
-                "row": 31,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 1,
-            },
-            {
-                "name": "p6_ch_lifecycle",
-                "row": 32,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 8,
-            },
-            # Lifecycle by Unit Group heatmap (row 31 right)
-            {
-                "name": "p6_sec_lc_unit",
-                "row": 31,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 1,
-            },
-            {
-                "name": "p6_ch_lc_unit",
-                "row": 32,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 8,
-            },
-        ]
-    )
+    p6 = _std_header_3f("p6", "health", "Health") + [
+        # Segment performance + Revenue concentration (row 5)
+        {"name": "p6_ch_seg", "row": 5, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p6_ch_conc", "row": 5, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p6_ch_cohort", "row": 13, "column": 0, "colspan": 12, "rowspan": 7},
+        {"name": "p6_ch_ind", "row": 20, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p6_ch_geo", "row": 20, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p6_ch_lifecycle", "row": 28, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p6_ch_lc_unit", "row": 28, "column": 6, "colspan": 6, "rowspan": 8},
+    ]
 
     # ── PAGE 7: Engagement & Contacts ──
-    p7 = (
-        nav_row("p7", NUM_PAGES)
-        + _std_header_3f("p7", "health", "Health")
-        + [
-            # KPIs (row 5)
-            {
-                "name": "p7_kpi_contacts",
-                "row": 5,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 4,
-            },
-            {
-                "name": "p7_kpi_clevel",
-                "row": 5,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 4,
-            },
-            # Contact by segment + Multi-threading (row 9)
-            {"name": "p7_sec_seg", "row": 9, "column": 0, "colspan": 6, "rowspan": 1},
-            {"name": "p7_ch_seg", "row": 10, "column": 0, "colspan": 6, "rowspan": 8},
-            {
-                "name": "p7_sec_thread",
-                "row": 9,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 1,
-            },
-            {
-                "name": "p7_ch_thread",
-                "row": 10,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 8,
-            },
-            # C-Level by UnitGroup (row 18)
-            {
-                "name": "p7_sec_clevel",
-                "row": 18,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p7_ch_clevel",
-                "row": 19,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 7,
-            },
-            # Low engagement table (row 26)
-            {"name": "p7_sec_low", "row": 26, "column": 0, "colspan": 12, "rowspan": 1},
-            {"name": "p7_tbl_low", "row": 27, "column": 0, "colspan": 12, "rowspan": 8},
-            # Contact Coverage Tier (row 35)
-            {"name": "p7_sec_tier", "row": 35, "column": 0, "colspan": 6, "rowspan": 1},
-            {"name": "p7_ch_tier", "row": 36, "column": 0, "colspan": 6, "rowspan": 8},
-            # Contact Tier by Unit heatmap (row 35 right)
-            {
-                "name": "p7_sec_tier_heat",
-                "row": 35,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 1,
-            },
-            {
-                "name": "p7_ch_tier_heat",
-                "row": 36,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 8,
-            },
-        ]
-    )
-
-    # ── PAGE 8: Advanced Analytics ──
-    p8 = (
-        nav_row("p8", NUM_PAGES)
-        + _std_header("p8")
-        + [
-            # Sankey: HealthBand → Segment (row 5)
-            {
-                "name": "p8_sec_sankey",
-                "row": 5,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p8_ch_sankey",
-                "row": 6,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 10,
-            },
-            # Area: Cumulative ARR (row 16)
-            {
-                "name": "p8_sec_area",
-                "row": 16,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {"name": "p8_ch_area", "row": 17, "column": 0, "colspan": 12, "rowspan": 8},
-            # Bullet charts (row 25)
-            {
-                "name": "p8_sec_bullet",
-                "row": 25,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p8_ch_bullet_health",
-                "row": 26,
-                "column": 0,
-                "colspan": 6,
-                "rowspan": 5,
-            },
-            {
-                "name": "p8_ch_bullet_expand",
-                "row": 26,
-                "column": 6,
-                "colspan": 6,
-                "rowspan": 5,
-            },
-            # ARR Stats table (row 31)
-            {
-                "name": "p8_sec_arr_stats",
-                "row": 31,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p8_tbl_arr_stats",
-                "row": 32,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 6,
-            },
-            # Health Score Stats table (row 38)
-            {
-                "name": "p8_sec_health_stats",
-                "row": 38,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 1,
-            },
-            {
-                "name": "p8_tbl_health_stats",
-                "row": 39,
-                "column": 0,
-                "colspan": 12,
-                "rowspan": 8,
-            },
-        ]
-    )
+    p7 = _std_header_3f("p7", "health", "Health") + [
+        # KPIs (row 5)
+        {
+            "name": "p7_kpi_contacts",
+            "row": 5,
+            "column": 0,
+            "colspan": 6,
+            "rowspan": 4,
+        },
+        {
+            "name": "p7_kpi_clevel",
+            "row": 5,
+            "column": 6,
+            "colspan": 6,
+            "rowspan": 4,
+        },
+        # Contact by segment + Multi-threading (row 9)
+        {"name": "p7_ch_seg", "row": 9, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p7_ch_thread", "row": 9, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p7_ch_clevel", "row": 17, "column": 0, "colspan": 12, "rowspan": 7},
+        {"name": "p7_tbl_low", "row": 24, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p7_ch_tier", "row": 32, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p7_ch_tier_heat", "row": 32, "column": 6, "colspan": 6, "rowspan": 8},
+    ]
 
     return {
         "name": "Default",
@@ -2918,7 +2783,6 @@ def build_layout():
             pg(PAGE_IDS[4], PAGE_LABELS[4], p5),
             pg(PAGE_IDS[5], PAGE_LABELS[5], p6),
             pg(PAGE_IDS[6], PAGE_LABELS[6], p7),
-            pg(PAGE_IDS[7], PAGE_LABELS[7], p8),
         ],
     }
 
@@ -2943,7 +2807,7 @@ def main():
         tok,
         DS,
         [
-            {"field": "AccountName", "sobject": "Account", "id_field": "Id"},
+            {"field": "AccountName", "sobject": "Account", "id_field": "AccountId"},
         ],
     )
 
@@ -2958,7 +2822,20 @@ def main():
     steps = build_steps(ds_id)
     widgets = build_widgets()
     layout = build_layout()
-    state = build_dashboard_state(steps, widgets, layout)
+    used_steps = {name for name in steps if name.startswith("f_")}
+    for widget in widgets.values():
+        step_name = widget.get("parameters", {}).get("step")
+        if step_name:
+            used_steps.add(step_name)
+    steps = {name: step for name, step in steps.items() if name in used_steps}
+    state = build_dashboard_state(
+        steps,
+        widgets,
+        layout,
+        bg_color="#F4F6F9",
+        cell_spacing=8,
+        row_height="normal",
+    )
     deploy_dashboard(inst, tok, dash_id, state)
 
 

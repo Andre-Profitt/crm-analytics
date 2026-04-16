@@ -30,11 +30,9 @@ from crm_analytics_helpers import (
     create_dashboard_if_needed,
     sq,
     num,
-    num_with_trend,
     trend_step,
     rich_chart,
     gauge,
-    funnel_chart,
     waterfall_chart,
     hdr,
     nav_link,
@@ -55,6 +53,9 @@ from crm_analytics_helpers import (
     create_dataflow,
     run_dataflow,
     set_record_links_xmd,  # noqa: F401
+    compare_table,
+    funnel_chart,
+    KPI_CARD_STYLE,
 )
 
 DS = "Lead_Management"
@@ -73,6 +74,14 @@ OF = coalesce_filter("f_owner", "OwnerName")
 TREND_CURRENT = 'q = filter q by CreatedDate_Year == "2026";\n'
 TREND_PRIOR = 'q = filter q by CreatedDate_Year == "2025";\n'
 TREND_BASE = SF + STF + MF + OF
+
+# Consulting-grade facet scope: KPI tiles listen to all filter pillboxes
+KPI_FACET_SCOPE = {
+    "receiveFacetSource": {
+        "mode": "include",
+        "steps": ["f_source", "f_status", "f_month", "f_owner"],
+    },
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -117,6 +126,7 @@ def create_dataset(inst, tok):
         "Campaign",
         "DisqualifiedReason",
         "ConvertedFlag",
+        "ConvertedCount",
     ]
 
     buf = io.StringIO()
@@ -172,6 +182,7 @@ def create_dataset(inst, tok):
                 "Campaign": campaign[:255] if campaign else "",
                 "DisqualifiedReason": dq_reason[:255] if dq_reason else "",
                 "ConvertedFlag": converted_flag,
+                "ConvertedCount": 1 if is_converted else 0,
             }
         )
 
@@ -205,6 +216,7 @@ def create_dataset(inst, tok):
         _dim("Campaign", "Campaign"),
         _dim("DisqualifiedReason", "Disqualified Reason"),
         _dim("ConvertedFlag", "Converted"),
+        _measure("ConvertedCount", "Converted Count", scale=0, precision=6),
     ]
 
     return upload_dataset(inst, tok, DS, DS_LABEL, fields_meta, csv_bytes)
@@ -219,7 +231,7 @@ def build_steps(ds_id):
     L = f'q = load "{DS}";\n'
     DS_META = [{"id": ds_id, "name": DS}]
 
-    return {
+    steps = {
         # ── Filter steps ──
         "f_source": af("LeadSource", DS_META),
         "f_status": af("Status", DS_META),
@@ -274,11 +286,9 @@ def build_steps(ds_id):
             + STF
             + MF
             + OF
-            + 'q = foreach q generate (case when ConvertedFlag == "true" '
-            + "then 1 else 0 end) as is_conv;\n"
             + "q = group q by all;\n"
             + "q = foreach q generate "
-            + "(sum(is_conv) / count()) * 100 as conv_rate;"
+            + "(sum(ConvertedCount) / count()) * 100 as conv_rate;"
         ),
         # KPI: Avg days to convert
         "s_avg_convert": sq(
@@ -323,8 +333,7 @@ def build_steps(ds_id):
             TREND_CURRENT,
             TREND_PRIOR,
             "all",
-            '(sum(case when ConvertedFlag == "true" then 1 else 0 end) '
-            "/ count()) * 100",
+            "(sum(ConvertedCount) / count()) * 100",
             "conv_rate",
         ),
         # Trend: Avg days to convert (base includes converted-only filter)
@@ -555,6 +564,18 @@ def build_steps(ds_id):
             + "q = foreach q generate "
             + "(sum(has_act) / count()) * 100 as activity_rate;"
         ),
+        "s_bullet_activity": sq(
+            L
+            + SF
+            + STF
+            + MF
+            + OF
+            + 'q = foreach q generate (case when HasActivity == "true" '
+            + "then 1 else 0 end) as has_act;\n"
+            + "q = group q by all;\n"
+            + "q = foreach q generate "
+            + "(sum(has_act) / count()) * 100 as activity_rate, 80 as target;"
+        ),
         # Number: SLA breach count (>2d no activity)
         "s_sla_breach": sq(
             L
@@ -607,6 +628,16 @@ def build_steps(ds_id):
             + 'q = foreach q generate (case when LeadSource != "" then 1 else 0 end) as has_source;\n'
             + "q = group q by all;\n"
             + "q = foreach q generate (sum(has_source) / count()) * 100 as attrib_rate, count() as total;"
+        ),
+        "s_bullet_source_attrib": sq(
+            L
+            + SF
+            + STF
+            + MF
+            + OF
+            + 'q = foreach q generate (case when LeadSource != "" then 1 else 0 end) as has_source;\n'
+            + "q = group q by all;\n"
+            + "q = foreach q generate (sum(has_source) / count()) * 100 as attrib_rate, 85 as target;"
         ),
         # Hot leads: high-score leads with response metrics
         "s_hot_leads": sq(
@@ -799,6 +830,21 @@ def build_steps(ds_id):
         ),
     }
 
+    # Apply consulting-grade facet scope to KPI summary steps
+    for key in (
+        "s_total",
+        "s_conv_rate",
+        "s_avg_convert",
+        "s_mql_rate",
+        "s_sla_breach",
+        "s_activity_rate",
+        "s_source_attrib",
+        "s_hot_leads",
+    ):
+        steps[key].update(KPI_FACET_SCOPE)
+
+    return steps
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Widget builders
@@ -825,30 +871,37 @@ def build_widgets():
         "p1_f_owner": pillbox("f_owner", "Owner"),
         # Funnel chart
         "p1_funnel": funnel_chart("s_funnel", "Lead Funnel", "Stage", "cnt"),
+        # Section: KPI Summary
+        "p1_sec_kpi": section_label("KPI Summary"),
         # KPI tiles (with YoY trend indicators — Phase 3)
-        "p1_total": num_with_trend(
+        "p1_total": num(
             "s_trend_total",
             "cnt",
             "Total Leads",
             "#0070D2",
             compact=True,
-            size=28,
+            tier="primary",
+            widget_style=KPI_CARD_STYLE,
         ),
-        "p1_conv_rate": num_with_trend(
+        "p1_conv_rate": num(
             "s_trend_conv",
             "conv_rate",
             "Conversion Rate %",
             "#04844B",
             compact=False,
-            size=28,
+            tier="primary",
+            suffix="%",
+            widget_style=KPI_CARD_STYLE,
         ),
-        "p1_avg_days": num_with_trend(
+        "p1_avg_days": num(
             "s_trend_avg_days",
             "avg_days",
             "Avg Days to Convert",
             "#FF6600",
             compact=False,
-            size=28,
+            tier="primary",
+            suffix=" days",
+            widget_style=KPI_CARD_STYLE,
         ),
         # Gauge: MQL Rate
         "p1_mql_gauge": gauge(
@@ -863,6 +916,8 @@ def build_widgets():
                 {"start": 90, "stop": 100, "color": "#04844B"},
             ],
         ),
+        # Section: Status Breakdown
+        "p1_sec_status": section_label("Status Breakdown"),
         # Hbar: Status distribution
         "p1_status": rich_chart(
             "s_status",
@@ -871,6 +926,7 @@ def build_widgets():
             ["Status"],
             ["cnt"],
             axis_title="Count",
+            show_values=True,
         ),
         # Donut: DQ reasons
         "p1_dq": rich_chart(
@@ -882,6 +938,8 @@ def build_widgets():
             show_legend=True,
             show_pct=True,
         ),
+        # Section: MQL Trend
+        "p1_sec_mql": section_label("MQL Trend"),
         # Area: MQL trend
         "p1_mql_trend": rich_chart(
             "s_mql_trend",
@@ -907,6 +965,8 @@ def build_widgets():
         "p2_f_status": pillbox("f_status", "Status"),
         "p2_f_month": pillbox("f_month", "Created Month"),
         "p2_f_owner": pillbox("f_owner", "Owner"),
+        # Section: Source Overview
+        "p2_sec_source": section_label("Source Overview"),
         # Donut: Source distribution
         "p2_source": rich_chart(
             "s_source",
@@ -928,14 +988,27 @@ def build_widgets():
             show_legend=True,
             axis_title="Count",
         ),
+        # Section: Campaign Performance
+        "p2_sec_campaigns": section_label("Campaign Performance"),
         # Comparison table: Top campaigns
-        "p2_campaigns": rich_chart(
+        "p2_campaigns": compare_table(
             "s_campaigns",
-            "comparisontable",
-            "Top Campaigns — Count & Conversion Rate",
-            ["Campaign"],
-            ["cnt", "conv_rate"],
+            "Top Campaigns -- Count & Conversion Rate",
+            columns=["Campaign", "cnt", "conv_rate"],
+            subtitle="Ranked by volume | conv_rate = converted / total x 100",
+            format_rules=[
+                {
+                    "measure": "conv_rate",
+                    "ranges": [
+                        {"min": 0, "max": 10, "color": "#D4504C"},
+                        {"min": 10, "max": 20, "color": "#FFB75D"},
+                        {"min": 20, "color": "#04844B"},
+                    ],
+                },
+            ],
         ),
+        # Section: Channel Effectiveness
+        "p2_sec_conv": section_label("Channel Effectiveness"),
         # Combo: Conversion rate by source
         "p2_source_conv": rich_chart(
             "s_source_conv",
@@ -951,6 +1024,9 @@ def build_widgets():
                     {"series": "conv_rate", "chartType": "line"},
                 ]
             },
+            reference_lines=[
+                {"value": 15, "label": "Conv Target 15%", "color": "#04844B"},
+            ],
         ),
         # ═══════════════════════════════════════════════════════════════
         #  PAGE 3 — Conversion Tracking
@@ -976,6 +1052,7 @@ def build_widgets():
             ["CreatedMonth"],
             ["cnt"],
             axis_title="Converted Leads",
+            show_values=True,
         ),
         # Line: Avg days to convert
         "p3_monthly_days": rich_chart(
@@ -985,6 +1062,9 @@ def build_widgets():
             ["CreatedMonth"],
             ["avg_days"],
             axis_title="Days",
+            reference_lines=[
+                {"value": 30, "label": "SLA Target 30d", "color": "#D4504C"},
+            ],
         ),
         # Stackhbar: Lead aging bands
         "p3_aging": rich_chart(
@@ -994,6 +1074,7 @@ def build_widgets():
             ["AgeBand"],
             ["cnt"],
             axis_title="Count",
+            show_values=True,
         ),
         # Area: Lead velocity
         "p3_velocity": rich_chart(
@@ -1015,12 +1096,29 @@ def build_widgets():
         # Section: Source Effectiveness
         "p3_sec_source_eff": section_label("Source Effectiveness Analysis"),
         # Comparison table: Source conversion performance
-        "p3_ch_source_conv": rich_chart(
+        "p3_ch_source_conv": compare_table(
             "s_source_eff_conv",
-            "comparisontable",
             "Source Conversion Performance",
-            ["LeadSource"],
-            ["total", "conv_cnt", "conv_rate", "avg_days"],
+            columns=["LeadSource", "total", "conv_cnt", "conv_rate", "avg_days"],
+            subtitle="Volume, conversions, rate, and avg days by lead source",
+            format_rules=[
+                {
+                    "measure": "conv_rate",
+                    "ranges": [
+                        {"min": 0, "max": 10, "color": "#D4504C"},
+                        {"min": 10, "max": 20, "color": "#FFB75D"},
+                        {"min": 20, "color": "#04844B"},
+                    ],
+                },
+                {
+                    "measure": "avg_days",
+                    "ranges": [
+                        {"min": 0, "max": 15, "color": "#04844B"},
+                        {"min": 15, "max": 30, "color": "#FFB75D"},
+                        {"min": 30, "color": "#D4504C"},
+                    ],
+                },
+            ],
         ),
         # Area: Lead volume by source over time
         "p3_ch_source_vol": rich_chart(
@@ -1050,26 +1148,20 @@ def build_widgets():
         "p4_f_month": pillbox("f_month", "Created Month"),
         "p4_f_owner": pillbox("f_owner", "Owner"),
         # Gauge: Activity rate
-        "p4_act_gauge": gauge(
-            "s_activity_rate",
-            "activity_rate",
-            "Activity Rate %",
-            min_val=0,
-            max_val=100,
-            bands=[
-                {"start": 0, "stop": 50, "color": "#D4504C"},
-                {"start": 50, "stop": 80, "color": "#FFB75D"},
-                {"start": 80, "stop": 100, "color": "#04844B"},
-            ],
+        "p4_bullet_activity": bullet_chart(
+            "s_bullet_activity",
+            "Activity Rate vs Target",
+            axis_title="%",
         ),
         # Number: SLA breach count (with YoY trend — Phase 3)
-        "p4_sla": num_with_trend(
+        "p4_sla": num(
             "s_trend_sla",
             "breach_count",
             "SLA Breach (>2d No Activity)",
             "#D4504C",
             compact=True,
-            size=28,
+            tier="secondary",
+            widget_style=KPI_CARD_STYLE,
         ),
         # Line: Activity trend
         "p4_act_trend": rich_chart(
@@ -1079,46 +1171,82 @@ def build_widgets():
             ["CreatedMonth"],
             ["cnt"],
             axis_title="Leads with Activity",
+            reference_lines=[
+                {"value": 50, "label": "Min Target", "color": "#FFB75D"},
+            ],
         ),
         # Comparison table: High-score leads, no activity
-        "p4_no_activity": rich_chart(
+        "p4_no_activity": compare_table(
             "s_no_activity",
-            "comparisontable",
             "High-Score Leads with No Activity (Top 25)",
-            ["Name", "Company", "OwnerName", "Status"],
-            ["LeadScore", "LeadAgeDays"],
+            columns=[
+                "Name",
+                "Company",
+                "OwnerName",
+                "Status",
+                "LeadScore",
+                "LeadAgeDays",
+            ],
+            subtitle="High-score leads with zero activity -- prioritize outreach",
+            format_rules=[
+                {
+                    "measure": "LeadScore",
+                    "ranges": [
+                        {"min": 0, "max": 30, "color": "#FFB75D"},
+                        {"min": 30, "color": "#D4504C"},
+                    ],
+                },
+                {
+                    "measure": "LeadAgeDays",
+                    "ranges": [
+                        {"min": 0, "max": 30, "color": "#04844B"},
+                        {"min": 30, "max": 90, "color": "#FFB75D"},
+                        {"min": 90, "color": "#D4504C"},
+                    ],
+                },
+            ],
         ),
         # ── Source Attribution & Hot Leads (AP 1.1 gaps) ──
         "p4_sec_hot": section_label("Source Attribution & Hot Leads"),
-        "p4_g_source_attrib": gauge(
-            "s_source_attrib",
-            "attrib_rate",
-            "Source Attribution %",
-            min_val=0,
-            max_val=100,
-            bands=[
-                {"start": 0, "stop": 60, "color": "#D4504C"},
-                {"start": 60, "stop": 85, "color": "#FFB75D"},
-                {"start": 85, "stop": 100, "color": "#04844B"},
-            ],
+        "p4_bullet_source_attrib": bullet_chart(
+            "s_bullet_source_attrib",
+            "Source Attribution vs Target",
+            axis_title="%",
         ),
         "p4_n_hot": num(
-            "s_hot_leads", "cnt", "Hot Leads (Score > 50)", "#D4504C", False, 28
+            "s_hot_leads",
+            "cnt",
+            "Hot Leads (Score > 50)",
+            "#D4504C",
+            compact=True,
+            tier="secondary",
+            widget_style=KPI_CARD_STYLE,
         ),
         "p4_n_hot_response": num(
             "s_hot_leads",
             "avg_response",
             "Hot Lead Avg Response (Days)",
             "#FF6600",
-            False,
-            24,
+            compact=False,
+            tier="tertiary",
+            suffix=" days",
+            widget_style=KPI_CARD_STYLE,
         ),
-        "p4_ch_hot_owner": rich_chart(
+        "p4_ch_hot_owner": compare_table(
             "s_hot_by_owner",
-            "comparisontable",
             "Hot Lead Response by Owner",
-            ["OwnerName"],
-            ["cnt", "avg_response"],
+            columns=["OwnerName", "cnt", "avg_response"],
+            subtitle="Avg response time in days for leads with score > 50",
+            format_rules=[
+                {
+                    "measure": "avg_response",
+                    "ranges": [
+                        {"min": 0, "max": 1, "color": "#04844B"},
+                        {"min": 1, "max": 3, "color": "#FFB75D"},
+                        {"min": 3, "color": "#D4504C"},
+                    ],
+                },
+            ],
         ),
     }
 
@@ -1201,6 +1329,7 @@ def build_widgets():
         ["LeadSource"],
         ["conv_pct"],
         axis_title="Conversion %",
+        show_values=True,
     )
     # Stats: Lead age distribution
     w["p6_sec_age_dist"] = section_label("Lead Age Distribution")
@@ -1211,24 +1340,23 @@ def build_widgets():
         ["AgeBand"],
         ["cnt"],
         axis_title="Count",
+        show_values=True,
     )
     # Stats: Lead Score Percentiles
     w["p6_sec_score_pct"] = section_label("Lead Score Distribution (Percentiles)")
-    w["p6_tbl_score_pct"] = rich_chart(
+    w["p6_tbl_score_pct"] = compare_table(
         "s_stat_score_percentiles",
-        "comparisonTable",
         "Lead Score Percentiles",
-        ["cnt", "mean_score", "std_dev", "p25", "median_score", "p75"],
-        [],
+        columns=["cnt", "mean_score", "std_dev", "p25", "median_score", "p75"],
+        subtitle="Distribution of lead scores across the portfolio",
     )
     # Stats: Days-to-Convert Percentiles
     w["p6_sec_convert_pct"] = section_label("Conversion Time Distribution")
-    w["p6_tbl_convert_pct"] = rich_chart(
+    w["p6_tbl_convert_pct"] = compare_table(
         "s_stat_convert_percentiles",
-        "comparisonTable",
         "Days-to-Convert Percentiles",
-        ["cnt", "mean_days", "std_dev", "p25", "median_days", "p75"],
-        [],
+        columns=["cnt", "mean_days", "std_dev", "p25", "median_days", "p75"],
+        subtitle="Distribution of conversion velocity for converted leads",
     )
     # Stats: Cumulative Lead Volume (Running Total)
     w["p6_sec_running"] = section_label("Cumulative Lead Volume Over Time")
@@ -1240,19 +1368,18 @@ def build_widgets():
         axis_title="Cumulative Count",
     )
 
-    # Add nav5 (Advanced) to pages 1-4
-    for px in range(1, 5):
-        w[f"p{px}_nav5"] = nav_link("advanalytics", "Advanced")
-    # Add nav6 (Statistics) to pages 1-5
-    for px in range(1, 6):
-        w[f"p{px}_nav6"] = nav_link("leadstats", "Statistics")
-
     # ── Phase 7: Embedded table actions ──────────────────────────────────
     from crm_analytics_helpers import add_table_action
 
     add_table_action(w["p4_no_activity"], "salesforceActions", "Lead", "Id")
 
-    return w
+    # Keep the manager surface focused on operational funnel, conversion,
+    # and action work. Advanced/statistical analysis belongs in a separate lab.
+    return {
+        name: widget
+        for name, widget in w.items()
+        if not name.startswith(("p5_", "p6_")) and "_nav" not in name
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1262,7 +1389,7 @@ def build_widgets():
 
 def build_layout():
     # ── Page 1: MQL Funnel ──
-    p1 = nav_row("p1", 6) + [
+    p1 = [
         # Header
         {"name": "p1_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
@@ -1270,39 +1397,57 @@ def build_layout():
         {"name": "p1_f_status", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
         {"name": "p1_f_month", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
         {"name": "p1_f_owner", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
+        # Section: KPI Summary
+        {"name": "p1_sec_kpi", "row": 5, "column": 0, "colspan": 12, "rowspan": 1},
         # KPI row (3 numbers + 1 gauge)
-        {"name": "p1_total", "row": 5, "column": 0, "colspan": 3, "rowspan": 4},
-        {"name": "p1_conv_rate", "row": 5, "column": 3, "colspan": 3, "rowspan": 4},
-        {"name": "p1_avg_days", "row": 5, "column": 6, "colspan": 3, "rowspan": 4},
-        {"name": "p1_mql_gauge", "row": 5, "column": 9, "colspan": 3, "rowspan": 4},
+        {"name": "p1_total", "row": 6, "column": 0, "colspan": 3, "rowspan": 4},
+        {"name": "p1_conv_rate", "row": 6, "column": 3, "colspan": 3, "rowspan": 4},
+        {"name": "p1_avg_days", "row": 6, "column": 6, "colspan": 3, "rowspan": 4},
+        {"name": "p1_mql_gauge", "row": 6, "column": 9, "colspan": 3, "rowspan": 4},
         # Funnel
-        {"name": "p1_funnel", "row": 9, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p1_funnel", "row": 10, "column": 0, "colspan": 12, "rowspan": 8},
+        # Section: Status Breakdown
+        {"name": "p1_sec_status", "row": 18, "column": 0, "colspan": 12, "rowspan": 1},
         # Status + DQ reasons
-        {"name": "p1_status", "row": 17, "column": 0, "colspan": 6, "rowspan": 8},
-        {"name": "p1_dq", "row": 17, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p1_status", "row": 19, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p1_dq", "row": 19, "column": 6, "colspan": 6, "rowspan": 8},
+        # Section: MQL Trend
+        {"name": "p1_sec_mql", "row": 27, "column": 0, "colspan": 12, "rowspan": 1},
         # MQL trend
-        {"name": "p1_mql_trend", "row": 25, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p1_mql_trend", "row": 28, "column": 0, "colspan": 12, "rowspan": 8},
     ]
 
     # ── Page 2: Channel Mix ──
-    p2 = nav_row("p2", 6) + [
+    p2 = [
         {"name": "p2_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p2_f_source", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
         {"name": "p2_f_status", "row": 3, "column": 3, "colspan": 3, "rowspan": 2},
         {"name": "p2_f_month", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
         {"name": "p2_f_owner", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
+        # Section: Source Overview
+        {"name": "p2_sec_source", "row": 5, "column": 0, "colspan": 12, "rowspan": 1},
         # Source donut + stacked area
-        {"name": "p2_source", "row": 5, "column": 0, "colspan": 6, "rowspan": 8},
-        {"name": "p2_source_time", "row": 5, "column": 6, "colspan": 6, "rowspan": 8},
+        {"name": "p2_source", "row": 6, "column": 0, "colspan": 6, "rowspan": 8},
+        {"name": "p2_source_time", "row": 6, "column": 6, "colspan": 6, "rowspan": 8},
+        # Section: Channel Effectiveness
+        {"name": "p2_sec_conv", "row": 14, "column": 0, "colspan": 12, "rowspan": 1},
         # Combo: source conversion
-        {"name": "p2_source_conv", "row": 13, "column": 0, "colspan": 12, "rowspan": 8},
+        {"name": "p2_source_conv", "row": 15, "column": 0, "colspan": 12, "rowspan": 8},
+        # Section: Campaign Performance
+        {
+            "name": "p2_sec_campaigns",
+            "row": 23,
+            "column": 0,
+            "colspan": 12,
+            "rowspan": 1,
+        },
         # Campaigns table
-        {"name": "p2_campaigns", "row": 21, "column": 0, "colspan": 12, "rowspan": 10},
+        {"name": "p2_campaigns", "row": 24, "column": 0, "colspan": 12, "rowspan": 10},
     ]
 
     # ── Page 3: Conversion Tracking ──
-    p3 = nav_row("p3", 6) + [
+    p3 = [
         {"name": "p3_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p3_f_source", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1342,7 +1487,7 @@ def build_layout():
     ]
 
     # ── Page 4: Activity & Engagement ──
-    p4 = nav_row("p4", 6) + [
+    p4 = [
         {"name": "p4_hdr", "row": 1, "column": 0, "colspan": 12, "rowspan": 2},
         # Filter bar
         {"name": "p4_f_source", "row": 3, "column": 0, "colspan": 3, "rowspan": 2},
@@ -1350,7 +1495,13 @@ def build_layout():
         {"name": "p4_f_month", "row": 3, "column": 6, "colspan": 3, "rowspan": 2},
         {"name": "p4_f_owner", "row": 3, "column": 9, "colspan": 3, "rowspan": 2},
         # Gauge + SLA breach
-        {"name": "p4_act_gauge", "row": 5, "column": 0, "colspan": 6, "rowspan": 4},
+        {
+            "name": "p4_bullet_activity",
+            "row": 5,
+            "column": 0,
+            "colspan": 6,
+            "rowspan": 4,
+        },
         {"name": "p4_sla", "row": 5, "column": 6, "colspan": 6, "rowspan": 4},
         # Activity trend
         {"name": "p4_act_trend", "row": 9, "column": 0, "colspan": 12, "rowspan": 8},
@@ -1365,7 +1516,7 @@ def build_layout():
         # Source Attribution & Hot Leads
         {"name": "p4_sec_hot", "row": 27, "column": 0, "colspan": 12, "rowspan": 1},
         {
-            "name": "p4_g_source_attrib",
+            "name": "p4_bullet_source_attrib",
             "row": 28,
             "column": 0,
             "colspan": 4,
@@ -1494,8 +1645,6 @@ def build_layout():
             pg("channel", "Channel Mix", p2),
             pg("conversion", "Conversion", p3),
             pg("activity", "Activity", p4),
-            pg("advanalytics", "Advanced Analytics", p5),
-            pg("leadstats", "Statistical Analysis", p6),
         ],
     }
 
@@ -1599,7 +1748,16 @@ def main():
     steps = build_steps(ds_id)
     widgets = build_widgets()
     layout = build_layout()
-    state = build_dashboard_state(steps, widgets, layout)
+    used_steps = {name for name in steps if name.startswith("f_")}
+    for widget in widgets.values():
+        step_name = widget.get("parameters", {}).get("step")
+        if step_name:
+            used_steps.add(step_name)
+    steps = {name: step for name, step in steps.items() if name in used_steps}
+
+    state = build_dashboard_state(
+        steps, widgets, layout, bg_color="#F4F6F9", cell_spacing=8, row_height="fine"
+    )
     deploy_dashboard(instance_url, token, dashboard_id, state)
 
 

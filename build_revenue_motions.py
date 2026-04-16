@@ -59,7 +59,7 @@ from crm_analytics_helpers import (
 
 DS = "Revenue_Motions"
 DS_LABEL = "Revenue Motions"
-DASHBOARD_LABEL = "Revenue Motions KPIs"
+DASHBOARD_LABEL = "Forecast & Revenue Motions"  # Was "Revenue Motions KPIs" (archived)
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Dataset creation
@@ -383,6 +383,14 @@ UF = (
 TF = coalesce_filter("f_type", "Type")
 QF = coalesce_filter("f_qtr", "CloseQuarter")
 RF = coalesce_filter("f_region", "SalesRegion")
+
+# Consulting-grade KPI facet scope — KPI tiles respond only to filter pillboxes
+KPI_FACET_SCOPE = {
+    "receiveFacetSource": {
+        "mode": "include",
+        "steps": ["f_unit", "f_type", "f_qtr", "f_region"],
+    },
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
