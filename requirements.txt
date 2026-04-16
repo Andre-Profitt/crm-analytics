@@ -12,3 +12,6 @@ openpyxl>=3.1.0
 
 # PowerPoint Generation
 python-pptx>=0.6.21
+
+# HTTP (Salesforce REST API)
+requests>=2.31.0
