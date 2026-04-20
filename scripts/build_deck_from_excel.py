@@ -2563,33 +2563,6 @@ def slide_commercial_approvals(prs, approvals, territory):
     fr.font.italic = True
     fr.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
 
-    # ── Slide B: narrative summary (Rebekka's slide 7) ──
-    slide2 = prs.slides.add_slide(prs.slide_layouts[LY_2COL_GRAD])
-    pending_stage3_arr = sum(_unw(r) for r in candidates)
-
-    _set_ph(slide2, 144, f"Commercial Approval, {territory}")
-    _set_ph(slide2, 42, "Approved YTD")
-    _set_ph(slide2, 56, "Pending approval")
-
-    # Left: approved count + narrative
-    _set_ph(
-        slide2,
-        22,
-        f"Deals with commercial approval. {len(approved_2026)} approved YTD "
-        f"totaling {_fmt_eur(total_approved_arr)}. "
-        f"Plus {len(approved_prior)} approved in prior years "
-        f"({_fmt_eur(sum(_unw(r) for r in approved_prior))}).",
-    )
-
-    # Right: pending count + narrative
-    _set_ph(
-        slide2,
-        55,
-        f"Deals pending approval. {len(candidates)} at Land Stage 3 worth "
-        f"{_fmt_eur(pending_stage3_arr)}. Escalate to approval committee when non-zero. "
-        f"escalate to approval committee.",
-    )
-
 
 def slide_missing_approval_detail(prs, approvals):
     """Land Stage 3, Missing Commercial Approval detail table. Matches Rebekka slide 8."""
@@ -3167,90 +3140,10 @@ def slide_pushed_deals_with_link(prs, pi_data, territory, q1_movement=None):
         f"Early: {tiers['early']['count']} at 1-2 ({_fmt_eur(tiers['early']['arr'])}).",
     )
 
-    # Detail table + PI link
-    slide2 = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_CONTENT])
-    top_pushed = sorted(
-        pi_data or [],
-        key=lambda r: int(str(r.get("Push Count") or 0) or 0),
-        reverse=True,
-    )[:1]
-    if top_pushed:
-        top_name = str(top_pushed[0].get("Opportunity") or "")
-        top_push = int(str(top_pushed[0].get("Push Count") or 0) or 0)
-        _set_ph(
-            slide2,
-            144,
-            f"Highest: {top_name} ({top_push}×). Deals pushed 5+ times warrant direct conversation with owner.",
-        )
-    else:
-        _set_ph(slide2, 144, "Pipeline Inspection, Top Pushed Deals")
-    _set_ph(slide2, 145, "Ranked by push count")
-
-    rows = [
-        [
-            "Opportunity",
-            "Account",
-            "Stage",
-            "Close",
-            "Pushes",
-            "Last Pushed",
-            "ARR Unweighted (mEUR)",
-            "Owner",
-        ]
-    ]
-
-    # Build lookup: most recent "Changed On" per opportunity from Q1 Movement
-    last_push_by_opp = {}
-    for ev in q1_movement or []:
-        opp = ev.get("Opportunity")
-        changed = str(ev.get("Changed On") or "")[:10]
-        if opp and changed:
-            existing = last_push_by_opp.get(opp, "")
-            if changed > existing:
-                last_push_by_opp[opp] = changed
-
-    for r in pushed[:12]:
-        opp = r.get("Opportunity", "")
-        rows.append(
-            [
-                str(opp),
-                "",
-                str(r.get("Stage", "")),
-                str(r.get("Close Date", "")),
-                str(r.get("Push Count", "")),
-                last_push_by_opp.get(opp, "not in Q1 log"),
-                _meur(_wtd(r)),
-                str(r.get("Owner", "")),
-            ]
-        )
-
-    # Highlight Push Count column (index 4): red at 5+, amber at 3-4.
-    def _push_ge(n):
-        return lambda v: (int(v) if str(v).strip().isdigit() else 0) >= n
-
-    def _push_between(low, high):
-        return lambda v: (low <= (int(v) if str(v).strip().isdigit() else 0) <= high)
-
-    _add_table(
-        slide2,
-        rows,
-        0.5,
-        2.2,
-        12.3,
-        row_height=0.20,
-        col_widths=[2.3, 1.8, 1.4, 1.2, 0.9, 1.3, 1.6, 1.8],
-        highlight_rules={
-            4: [
-                (_push_ge(5), "F8D7DA"),  # soft red, critical
-                (_push_between(3, 4), "FFF3CD"),  # soft amber, watch
-            ],
-        },
-    )
-
-    # PI link footer
+    # PI link footer on summary slide
     link = PI_LINKS.get(territory, "")
     if link:
-        txBox = slide2.shapes.add_textbox(
+        txBox = slide.shapes.add_textbox(
             Inches(0.9), Inches(6.8), Inches(11.0), Inches(0.3)
         )
         p = txBox.text_frame.paragraphs[0]
@@ -3726,11 +3619,7 @@ def build_deck(
     slide_renewals(prs, renewals)
     print(f"  [OK] {n}. Renewals")
 
-    # 15. Churn Risk
-    n += 1
-    slide_churn(prs, territory=territory)
-    print(f"  [OK] {n}. Churn Risk")
-
+    # CUT: Churn Risk (placeholder, no Finance feed yet)
     # CUT: Definitions (moved to handout — not presented)
 
     # 16. End
