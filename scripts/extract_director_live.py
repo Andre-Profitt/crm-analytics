@@ -568,7 +568,10 @@ def extract_territory(
         close = str(f.get("CloseDate", {}).get("value", ""))
         is_closed = f.get("IsClosed", {}).get("value", False)
         fc = str(f.get("ForecastCategoryName", {}).get("value", ""))
-        # Filter: FY26, not internal, not closed, not omitted
+        opp_type = str(f.get("Type", {}).get("value", ""))
+        # Filter: Land only, FY26, not internal, not closed, not omitted
+        if opp_type and opp_type != "Land":
+            continue
         if is_closed or fc in ("Omitted", "Closed"):
             continue
         if close and close[:4] > "2026":
