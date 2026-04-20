@@ -1,0 +1,61 @@
+{
+  "version": "2026-04-11",
+  "name": "sales_deck_execution_plan",
+  "product_hierarchy": [
+    "director_primary",
+    "global_summary",
+    "regional_rollup_internal"
+  ],
+  "phase_status": {
+    "phase_0_data_contract_stabilization": "complete",
+    "phase_1_canonical_shell_assets": "complete",
+    "phase_2_structured_population": "complete",
+    "phase_3_publish_gates": "complete",
+    "phase_4_source_expansion": "pending"
+  },
+  "next_build_order": [
+    "build_release_packet_and_latest_handoff",
+    "expand_missing_salesforce_and_finance_sources",
+    "decide_whether_optional_powerpoint_polish_layer_is_needed",
+    "add_new_sources",
+    "decide_whether_standalone_regional_shell_is_needed"
+  ],
+  "operational_rules": [
+    "Do not treat generated shells as publish-safe production assets.",
+    "Do not let unsupported controls appear as facts in the deck.",
+    "Do not put desktop automation in the critical path until canonical shell assets are stable.",
+    "Do not use freeform AI deck generation in production."
+  ],
+  "entrypoints": {
+    "external_sources": {
+      "builder": "scripts/build_sales_deck_external_source_packet.py",
+      "contract": "config/sales_deck_external_source_contract.json"
+    },
+    "release_packet": {
+      "builder": "scripts/build_sales_deck_release_packet.py"
+    },
+    "director": {
+      "builder": "scripts/run_sales_director_monthly_master_builder.py",
+      "contract": "config/sales_director_monthly_shell.json",
+      "validator": "scripts/validate_sales_director_shell_contract.py"
+    },
+    "regional": {
+      "builder": "scripts/run_sales_region_monthly_builder.py",
+      "contract": "config/sales_region_monthly_shell.json",
+      "validator": "scripts/validate_sales_region_shell_contract.py"
+    },
+    "global": {
+      "builder": "scripts/run_sales_global_summary_builder.py",
+      "contract": "config/sales_global_summary_shell.json",
+      "validator": "scripts/validate_sales_global_summary_shell_contract.py"
+    }
+  },
+  "definition_of_done": [
+    "canonical_director_shell_exists",
+    "canonical_global_shell_exists",
+    "director_and_global_shell_validators_pass",
+    "director_and_global_builders_emit_validated_fact_pack_fill_payload_and_build_prompt",
+    "publish_gates_block_bad_decks_deterministically",
+    "population_is_constrained_to_canonical_templates"
+  ]
+}

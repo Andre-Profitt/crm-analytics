@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "version": 1,
+    "description": "Sales Director Monthly Review — territory → (director, SOQL filter, PI list view) registry.",
+    "consumed_by": [
+      "scripts/extract_director_live.py — TERRITORIES dict",
+      "scripts/build_sharepoint_analysis.py — DIRECTORS (via name + territory)",
+      "scripts/generate_obsidian_notes.py — DIRECTORS + TERRITORY_TO_DIRECTOR"
+    ],
+    "editing_note": "Adding a director? Append an entry below. No code change needed for the extract stage. Downstream builders keep a DIRECTORS list that must be updated to match name/territory labels."
+  },
+  "territories": {
+    "APAC": {
+      "director": "Jesper Tyrer",
+      "soql_where": "Account_Unit_Group__c = 'SC Asia'",
+      "pi_list_view_id": "00BTb00000Ksa4bMAB",
+      "pi_list_view_label": "PI ARR Forecast APAC"
+    },
+    "Central Europe": {
+      "director": "Sarah Pittroff",
+      "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Central Europe'",
+      "pi_list_view_id": "00BTb00000Kr3YvMAJ",
+      "pi_list_view_label": "PI Central Europe"
+    },
+    "UK & Ireland": {
+      "director": "Dan Peppett",
+      "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'United Kingdom & Ireland'",
+      "pi_list_view_id": "00BTb00000Kr3yjMAB",
+      "pi_list_view_label": "PI UK & Ireland"
+    },
+    "Southern Europe": {
+      "director": "Francois Thaury",
+      "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Southwestern Europe'",
+      "pi_list_view_id": "00BTb00000Kr3sHMAR",
+      "pi_list_view_label": "PI Southwestern Europe"
+    },
+    "NL & Nordics": {
+      "director": "Christian Ebbesen",
+      "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Northern Europe'",
+      "pi_list_view_id": "00BTb00000Kr4DFMAZ",
+      "pi_list_view_label": "PI Northern Europe"
+    },
+    "Middle East & Africa": {
+      "director": "Mourad Essofi",
+      "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Middle East & Africa'",
+      "pi_list_view_id": "00BTb00000KsTXmMAN",
+      "pi_list_view_label": "PI ARR Forecast MEA"
+    },
+    "Canada": {
+      "director": "Megan Miceli",
+      "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC Canada'",
+      "pi_list_view_id": "00BTb00000Kr4ErMAJ",
+      "pi_list_view_label": "PI Canada"
+    },
+    "NA Asset Management": {
+      "director": "Patrick Gaughan",
+      "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC USA' AND Account.Industry IN ('Asset Management','Wealth Management')",
+      "pi_list_view_id": "00BTb00000Kr4JhMAJ",
+      "pi_list_view_label": "PI NA Asset Management"
+    },
+    "Pension & Insurance": {
+      "director": "Adam Steinhaus",
+      "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC USA' AND Account.Industry IN ('Pension','Insurance')",
+      "pi_list_view_id": "00BTb00000Kr4OXMAZ",
+      "pi_list_view_label": "PI Pension & Insurance"
+    }
+  }
+}

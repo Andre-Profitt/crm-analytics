@@ -1,0 +1,98 @@
+{
+  "version": "2026-04-12",
+  "name": "sales_deck_external_source_contract",
+  "sources": [
+    {
+      "id": "finance_churn_overlay",
+      "title": "Finance churn overlay",
+      "owner": "Finance / Alex P handoff",
+      "system": "Finance",
+      "default_status": "pending_owner_intake",
+      "required_for_publish": false,
+      "current_coverage": "placeholder_only",
+      "affects_decks": ["director_primary"],
+      "affects_slides": ["churn-finance"],
+      "expected_files": ["overlay.json", "finance_churn_request.csv"],
+      "notes": [
+        "Current director and global decks keep churn as an explicit placeholder.",
+        "Use a Finance-owned overlay rather than inventing churn metrics from workbook data."
+      ]
+    },
+    {
+      "id": "kyc_not_completed_salesforce",
+      "title": "Accounts without KYC Approval",
+      "owner": "Sales Ops / Salesforce",
+      "system": "Salesforce Report",
+      "default_status": "pending_ingest",
+      "required_for_publish": false,
+      "current_coverage": "source_gap_visible_in_appendix",
+      "affects_decks": ["director_primary"],
+      "affects_slides": [
+        "salesforce-hygiene-activity-controls",
+        "appendix-notes"
+      ],
+      "report_id": "00OQA000004OLk92AG",
+      "expected_files": ["export.csv", "export.json"],
+      "notes": [
+        "Pinned Salesforce report for account-level KYC status.",
+        "Not yet integrated into the validated fact pack."
+      ]
+    },
+    {
+      "id": "commercial_approval_candidates_salesforce",
+      "title": "Commercial Approval Candidates by Stage",
+      "owner": "Sales Ops / Salesforce",
+      "system": "Salesforce Report",
+      "default_status": "proxy_covered_by_workbook",
+      "required_for_publish": false,
+      "current_coverage": "workbook_snapshot_and_dashboard_proxy",
+      "affects_decks": ["director_primary", "global_summary"],
+      "affects_slides": [
+        "missing-commercial-approval-candidates",
+        "global-commercial-approval-overview"
+      ],
+      "report_id": "00OTb000008d6ovMAA",
+      "expected_files": ["export.csv", "export.json"],
+      "notes": [
+        "Workbook snapshots already carry missing approval candidates.",
+        "Explicit Salesforce export would strengthen the global candidate view."
+      ]
+    },
+    {
+      "id": "commercial_approval_approved_2026_salesforce",
+      "title": "Commercial Approval approved 2026",
+      "owner": "Sales Ops / Salesforce",
+      "system": "Salesforce Report",
+      "default_status": "proxy_covered_by_workbook",
+      "required_for_publish": false,
+      "current_coverage": "workbook_snapshot_and_dashboard_proxy",
+      "affects_decks": ["director_primary", "global_summary"],
+      "affects_slides": [
+        "commercial-approval-overview",
+        "global-commercial-approval-overview"
+      ],
+      "report_id": "00OTb000008aTtJMAU",
+      "expected_files": ["export.csv", "export.json"],
+      "notes": [
+        "Pinned approved-deals reference report.",
+        "Useful as an explicit approved-YTD cross-check rather than a required blocker."
+      ]
+    },
+    {
+      "id": "salesforce_activity_detail",
+      "title": "Salesforce activity detail",
+      "owner": "Sales Ops / Salesforce",
+      "system": "Salesforce export",
+      "default_status": "pending_design",
+      "required_for_publish": false,
+      "current_coverage": "partial_workbook_proxy",
+      "affects_decks": ["director_primary"],
+      "affects_slides": ["salesforce-hygiene-activity-controls"],
+      "expected_files": ["activity_export.csv", "activity_summary.json"],
+      "notes": [
+        "Current decks use workbook no-activity and risk-register proxies.",
+        "A richer tasks/calls/meetings export would improve the activity control slide."
+      ]
+    }
+  ]
+}

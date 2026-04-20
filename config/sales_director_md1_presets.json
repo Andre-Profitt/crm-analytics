@@ -1,0 +1,203 @@
+{
+  "dashboard_id": "01ZTb00000FSP7hMAH",
+  "generated": "2026-04-09",
+  "notes": [
+    "Validated live against D1 source reports on 2026-04-09 via analytics report instance execution.",
+    "Legal Country dashboard labels map to ADDRESS1_COUNTRY_CODE values: Canada -> CA, Exclude Canada -> notEqual CA.",
+    "North America industry splits accept comma-separated picklist values in the Reports API."
+  ],
+  "presets": [
+    {
+      "name": "Jesper Tyrer",
+      "territory": "APAC",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "APAC"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC Asia"
+        }
+      ]
+    },
+    {
+      "name": "Sarah Pittroff",
+      "territory": "Central Europe",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "Central Europe"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC EMEA"
+        }
+      ]
+    },
+    {
+      "name": "Francois Thaury",
+      "territory": "Southern Europe",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "Southwestern Europe"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC EMEA"
+        }
+      ]
+    },
+    {
+      "name": "Dan Peppett",
+      "territory": "UK & Ireland",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "United Kingdom & Ireland"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC EMEA"
+        }
+      ]
+    },
+    {
+      "name": "Christian Ebbesen",
+      "territory": "NL & Nordics",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "Northern Europe"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC EMEA"
+        }
+      ]
+    },
+    {
+      "name": "Mourad Essofi",
+      "territory": "Middle East & Africa",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "Middle East & Africa"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC EMEA"
+        }
+      ]
+    },
+    {
+      "name": "Megan Miceli",
+      "territory": "Canada",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "North America"
+        },
+        {
+          "column": "ADDRESS1_COUNTRY_CODE",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "CA"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC North America"
+        }
+      ]
+    },
+    {
+      "name": "Patrick Gaughan",
+      "territory": "NA Asset Management",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "North America"
+        },
+        {
+          "column": "ADDRESS1_COUNTRY_CODE",
+          "filterType": "fieldValue",
+          "operator": "notEqual",
+          "value": "CA"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC North America"
+        },
+        {
+          "column": "INDUSTRY",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "Asset Management,Bank,Wealth Management,Asset Servicer,Other"
+        }
+      ]
+    },
+    {
+      "name": "Adam Steinhaus",
+      "territory": "Pension & Insurance",
+      "filters": [
+        {
+          "column": "Account.Region__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "North America"
+        },
+        {
+          "column": "ADDRESS1_COUNTRY_CODE",
+          "filterType": "fieldValue",
+          "operator": "notEqual",
+          "value": "CA"
+        },
+        {
+          "column": "Opportunity.Account_Unit_Group__c",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "SC North America"
+        },
+        {
+          "column": "INDUSTRY",
+          "filterType": "fieldValue",
+          "operator": "equals",
+          "value": "Pension,Insurance"
+        }
+      ]
+    }
+  ]
+}
