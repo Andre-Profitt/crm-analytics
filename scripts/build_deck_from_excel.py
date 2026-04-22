@@ -3350,10 +3350,16 @@ def build_deck(
             cd = str(r.get("Close Date", "") or "")[:10]
             return cd >= "2026-01-01" and cd <= "2026-09-30"
 
+        def _not_omitted(r):
+            fc = str(r.get("Forecast Category", "")).strip()
+            return fc not in ("Omitted", "")
+
         if _has_type(pipeline):
             pipeline = [r for r in pipeline if _is_land(r)]
         if _has_type(won_lost):
             won_lost = [r for r in won_lost if _is_land(r)]
+
+        pipeline = [r for r in pipeline if _not_omitted(r)]
 
         # Establish the Land universe BEFORE Q1-Q2 scoping so we can still
         # match PI / Q1 movement records that sit in Q3-Q4 by opportunity name.
