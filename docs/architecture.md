@@ -1,8 +1,64 @@
-# SD Monthly Deck Pipeline — Architecture (Legacy Lane)
+# SD Monthly Deck Pipeline — Architecture
 
-> **Scope:** This doc covers the **legacy production lane** (`run_monthly_director_review.py`), which is the pipeline currently producing decks for monthly reviews. A newer modular lane (`run_sales_director_monthly_master_builder.py`) exists in-repo but does not yet have a committed scheduler or full parity. The two lanes share the extract stage and config but diverge at the build/validate stages. See "Two orchestrators" below.
+## Read this first: repo layout
 
-## What it does
+There are 161 Python scripts in `scripts/`. Most of them are not part of the production pipeline. Here is what matters and what to ignore.
+
+### What runs in production today (11 scripts)
+
+These are the **legacy production lane**. This is the pipeline that currently produces decks for monthly reviews. It has CI (GitHub Actions on the 1st of each month). When someone says "run the monthly pipeline," they mean this.
+
+| Script                              | What it does                                             |
+| ----------------------------------- | -------------------------------------------------------- |
+| `run_monthly_director_review.py`    | **Orchestrator.** Runs all stages in sequence.           |
+| `extract_director_live.py`          | SF → 9 Excel workbooks (SOQL + PI API)                   |
+| `extract_historical_trending.py`    | Appends trend snapshot sheets to workbooks               |
+| `audit_data_quality.py`             | 36 hygiene checks against live SF                        |
+| `build_sharepoint_analysis.py`      | 1 master + 9 regional analytics workbooks (42 tabs)      |
+| `build_dashboard_analysis_excel.py` | Q1 analysis workbook                                     |
+| `build_deck_from_excel.py`          | Excel → 9 SimCorp-branded PowerPoint decks               |
+| `build_exec_rollup_deck.py`         | CRO rollup deck (aggregates all 9)                       |
+| `validate_tie_out.py`               | 4-way reconciliation (SF vs extract vs regional vs deck) |
+| `audit_deck_scope.py`               | Validates slide-level numeric claims against sidecar     |
+| `generate_obsidian_notes.py`        | Updates Obsidian vault + MoM snapshot ledger             |
+
+### What is being built but is not production yet (37 scripts)
+
+These are the **modular lane**. This is the intended future-state architecture. It uses JSON snapshots, Claude-assisted briefs, validated fact packs, and pluggable deck renderers. It does NOT have a CI scheduler and has NOT been used to produce decks for a live review.
+
+| Key scripts                                     | What they do                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------ |
+| `run_sales_director_monthly_master_builder.py`  | **Orchestrator.** JSON snapshot → Claude brief → fact pack → deck. |
+| `build_validated_director_brief.py`             | Claude-assisted monthly brief with fact validation                 |
+| `extract_director_workbook_snapshot.py`         | Workbook → JSON snapshot                                           |
+| `build_sales_director_monthly_shell.py`         | Shell/template for director monthly reports                        |
+| `validate_sales_director_shell_contract.py`     | Contract validation for shell output                               |
+| `run_sales_director_canonical_shell_builder.py` | Canonical shell builder orchestrator                               |
+| `build_sd_monthly_deck_v2.py`                   | v2 deck builder (modular lane)                                     |
+| `contract_lint.py`                              | Source contract linter                                             |
+| + 29 more                                       | Regional/global variants, author prompts, snapshot builders        |
+
+**Do not** wire these into the production pipeline without finishing the scheduler and validating parity with the legacy lane.
+
+### What is a different workstream entirely (22 scripts)
+
+These are **CRM Analytics dashboard builders** — they patch live Salesforce dashboards via the Wave API. They are NOT part of the SD Monthly deck pipeline. They pre-date it.
+
+Examples: `wave_patch_executor.py`, `phase2_5_core_patch.py`, `salesforce_dashboard_executor.py`, `dashboard_state_dump.py`
+
+### Shared infrastructure (22 scripts)
+
+PI list view management, territory mapping, analytics intelligence, Codex skill packaging, Obsidian hygiene, export utilities. Used by both lanes.
+
+### Dead / experimental / one-off (69 scripts)
+
+Prior iterations, BDR profiling, SimCorp deck prototypes, one-time fixes. **Ignore these.** Examples: `simcorp_full_deck_v3.py`, `profile_bdr_activity_model.py`, `fix_legacy_engagement_history_columnmaps.py`, `build_nam_deck.py`
+
+---
+
+## Legacy production lane (detailed)
+
+### What it does
 
 Produces 9 per-director PowerPoint decks + 1 exec rollup for SimCorp's monthly Sales Director review. Fully automated: live Salesforce data in, branded decks out. Runs on the 1st of each month via GitHub Actions, or on-demand.
 
