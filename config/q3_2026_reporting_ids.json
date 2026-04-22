@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "description": "Q3 2026 (Jul-Sep) reporting IDs — PI list views and Historical Trending reports",
+    "created": "2026-04-22",
+    "pi_views_note": "Created via UI API. Not attached to PipelineInspectionListView (requires UI setup). Extract pipeline uses these via ui-api/list-records directly."
+  },
+  "pi_list_views": {
+    "APAC": "00BTb00000LEdNBMA1",
+    "Central Europe": "00BTb00000LEdmzMAD",
+    "UK & Ireland": "00BTb00000LEdobMAD",
+    "Southern Europe": "00BTb00000LEdqDMAT",
+    "NL & Nordics": "00BTb00000LEdrpMAD",
+    "Middle East & Africa": "00BTb00000LEdtRMAT",
+    "Canada": "00BTb00000LEdgXMAT",
+    "NA Asset Management": "00BTb00000LEbwUMAT",
+    "Pension & Insurance": "00BTb00000LEdv3MAD"
+  },
+  "historical_trending_reports": {
+    "APAC": "00OTb000008jXo1MAE",
+    "Canada": "00OTb000008jXrFMAU",
+    "Central Europe": "00OTb000008jXsrMAE",
+    "Middle East & Africa": "00OTb000008jXuTMAU",
+    "NA Asset Management": "00OTb000008jXw5MAE",
+    "NL & Nordics": "00OTb000008jXxhMAE",
+    "Pension & Insurance": "00OTb000008jY0vMAE",
+    "Southern Europe": "00OTb000008jY49MAE",
+    "UK & Ireland": "00OTb000008jY5lMAE"
+  }
+}
