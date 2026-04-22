@@ -102,7 +102,8 @@
       "forecasting_territory_id": "0MI7S0000008XLVWA2",
       "sales_regions": ["North America"],
       "child_territories": {
-        "NA Sales AM & Insurance": "0MIQA00000004tF4AQ",
+        "NA Sales AM": "0MITb0000000JM1OAM",
+        "NA Sales Insurance": "0MITb0000000dvpOAA",
         "NA Sales Canada": "0MIQA00000004wT4AQ",
         "NA Sales Pension": "0MIQA000000052v4AA"
       }
