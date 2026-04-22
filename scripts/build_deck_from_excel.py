@@ -593,9 +593,9 @@ def slide_cover(prs, director, territory, snapshot_date):
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_1])
     # Director name front and centre, territory underneath, period subtle.
     _set_ph(slide, 24, f"{director}, {territory}")
-    _set_ph(slide, 20, "Sales Director Monthly Pipeline Review")
+    _set_ph(slide, 20, "Monthly Pipeline Review")
     _set_ph(
-        slide, 22, f"{_snapshot_to_period(snapshot_date)}. Land pipeline, Q1-Q3 FY26."
+        slide, 22, f"{_snapshot_to_period(snapshot_date)}. Land pipeline, FY26 Q1-Q3."
     )
 
 
@@ -754,7 +754,7 @@ def slide_month_over_month(
         (
             "Change in the six headline numbers versus the prior snapshot. "
             "Currency-converted values (ARR) may shift between runs due to "
-            "FX rate changes — not a data error."
+            "ARR shifts between snapshots reflect FX movement."
         ),
     )
 
@@ -866,10 +866,10 @@ def slide_executive_summary(
     owner_callout = _top_pushed_owner(pi_data or [])
 
     # Column headers
-    _set_ph(slide, 42, f"Executive summary - {territory}, Q2-Q3 2026")
-    _set_ph(slide, 56, f"Executive summary - {territory}, Q2-Q3 2026")
-    _set_ph(slide, 58, f"Executive summary - {territory}, Q2-Q3 2026")
-    _set_ph(slide, 60, f"Executive summary - {territory}, Q2-Q3 2026")
+    _set_ph(slide, 42, f"Executive Summary, {territory}")
+    _set_ph(slide, 56, f"Executive Summary, {territory}")
+    _set_ph(slide, 58, f"Executive Summary, {territory}")
+    _set_ph(slide, 60, f"Executive Summary, {territory}")
 
     # Gradient metrics
     _add_gradient_metric(slide, 0, _fmt_eur(total_arr))
@@ -886,7 +886,7 @@ def slide_executive_summary(
         slide,
         22,
         f"Pipeline {_fmt_eur(total_opp_arr)} unweighted, {_fmt_eur(total_fc_arr)} weighted, across {deal_count} deals. "
-        f"{deal_count} deals. {top_stage[1] / max(deal_count, 1) * 100:.0f}% in {top_stage[0]}.",
+        f"{top_stage[1] / max(deal_count, 1) * 100:.0f}% in {top_stage[0]}.",
     )
     _set_ph(
         slide,
@@ -1133,7 +1133,7 @@ def slide_q2_forward_look(
         if month_start <= str(r.get("Close Date", ""))[:7] <= month_end
     ]
     if not q2 and not enrichment:
-        _set_ph(slide, 144, f"{q_label} Forward Look — {territory}")
+        _set_ph(slide, 144, f"{q_label} Forward Look: {territory}")
         _set_ph(slide, 145, f"No {q_label} Land deals in scope.")
         return
 
@@ -1185,7 +1185,7 @@ def slide_q2_forward_look(
                 "days_left": str(days_left) + "d" if days_left is not None else "?",
                 "arr": _fmt_eur(_unw(r)),
                 "last_activity": str(enr.get("last_activity", "?"))[:10],
-                "aum": f"{enr['aum_b']:.0f}B" if enr.get("aum_b") else "—",
+                "aum": f"{enr['aum_b']:.0f}B" if enr.get("aum_b") else "-",
                 "readiness": readiness,
                 "next_step": str(enr.get("next_step", ""))[:35],
             }
@@ -1216,8 +1216,7 @@ def slide_q2_forward_look(
     _set_ph(
         slide,
         145,
-        "Per-deal readiness: days to close, last activity, AuM context, "
-        "competitor presence, next-step freshness. Red = needs immediate attention.",
+        f"{q_label} deals ranked by activity and timeline risk.",
     )
 
     rows = [
@@ -1389,16 +1388,14 @@ def slide_quarter_outlook(
     qtr_won_arr = sum(_unw(r) for r in qtr_won)
     qtr_lost_arr = sum(_unw(r) for r in qtr_lost)
 
-    q3_note = ""
-    if q_label == "Q3":
-        q3_note = " Note: Q3 shown in place of Q2 due to no open Q2 Land pipeline."
-
     _set_ph(
         slide,
         144,
         f"{q_label} book {_fmt_eur(qtr_arr)} unweighted, {_fmt_eur(qtr_fc_arr)} weighted. "
-        f"{len(qtr)} deals closing {month_range_label}.{q3_note}",
+        f"{len(qtr)} deals closing {month_range_label}.",
     )
+    if q_label == "Q3":
+        _set_ph(slide, 145, "No Q2 Land pipeline. Showing Q3 forward book.")
     _set_ph(slide, 42, f"{q_label} Outlook, {territory}")
     _set_ph(slide, 56, f"{q_label} Outlook, {territory}")
     _set_ph(slide, 58, f"{q_label} Outlook, {territory}")
@@ -1526,10 +1523,10 @@ def slide_forecast_accuracy(prs, won_lost, pipeline, territory):
 
     _set_ph(slide, 144, f"Forecast Accuracy, {territory}")
 
-    _set_ph(slide, 42, f"Forecast Accuracy - {territory}, Q2-Q3 2026")
-    _set_ph(slide, 56, f"Forecast Accuracy - {territory}, Q2-Q3 2026")
-    _set_ph(slide, 58, f"Forecast Accuracy - {territory}, Q2-Q3 2026")
-    _set_ph(slide, 60, f"Forecast Accuracy - {territory}, Q2-Q3 2026")
+    _set_ph(slide, 42, f"Forecast Accuracy, {territory}")
+    _set_ph(slide, 56, f"Forecast Accuracy, {territory}")
+    _set_ph(slide, 58, f"Forecast Accuracy, {territory}")
+    _set_ph(slide, 60, f"Forecast Accuracy, {territory}")
 
     _add_gradient_metric(slide, 0, _fmt_eur(won_arr))
     _add_gradient_metric(slide, 1, _fmt_eur(lost_arr))
@@ -1540,13 +1537,13 @@ def slide_forecast_accuracy(prs, won_lost, pipeline, territory):
         slide,
         22,
         f"{len(won)} {'deal' if len(won) == 1 else 'deals'} closed-won this quarter. "
-        f"{'Low won ARR signals early-quarter timing or delayed closes.' if won_arr < lost_arr else 'Won ARR exceeds lost — positive trajectory.'}",
+        f"{'Low won ARR signals early-quarter timing or delayed closes.' if won_arr < lost_arr else 'Won ARR exceeds lost. Positive trajectory.'}",
     )
     _set_ph(
         slide,
         55,
         f"{len(lost)} deals closed-lost. "
-        f"{'Lost ARR significantly exceeds won ARR — review loss reasons.' if lost_arr > won_arr else 'Lost ARR within acceptable range.'}",
+        f"{'Lost ARR significantly exceeds won ARR. Review loss reasons.' if lost_arr > won_arr else 'Lost ARR within acceptable range.'}",
     )
     _set_ph(
         slide,
@@ -1837,10 +1834,7 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
         _set_ph(
             slide,
             145,
-            f"No Q2/Q3-closing Land deals in {territory} triggered risk scoring. "
-            "Rule set: push >= 3, close past or <30 days at stage <4, no activity "
-            "60d+, missing next step, weighted coverage <20% on >500K deal, "
-            ">1M deal pushed twice. Full scoring on Deal Risk Scoring tab.",
+            f"No Q2-Q3 Land deals in {territory} flagged for risk this period.",
         )
         return
 
@@ -1854,9 +1848,7 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
     _set_ph(
         slide,
         145,
-        f"Q2-Q3 FY26 close dates (Apr-Sep 2026) in {territory}. Composite score "
-        "combines push count, close-date slip risk, staleness, missing next-step, "
-        "and low weighted coverage. Full ranking on Deal Risk Scoring tab.",
+        "Deals most likely to slip or miss this quarter, ranked by risk severity.",
     )
 
     rows = [
@@ -1943,9 +1935,9 @@ def slide_forecast_variance(prs, variance, territory):
                 "wins outweighed losses."
             )
     elif lost > won * 2 and lost > 0:
-        subtitle += "Losses outpaced wins >2x — pipeline shrinkage is loss-driven."
+        subtitle += "Losses outpaced wins >2x. Pipeline shrinkage is loss-driven."
     elif won > lost * 2 and won > 0:
-        subtitle += "Wins outpaced losses >2x — clean quarterly execution."
+        subtitle += "Wins outpaced losses >2x. Clean quarterly execution."
     else:
         subtitle += (
             "Wins and losses roughly balanced; remainder is deal-level "
@@ -2063,7 +2055,7 @@ def slide_win_loss_diagnostic(prs, won_lost, territory, dashboard_path=None):
     total_arr = sum(loss["arr"] for loss in losses)
 
     if total_n == 0:
-        _set_ph(slide, 144, f"Why We Lost, Q1 — {territory}")
+        _set_ph(slide, 144, f"Why We Lost, Q1, {territory}")
         _set_ph(slide, 145, "No Q1 Land losses in scope.")
         return
 
@@ -2079,7 +2071,7 @@ def slide_win_loss_diagnostic(prs, won_lost, territory, dashboard_path=None):
     _set_ph(
         slide,
         145,
-        "Reconciles to slide 4 (Q1 Promised vs Delivered). Left: loss reasons. "
+        "Left: loss reasons. "
         "Right: highest stage reached before loss. Early-stage = qualification gap; "
         "late-stage = execution gap.",
     )
@@ -2208,9 +2200,7 @@ def slide_owner_coaching(prs, slip_owners, risk_deals, territory):
     _set_ph(
         slide,
         145,
-        "Ranked by composite: push intensity + triage-threshold hits + ARR "
-        "exposure. Top reason codes identify the coaching angle (close-date "
-        "discipline / qualification rigour / next-step hygiene).",
+        "Owners with the highest push exposure this period. Use for 1:1 conversation prep.",
     )
 
     tbl = [
@@ -2228,7 +2218,7 @@ def slide_owner_coaching(prs, slip_owners, risk_deals, territory):
             f"{_humanize_reason(c)} (×{n})" for c, n in code_counter.most_common(3)
         )
         if not top_codes:
-            top_codes = "—"
+            top_codes = "-"
 
         # Derive the dominant coaching angle from signal mix.
         if any("OVERDUE" in c or "CLOSE_SOON" in c for c in code_counter):
@@ -2236,11 +2226,11 @@ def slide_owner_coaching(prs, slip_owners, risk_deals, territory):
         elif any("STALE" in c or "NO_NEXT_STEP" in c for c in code_counter):
             focus = "Activity cadence + next steps"
         elif any("PUSH_HIGH" in c or "HIGH_VALUE_PUSH" in c for c in code_counter):
-            focus = "Commit integrity — push pattern"
+            focus = "Commit integrity: push pattern"
         elif any("LOW_FCST" in c for c in code_counter):
             focus = "Forecast categorization accuracy"
         elif o["max_push"] >= 5:
-            focus = "Commit integrity — repeated slips"
+            focus = "Commit integrity: repeated slips"
         else:
             focus = "Push review"
 
@@ -2401,7 +2391,7 @@ def _compute_director_insights(
         elif won > lost * 2 and won > 500_000:
             bullets.append(
                 f"Variance driver: wins ({_fmt_eur(won)}) outpaced losses "
-                f"({_fmt_eur(lost)}) >2x — clean quarterly execution."
+                f"({_fmt_eur(lost)}) >2x. Clean quarterly execution."
             )
 
     return bullets
@@ -2442,7 +2432,7 @@ def slide_commercial_approvals(prs, approvals, territory):
     n_pending = len(pending)
     n_missing = len(missing)
     if n_approved == 0 and n_pending == 0 and n_missing == 0:
-        _set_ph(slide, 144, "Commercial Approvals — nothing in flight this cycle")
+        _set_ph(slide, 144, "Commercial Approvals: none this cycle")
     else:
         parts = []
         if n_approved:
@@ -2545,7 +2535,7 @@ def slide_commercial_approvals(prs, approvals, territory):
         for r in approved_2026:
             ns = str(r.get("Next Step", "") or "").strip()
             # Keep it short — first clause only, max 40 chars
-            short_ns = ns.split(".")[0].split(" - ")[0].split(" – ")[0][:40] or "—"
+            short_ns = ns.split(".")[0].split(" - ")[0].split(" – ")[0][:40] or "-"
             cond_rows.append(
                 [
                     str(r.get("Opportunity", "")),
@@ -2594,7 +2584,7 @@ def slide_commercial_approvals(prs, approvals, territory):
     fr = fp.add_run()
     fr.text = (
         "*The average deal size is measured at the time of the Commercial Approval. "
-        "All ARR figures are unweighted (APTS_Opportunity_ARR__c)."
+        "All ARR figures are unweighted."
     )
     fr.font.size = Pt(8)
     fr.font.italic = True
@@ -2729,7 +2719,7 @@ def slide_renewals(prs, renewals):
             ),
         )
     else:
-        _set_ph(slide, 144, "Renewals, FY26 — none in scope this cycle")
+        _set_ph(slide, 144, "Renewals FY26: none this cycle")
     if annual:
         _set_ph(
             slide,
