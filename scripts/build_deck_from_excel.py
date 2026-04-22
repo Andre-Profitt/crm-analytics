@@ -1389,11 +1389,15 @@ def slide_quarter_outlook(
     qtr_won_arr = sum(_unw(r) for r in qtr_won)
     qtr_lost_arr = sum(_unw(r) for r in qtr_lost)
 
+    q3_note = ""
+    if q_label == "Q3":
+        q3_note = " Note: Q3 shown in place of Q2 due to no open Q2 Land pipeline."
+
     _set_ph(
         slide,
         144,
         f"{q_label} book {_fmt_eur(qtr_arr)} unweighted, {_fmt_eur(qtr_fc_arr)} weighted. "
-        f"{len(qtr)} deals closing {month_range_label}.",
+        f"{len(qtr)} deals closing {month_range_label}.{q3_note}",
     )
     _set_ph(slide, 42, f"{q_label} Outlook, {territory}")
     _set_ph(slide, 56, f"{q_label} Outlook, {territory}")
