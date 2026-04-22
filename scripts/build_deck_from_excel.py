@@ -3550,12 +3550,15 @@ def build_deck(
         if "2026-07" <= str(r.get("Close Date", ""))[:7] <= "2026-09"
     ]
 
+    _q2_arr = sum(_unw(r) for r in _q2_deals)
+    _q3_arr = sum(_unw(r) for r in _q3_deals)
+
     _quarters_to_show = []
-    if _q2_deals:
+    if _q2_arr > 0:
         _quarters_to_show.append(
             ("Q2", "2026-04", "2026-06", "Apr-Jun", "2026-04-01", "2026-06-30")
         )
-    elif _q3_deals:
+    elif _q3_arr > 0:
         _quarters_to_show.append(
             ("Q3", "2026-07", "2026-09", "Jul-Sep", "2026-07-01", "2026-09-30")
         )
