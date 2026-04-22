@@ -963,7 +963,7 @@ def slide_q1_promised_vs_delivered(prs, q1_summary, territory):
     top_won = q1_summary.get("top_won_deals", [])
     top_lost = q1_summary.get("top_lost_deals", [])
     if top_won or top_lost:
-        rows = [["Outcome", "Opportunity", "Owner", "ARR Unweighted (mEUR)"]]
+        rows = [["Outcome", "Opportunity", "Owner", "ARR (mEUR)"]]
         for d in top_won[:5]:
             rows.append(
                 [
@@ -1475,7 +1475,7 @@ def slide_pipeline_overview(prs, pipeline, territory):
             [
                 "Stage",
                 "Deals",
-                "ARR Unwtd (mEUR)",
+                "ARR (mEUR)",
                 "ARR Wtd (mEUR)",
                 "% of Pipeline",
             ]
@@ -1608,7 +1608,7 @@ def slide_pipeline_combined(prs, pipeline, territory):
             [
                 "Stage",
                 "Deals",
-                "ARR Unwtd (mEUR)",
+                "ARR (mEUR)",
                 "ARR Wtd (mEUR)",
                 "% of Pipeline",
             ]
@@ -1649,7 +1649,7 @@ def slide_pipeline_combined(prs, pipeline, territory):
         run.font.bold = True
         run.font.color.rgb = DARK
 
-        rows = [["Opportunity name", "Close Date", "ARR Unweighted (mEUR)"]]
+        rows = [["Opportunity Name", "Close Date", "ARR (mEUR)"]]
         for r in key_deals:
             rows.append(
                 [
@@ -1678,7 +1678,7 @@ def slide_pipeline_stage3_plus(prs, pipeline, territory):
     stage3_arr = sum(_unw(r) for r in stage3_plus)
 
     _set_ph(slide, 144, "Pipeline Volume Stage 3+")
-    _set_ph(slide, 145, "As per FY26 YTD")
+    _set_ph(slide, 145, "FY26 year to date")
 
     # Key deals sidebar (right side — top 3 by ARR)
     key_deals = sorted(stage3_plus, key=lambda r: _unw(r), reverse=True)[:3]
@@ -1694,7 +1694,7 @@ def slide_pipeline_stage3_plus(prs, pipeline, territory):
         run.font.bold = True
         run.font.color.rgb = DARK
 
-        rows = [["Opportunity name", "Close Date", "ARR Unweighted (mEUR)"]]
+        rows = [["Opportunity Name", "Close Date", "ARR (mEUR)"]]
         for r in key_deals:
             rows.append(
                 [
@@ -1774,7 +1774,7 @@ def slide_top_deals(prs, pipeline):
                 "Stage",
                 "Close Date",
                 "Age",
-                "ARR Unwtd (mEUR)",
+                "ARR (mEUR)",
                 "ARR Wtd (mEUR)",
             ]
         ]
@@ -2138,7 +2138,7 @@ def slide_win_loss_diagnostic(prs, won_lost, territory, dashboard_path=None):
 # rule-engine output.
 REASON_CODE_LABELS = {
     "PUSH_HIGH": "Pushed 5+ times",
-    "PUSH_MED": "Pushed 3–4 times",
+    "PUSH_MED": "Pushed 3-4 times",
     "OVERDUE": "Past close date",
     "CLOSE_SOON": "Closing <30d in early stage",
     "STALE": "No activity 60+ days",
@@ -2294,7 +2294,7 @@ def slide_executive_insights(prs, bullets, director, territory):
             slide,
             42,
             [
-                "No standout findings this run. Pipeline composition, win rate, "
+                "No standout findings this period. Pipeline composition, win rate, "
                 "and slip risk all within normal range."
             ],
         )
@@ -2624,7 +2624,7 @@ def slide_missing_approval_detail(prs, approvals):
             "Owner",
             "Close Date",
             "Next Step",
-            "ARR Unweighted (mEUR)",
+            "ARR (mEUR)",
         ]
     ]
     for r in action_deals:
@@ -2812,7 +2812,9 @@ def slide_churn(prs, territory=None):
         return
 
     _set_ph(slide, 144, "Churn Risk")
-    _set_ph(slide, 145, "Finance-owned reporting, next update will bring it in.")
+    _set_ph(
+        slide, 145, "Churn data sourced from Finance. Not yet available this cycle."
+    )
     _set_ph(
         slide,
         42,
@@ -2968,7 +2970,7 @@ def slide_pushed_deals(prs, pi_data):
             "Stage",
             "Close",
             "Pushes",
-            "ARR Unweighted (mEUR)",
+            "ARR (mEUR)",
             "Owner",
         ]
     ]
@@ -3026,7 +3028,7 @@ def slide_forecast_breakdown(prs, pi_data):
         "Commit is the floor you can bank; Best Case + Pipeline is the upside.",
     )
 
-    rows = [["Category", "Deals", "ARR mEUR"]]
+    rows = [["Category", "Deals", "ARR (mEUR)"]]
     for cat in ("Pipeline", "Commit", "Best Case"):
         b = fc.get(cat, {})
         if b.get("count"):
@@ -3052,7 +3054,7 @@ def slide_coverage_targets(prs, pipeline):
         f"Weighted Pipeline (probability-adjusted): {_fmt_eur(weighted)}",
         f"Stale deals (3+ pushes): {len(stale)} deals, {_fmt_eur(stale_arr)}",
         "",
-        "Quota and target data is not yet integrated.",
+        "Quota integration pending. Coverage ratio unavailable this cycle.",
         "Coverage ratio will be available once targets are provided by Finance / Sales Ops.",
     ]
     _set_ph_lines(slide, 22, lines)
@@ -3215,7 +3217,7 @@ def slide_q1_movement(prs, q1_movement):
                 "Old Close",
                 "New Close",
                 "Changed",
-                "ARR Unweighted (mEUR)",
+                "ARR (mEUR)",
             ]
         ]
         for r in top:
@@ -3296,7 +3298,7 @@ def slide_forecast_combined(prs, won_lost, pipeline, pi_data, territory):
             "Commit is the floor you can bank; Best Case + Pipeline is the upside.",
         )
 
-        rows = [["Category", "Deals", "ARR mEUR"]]
+        rows = [["Category", "Deals", "ARR (mEUR)"]]
         for cat in ("Pipeline", "Commit", "Best Case"):
             b = fc.get(cat, {})
             if b.get("count"):
