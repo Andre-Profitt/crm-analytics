@@ -28,6 +28,80 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 
+# ── Fiscal quarter calendar (derived from run date at CLI parse time) ──
+_MONTH_LABELS = {
+    1: "Jan",
+    2: "Feb",
+    3: "Mar",
+    4: "Apr",
+    5: "May",
+    6: "Jun",
+    7: "Jul",
+    8: "Aug",
+    9: "Sep",
+    10: "Oct",
+    11: "Nov",
+    12: "Dec",
+}
+
+
+def _compute_quarters(run_date: datetime):
+    """Derive fiscal quarter boundaries from the run date.
+
+    Returns a dict with prior/current/forward quarter boundaries
+    and the FY scope (prior Q start through forward Q end).
+    """
+    y = run_date.year
+    m = run_date.month
+    cur_q = (m - 1) // 3 + 1
+
+    def _qbounds(year, q):
+        start_m = (q - 1) * 3 + 1
+        end_m = q * 3
+        start = f"{year}-{start_m:02d}-01"
+        if end_m == 12:
+            end = f"{year}-12-31"
+        else:
+            end = f"{year}-{end_m + 1:02d}-01"
+            from datetime import date as _d
+
+            end = str(_d.fromisoformat(end) - timedelta(days=1))
+        month_start = f"{year}-{start_m:02d}"
+        month_end = f"{year}-{end_m:02d}"
+        label = f"{_MONTH_LABELS[start_m]}-{_MONTH_LABELS[end_m]}"
+        return {
+            "q": q,
+            "label": f"Q{q}",
+            "start": start,
+            "end": end,
+            "month_start": month_start,
+            "month_end": month_end,
+            "range_label": label,
+            "year": year,
+        }
+
+    prior = _qbounds(y, cur_q - 1) if cur_q > 1 else _qbounds(y - 1, 4)
+    current = _qbounds(y, cur_q)
+    forward = _qbounds(y, cur_q + 1) if cur_q < 4 else _qbounds(y + 1, 1)
+
+    fy_start = f"{y}-01-01"
+    fy_end = f"{y}-12-31"
+    scope_end = forward["end"]
+
+    return {
+        "fy": y,
+        "fy_start": fy_start,
+        "fy_end": fy_end,
+        "prior": prior,
+        "current": current,
+        "forward": forward,
+        "scope_start": fy_start,
+        "scope_end": scope_end,
+    }
+
+
+FQ = _compute_quarters(datetime.now())
+
 # ── Constants ──
 DARK = RGBColor(0x1A, 0x1D, 0x31)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
@@ -595,7 +669,9 @@ def slide_cover(prs, director, territory, snapshot_date):
     _set_ph(slide, 24, f"{director}, {territory}")
     _set_ph(slide, 20, "Monthly Pipeline Review")
     _set_ph(
-        slide, 22, f"{_snapshot_to_period(snapshot_date)}. Land pipeline, FY26 Q1-Q3."
+        slide,
+        22,
+        f"{_snapshot_to_period(snapshot_date)}. Land pipeline, FY{str(FQ['fy'])[-2:]} {FQ['prior']['label']}-{FQ['forward']['label']}.",
     )
 
 
@@ -715,7 +791,7 @@ def slide_month_over_month(
         r
         for r in won_lost
         if "Won" in str(r.get("Stage", ""))
-        and str(r.get("Close Date", ""))[:7] <= "2026-03"
+        and str(r.get("Close Date", ""))[:7] <= FQ["prior"]["month_end"]
     ]
     cur_q1_won_count = len(cur_q1_won)
     cur_q1_won_arr = sum(_unw(r) for r in cur_q1_won)
@@ -997,8 +1073,8 @@ def _fetch_quarter_enrichment(
     session,
     instance,
     territory_soql_where,
-    start_date="2026-04-01",
-    end_date="2026-06-30",
+    start_date=FQ["current"]["start"],
+    end_date=FQ["current"]["end"],
 ):
     """Pull deal-level enrichment signals from SF for the forward-look slide.
 
@@ -1115,8 +1191,8 @@ def slide_q2_forward_look(
     territory,
     workbook_path=None,
     q_label="Q2",
-    month_start="2026-04",
-    month_end="2026-06",
+    month_start=FQ["current"]["month_start"],
+    month_end=FQ["current"]["month_end"],
 ):
     """Quarter Forward Look — per-deal readiness grid with enrichment signals.
 
@@ -1351,9 +1427,9 @@ def slide_quarter_outlook(
     won_lost,
     territory,
     q_label="Q2",
-    month_start="2026-04",
-    month_end="2026-06",
-    month_range_label="Apr-Jun",
+    month_start=FQ["current"]["month_start"],
+    month_end=FQ["current"]["month_end"],
+    month_range_label=FQ["current"]["range_label"],
 ):
     """Quarter Outlook — what's promised, what's delivered so far, what moved."""
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
@@ -1439,9 +1515,9 @@ def slide_q2_outlook(prs, pipeline, won_lost, territory):
         won_lost,
         territory,
         q_label="Q2",
-        month_start="2026-04",
-        month_end="2026-06",
-        month_range_label="Apr-Jun",
+        month_start=FQ["current"]["month_start"],
+        month_end=FQ["current"]["month_end"],
+        month_range_label=FQ["current"]["range_label"],
     )
 
 
@@ -1570,7 +1646,11 @@ def slide_pipeline_combined(prs, pipeline, territory):
     _set_ph(slide, 144, f"Pipeline Overview | {territory}")
 
     if not pipeline:
-        _set_ph(slide, 145, "No open Land deals with Q1-Q3 close dates.")
+        _set_ph(
+            slide,
+            145,
+            f"No open Land deals with {FQ['prior']['label']}-{FQ['forward']['label']} close dates.",
+        )
         _set_ph(
             slide,
             42,
@@ -1742,7 +1822,7 @@ def slide_top_deals(prs, pipeline):
         _set_ph(
             slide,
             145,
-            "No open Land deals with Q1-Q3 close dates in this territory.",
+            f"No open Land deals with {FQ['prior']['label']}-{FQ['forward']['label']} close dates in this territory.",
         )
         return
     # Data-forward title: largest deal named in the headline + total concentration.
@@ -1825,16 +1905,20 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
     # Scope to Q2+Q3 close dates
     def _in_forward(d):
         cd = str(d.get("close_date") or "")[:10]
-        return cd >= "2026-04-01" and cd <= "2026-09-30"
+        return cd >= FQ["current"]["start"] and cd <= FQ["forward"]["end"]
 
     fwd_deals = [d for d in risk_deals if _in_forward(d)]
 
     if not fwd_deals:
-        _set_ph(slide, 144, "Key Deals at Risk in Q2-Q3, no flags")
+        _set_ph(
+            slide,
+            144,
+            f"Key Deals at Risk in {FQ['current']['label']}-{FQ['forward']['label']}, no flags",
+        )
         _set_ph(
             slide,
             145,
-            f"No Q2-Q3 Land deals in {territory} flagged for risk this period.",
+            f"No {FQ['current']['label']}-{FQ['forward']['label']} Land deals in {territory} flagged for risk this period.",
         )
         return
 
@@ -1843,7 +1927,7 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
     _set_ph(
         slide,
         144,
-        f"Key {len(top)} Q2-Q3 Deals at Risk, {_fmt_eur(total_arr)} exposed",
+        f"Key {len(top)} {FQ['current']['label']}-{FQ['forward']['label']} Deals at Risk, {_fmt_eur(total_arr)} exposed",
     )
     _set_ph(
         slide,
@@ -2040,7 +2124,7 @@ def slide_win_loss_diagnostic(prs, won_lost, territory, dashboard_path=None):
         if "Won" in stage:
             continue
         cd = str(r.get("Close Date", "") or "")[:10]
-        if not ("2026-01-01" <= cd <= "2026-03-31"):
+        if not (FQ["prior"]["start"] <= cd <= FQ["prior"]["end"]):
             continue
         losses.append(
             {
@@ -2692,7 +2776,7 @@ def slide_renewals(prs, renewals):
     # Count by quarter for the subtitle
     def _qtr(r):
         s = str(r.get("Close Date", ""))[:7]
-        if not s.startswith("2026"):
+        if not s.startswith(str(FQ["fy"])):
             return None
         try:
             m = int(s[5:7])
@@ -3078,7 +3162,7 @@ def slide_definitions(prs, snapshot_date, pipeline=None):
         "",
         "Scope",
         "  Type: Land only.",
-        "  Close date: Q1-Q3 FY26.",
+        f"  Close date: {FQ['prior']['label']}-{FQ['forward']['label']} FY{str(FQ['fy'])[-2:]}.",
         "  Accounts with simcorp, test, or delete in the name are excluded.",
         "  Owners Sabiniewicz and Profit are excluded (test sandbox).",
         "",
@@ -3348,7 +3432,7 @@ def build_deck(
 
         def _in_scope(r):
             cd = str(r.get("Close Date", "") or "")[:10]
-            return cd >= "2026-01-01" and cd <= "2026-09-30"
+            return cd >= FQ["scope_start"] and cd <= FQ["scope_end"]
 
         def _not_omitted(r):
             fc = str(r.get("Forecast Category", "")).strip()
@@ -3385,7 +3469,7 @@ def build_deck(
         # belongs on the cover slide and in the Definitions slide, not in
         # every slide title. Keep titles clean and executive.
         print(
-            f"  LAND + Q1-Q3 FILTER: pipeline={len(pipeline)}  "
+            f"  LAND + {FQ['prior']['label']}-{FQ['forward']['label']} FILTER: pipeline={len(pipeline)}  "
             f"won/lost={len(won_lost)}  approvals={len(approvals)}  "
             f"pi={len(pi_data)}  q1mov={len(q1_movement)}  "
             f"renewals={len(renewals)}"
@@ -3399,8 +3483,12 @@ def build_deck(
     # Build Q1 Promised vs Delivered summary from won/lost data
     won = [r for r in won_lost if "Won" in str(r.get("Stage", ""))]
     lost = [r for r in won_lost if "Won" not in str(r.get("Stage", ""))]
-    q1_won = [r for r in won if str(r.get("Close Date", ""))[:7] <= "2026-03"]
-    q1_lost = [r for r in lost if str(r.get("Close Date", ""))[:7] <= "2026-03"]
+    q1_won = [
+        r for r in won if str(r.get("Close Date", ""))[:7] <= FQ["prior"]["month_end"]
+    ]
+    q1_lost = [
+        r for r in lost if str(r.get("Close Date", ""))[:7] <= FQ["prior"]["month_end"]
+    ]
     q1_won_arr = sum(_unw(r) for r in q1_won)
     q1_lost_arr = sum(_unw(r) for r in q1_lost)
 
@@ -3544,12 +3632,16 @@ def build_deck(
     _q2_deals = [
         r
         for r in pipeline
-        if "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
+        if FQ["current"]["month_start"]
+        <= str(r.get("Close Date", ""))[:7]
+        <= FQ["current"]["month_end"]
     ]
     _q3_deals = [
         r
         for r in pipeline
-        if "2026-07" <= str(r.get("Close Date", ""))[:7] <= "2026-09"
+        if FQ["forward"]["month_start"]
+        <= str(r.get("Close Date", ""))[:7]
+        <= FQ["forward"]["month_end"]
     ]
 
     _q2_arr = sum(_unw(r) for r in _q2_deals)
@@ -3558,15 +3650,36 @@ def build_deck(
     _quarters_to_show = []
     if _q2_arr > 0:
         _quarters_to_show.append(
-            ("Q2", "2026-04", "2026-06", "Apr-Jun", "2026-04-01", "2026-06-30")
+            (
+                FQ["current"]["label"],
+                FQ["current"]["month_start"],
+                FQ["current"]["month_end"],
+                FQ["current"]["range_label"],
+                FQ["current"]["start"],
+                FQ["current"]["end"],
+            )
         )
     elif _q3_arr > 0:
         _quarters_to_show.append(
-            ("Q3", "2026-07", "2026-09", "Jul-Sep", "2026-07-01", "2026-09-30")
+            (
+                FQ["forward"]["label"],
+                FQ["forward"]["month_start"],
+                FQ["forward"]["month_end"],
+                FQ["forward"]["range_label"],
+                FQ["forward"]["start"],
+                FQ["forward"]["end"],
+            )
         )
     if not _quarters_to_show:
         _quarters_to_show.append(
-            ("Q2", "2026-04", "2026-06", "Apr-Jun", "2026-04-01", "2026-06-30")
+            (
+                FQ["current"]["label"],
+                FQ["current"]["month_start"],
+                FQ["current"]["month_end"],
+                FQ["current"]["range_label"],
+                FQ["current"]["start"],
+                FQ["current"]["end"],
+            )
         )
 
     for _qlabel, _mstart, _mend, _mrange, _dstart, _dend in _quarters_to_show:
@@ -3726,23 +3839,27 @@ def build_deck(
         r
         for r in land_wl_rows
         if "Won" in str(r.get("Stage", ""))
-        and str(r.get("Close Date", ""))[:7] <= "2026-03"
+        and str(r.get("Close Date", ""))[:7] <= FQ["prior"]["month_end"]
     ]
     q1_losses = [
         r
         for r in land_wl_rows
         if "Won" not in str(r.get("Stage", ""))
-        and str(r.get("Close Date", ""))[:7] <= "2026-03"
+        and str(r.get("Close Date", ""))[:7] <= FQ["prior"]["month_end"]
     ]
     q2_renewals = [
         r
         for r in renewals
-        if "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
+        if FQ["current"]["month_start"]
+        <= str(r.get("Close Date", ""))[:7]
+        <= FQ["current"]["month_end"]
     ]
     q3_renewals = [
         r
         for r in renewals
-        if "2026-07" <= str(r.get("Close Date", ""))[:7] <= "2026-09"
+        if FQ["forward"]["month_start"]
+        <= str(r.get("Close Date", ""))[:7]
+        <= FQ["forward"]["month_end"]
     ]
 
     def _acv_renew(r):
