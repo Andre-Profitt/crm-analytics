@@ -407,7 +407,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c, SUM(convertCurrency(Amount)) s FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Renewal' "
-        "AND CloseDate >= 2026-04-01 AND CloseDate <= 2026-09-30"
+        "AND CloseDate >= 2026-04-01 AND CloseDate <= 2026-06-30"
     )
     q2r_c, q2r_acv = int(r.get("c") or 0), float(r.get("s") or 0)
 
