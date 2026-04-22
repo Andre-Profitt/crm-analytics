@@ -1,4 +1,6 @@
-# SD Monthly Deck Pipeline — Architecture
+# SD Monthly Deck Pipeline — Architecture (Legacy Lane)
+
+> **Scope:** This doc covers the **legacy production lane** (`run_monthly_director_review.py`), which is the pipeline currently producing decks for monthly reviews. A newer modular lane (`run_sales_director_monthly_master_builder.py`) exists in-repo but does not yet have a committed scheduler or full parity. The two lanes share the extract stage and config but diverge at the build/validate stages. See "Two orchestrators" below.
 
 ## What it does
 
@@ -47,7 +49,21 @@ Salesforce (live SOQL + PI API + Forecast API)
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Orchestrator:** `run_monthly_director_review.py` runs all stages in sequence. Exit code 0 = all steps passed.
+**Orchestrator (legacy):** `run_monthly_director_review.py` runs all stages in sequence. Exit code 0 = all steps passed.
+
+### Two orchestrators
+
+The repo contains two orchestrators for the SD Monthly pipeline:
+
+|                    | Legacy lane                                                                 | Modular lane                                                                                              |
+| ------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Script**         | `run_monthly_director_review.py` (370 lines)                                | `run_sales_director_monthly_master_builder.py` (1,459 lines)                                              |
+| **Status**         | Production. Has CI scheduler.                                               | In development. No committed scheduler.                                                                   |
+| **Approach**       | Monolithic: extract → analyze → deck → validate → obsidian, all in one run. | Modular: JSON snapshots → Claude-assisted brief → validated fact pack → deck render (pluggable backends). |
+| **Deck rendering** | `build_deck_from_excel.py` directly.                                        | Can delegate to the legacy builder or to a Claude-assisted renderer.                                      |
+| **Scheduling**     | `.github/workflows/monthly-review.yml` (midnight 1st of month).             | None committed. Scheduling is an open item.                                                               |
+
+If you are operating the pipeline today, use the legacy lane. The modular lane is the intended future-state architecture but is not yet production-ready.
 
 ## Scripts
 
@@ -79,7 +95,7 @@ Salesforce (live SOQL + PI API + Forecast API)
 
 **Template:** `~/archive/simcorp-deck-agent-backup/reference-decks/SimCorp_PPT_Template.pptx` (34 master layouts)
 
-**Quarter logic:** Fiscal quarters compute dynamically from the run date. No hardcoded dates. Running in July gives Q2 retro + Q3 outlook + Q4 forward look. When the current quarter has no pipeline ARR for a director, the forward quarter is shown instead with a subtitle note explaining the substitution.
+**Quarter logic:** `build_deck_from_excel.py` computes fiscal quarters dynamically from `datetime.now()` at import time via the `FQ` dict. Running in July gives Q2 retro + Q3 outlook + Q4 forward look. When the current quarter has no pipeline ARR for a director, the forward quarter is shown instead with a subtitle note explaining the substitution. **Caveat:** `build_sharepoint_analysis.py` still contains hardcoded Q1 2026 / Q2 FY26 references (lines 551, 1107, 1656+). The dynamic quarter logic only covers the deck builder, not the SharePoint analytics workbooks.
 
 ### Stage 4: Validate
 
@@ -182,7 +198,7 @@ python3 scripts/validate_tie_out.py --date 2026-05-01
 
 2. **Sidecar JSON contract.** Every deck gets a companion JSON with the exact numbers it was built from. The validator compares sidecar vs workbook vs regional vs live SF. This catches drift at any layer.
 
-3. **Dynamic fiscal quarters.** Quarter boundaries compute from the run date. No hardcoded dates anywhere in the deck builder. The pipeline works for any month without code changes.
+3. **Dynamic fiscal quarters (deck builder only).** `build_deck_from_excel.py` derives quarter boundaries from `datetime.now()` at import. The deck builder works for any month without code changes. `build_sharepoint_analysis.py` and `validate_tie_out.py` still have hardcoded FY26 quarter dates that will need updating for FY27.
 
 4. **Omitted deals excluded.** ForecastCategoryName = Omitted deals are filtered at the scope gate. These are deals directors have marked as not closing and should not appear in the pipeline review.
 
