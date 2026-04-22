@@ -160,7 +160,8 @@ def audit_deck(pptx_path: Path, sidecar_path: Path) -> list[dict]:
         "closed won",
         "closing",
         "q2 book",
-        "q2 ",  # Q2 Forward Look / Q2 Outlook titles are inherently a Q2 subset of the open land pipeline
+        "q2 ",
+        "q3 ",
         "lost",
         "stage 3+",
         "score",
