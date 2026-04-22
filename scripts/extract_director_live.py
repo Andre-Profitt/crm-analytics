@@ -907,6 +907,68 @@ def extract_territory(
     print(f"{len(q1_slipped_rows)} Q1 slips, {len(post_q1_pushed_rows)} post-Q1 pushes")
     _add_sheet(wb, "Q1 Movement", headers, all_movement, eur_cols=[9])
 
+    # ── 6a. Q2 Movement (same event stream, Q2 scope) ──
+    print("  Q2 movement...", end=" ", flush=True)
+    q2_slipped_rows = []
+    post_q2_pushed_rows = []
+    seen_q2_slip = set()
+    seen_q2_push = set()
+    for r_raw in [r for r in close_history]:
+        opp = r_raw.get("Opportunity") or {}
+        oid = r_raw.get("OpportunityId", "")
+        name = opp.get("Name", "")
+        old_val = str(r_raw.get("OldValue", ""))
+        new_val = str(r_raw.get("NewValue", ""))
+        change_date = str(r_raw.get("CreatedDate", ""))[:10]
+        arr = opp.get("APTS_Opportunity_ARR__c") or 0
+        account = (opp.get("Account") or {}).get("Name", "")
+        owner = (opp.get("Owner") or {}).get("Name", "")
+        stage = opp.get("StageName", "")
+        is_closed = opp.get("IsClosed", False)
+
+        if (
+            old_val >= "2026-04-01"
+            and old_val <= "2026-06-30"
+            and new_val > "2026-06-30"
+            and change_date >= "2026-04-01"
+            and oid not in seen_q2_slip
+        ):
+            seen_q2_slip.add(oid)
+            q2_slipped_rows.append(
+                [
+                    account,
+                    name,
+                    owner,
+                    stage,
+                    "Q2 Slipped",
+                    old_val,
+                    new_val,
+                    change_date,
+                    arr,
+                ]
+            )
+
+        if change_date >= "2026-07-01" and not is_closed and oid not in seen_q2_push:
+            seen_q2_push.add(oid)
+            post_q2_pushed_rows.append(
+                [
+                    account,
+                    name,
+                    owner,
+                    stage,
+                    "Post-Q2 Push",
+                    old_val,
+                    new_val,
+                    change_date,
+                    arr,
+                ]
+            )
+
+    all_q2_movement = q2_slipped_rows + post_q2_pushed_rows
+    all_q2_movement.sort(key=lambda x: -(x[8] or 0))
+    print(f"{len(q2_slipped_rows)} Q2 slips, {len(post_q2_pushed_rows)} post-Q2 pushes")
+    _add_sheet(wb, "Q2 Movement", headers, all_q2_movement, eur_cols=[9])
+
     # ── 6b. Stage History + Forecast Category History (from extended query) ──
     # Raw event streams for downstream analytics (stage-at-loss, forecast
     # drift, commit accuracy). One row per field-change event.

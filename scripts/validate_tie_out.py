@@ -99,7 +99,7 @@ def _quarter(date_str):
 
 def _in_q1q2(date_str):
     s = str(date_str or "")[:10]
-    return "2026-01-01" <= s <= "2026-06-30"
+    return "2026-01-01" <= s <= "2026-09-30"
 
 
 # ───────────────────────── Excel truth ────────────────────────────────────
@@ -383,7 +383,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c, SUM(convertCurrency(APTS_Opportunity_ARR__c)) s FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-06-30"
+        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-09-30"
     )
     open_c, open_arr = int(r.get("c") or 0), float(r.get("s") or 0)
 
@@ -407,7 +407,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c, SUM(convertCurrency(Amount)) s FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Renewal' "
-        "AND CloseDate >= 2026-04-01 AND CloseDate <= 2026-06-30"
+        "AND CloseDate >= 2026-04-01 AND CloseDate <= 2026-09-30"
     )
     q2r_c, q2r_acv = int(r.get("c") or 0), float(r.get("s") or 0)
 
@@ -415,7 +415,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-06-30 "
+        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-09-30 "
         "AND Stage_20_Approval__c = true "
         "AND CALENDAR_YEAR(Stage_20_Approval_Date__c) = 2026"
     )
@@ -425,7 +425,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-06-30 "
+        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-09-30 "
         "AND Submit_for_Stage_20_Review__c = true "
         "AND Stage_20_Approval__c = false"
     )
@@ -437,7 +437,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-06-30 "
+        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-09-30 "
         "AND StageName IN ('3 - Engagement','4 - Shortlisted',"
         "'5 - Preferred','6 - Contracting') "
         "AND Stage_20_Approval__c = false "

@@ -595,7 +595,7 @@ def slide_cover(prs, director, territory, snapshot_date):
     _set_ph(slide, 24, f"{director}, {territory}")
     _set_ph(slide, 20, "Sales Director Monthly Pipeline Review")
     _set_ph(
-        slide, 22, f"{_snapshot_to_period(snapshot_date)}. Land pipeline, Q1-Q2 FY26."
+        slide, 22, f"{_snapshot_to_period(snapshot_date)}. Land pipeline, Q1-Q3 FY26."
     )
 
 
@@ -866,10 +866,10 @@ def slide_executive_summary(
     owner_callout = _top_pushed_owner(pi_data or [])
 
     # Column headers
-    _set_ph(slide, 42, f"Executive summary - {territory}, Q2 2026")
-    _set_ph(slide, 56, f"Executive summary - {territory}, Q2 2026")
-    _set_ph(slide, 58, f"Executive summary - {territory}, Q2 2026")
-    _set_ph(slide, 60, f"Executive summary - {territory}, Q2 2026")
+    _set_ph(slide, 42, f"Executive summary - {territory}, Q2-Q3 2026")
+    _set_ph(slide, 56, f"Executive summary - {territory}, Q2-Q3 2026")
+    _set_ph(slide, 58, f"Executive summary - {territory}, Q2-Q3 2026")
+    _set_ph(slide, 60, f"Executive summary - {territory}, Q2-Q3 2026")
 
     # Gradient metrics
     _add_gradient_metric(slide, 0, _fmt_eur(total_arr))
@@ -993,8 +993,14 @@ def slide_q1_promised_vs_delivered(prs, q1_summary, territory):
         run.font.color.rgb = DARK
 
 
-def _fetch_q2_enrichment(session, instance, territory_soql_where):
-    """Pull Q2 deal-level enrichment signals from SF for the forward-look slide.
+def _fetch_quarter_enrichment(
+    session,
+    instance,
+    territory_soql_where,
+    start_date="2026-04-01",
+    end_date="2026-06-30",
+):
+    """Pull deal-level enrichment signals from SF for the forward-look slide.
 
     Returns a dict per opportunity: activity counts, AuM, competitor installed,
     NextStep age, quote count. These are signals the standard extract doesn't
@@ -1003,7 +1009,7 @@ def _fetch_q2_enrichment(session, instance, territory_soql_where):
 
     q2_scope = (
         f"{territory_soql_where} AND IsClosed = false "
-        "AND CloseDate >= 2026-04-01 AND CloseDate <= 2026-06-30 "
+        f"AND CloseDate >= {start_date} AND CloseDate <= {end_date} "
         "AND Type = 'Land'"
     )
     enrichment = {}
@@ -1102,10 +1108,19 @@ def _fetch_q2_enrichment(session, instance, territory_soql_where):
     return enrichment
 
 
-def slide_q2_forward_look(prs, pipeline, enrichment, territory, workbook_path=None):
-    """Q2 Forward Look — per-deal readiness grid with enrichment signals.
+def slide_q2_forward_look(
+    prs,
+    pipeline,
+    enrichment,
+    territory,
+    workbook_path=None,
+    q_label="Q2",
+    month_start="2026-04",
+    month_end="2026-06",
+):
+    """Quarter Forward Look — per-deal readiness grid with enrichment signals.
 
-    Shows each Q2 deal with: days to close, last activity age, NextStep
+    Shows each quarter's deals with: days to close, last activity age, NextStep
     freshness, approval status, AuM context, competitor flag. Also reads
     Forecast Category History + Stage History from the director workbook
     to surface momentum signals (who upgraded/downgraded commit this month).
@@ -1115,11 +1130,11 @@ def slide_q2_forward_look(prs, pipeline, enrichment, territory, workbook_path=No
     q2 = [
         r
         for r in pipeline
-        if "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
+        if month_start <= str(r.get("Close Date", ""))[:7] <= month_end
     ]
     if not q2 and not enrichment:
-        _set_ph(slide, 144, f"Q2 Forward Look — {territory}")
-        _set_ph(slide, 145, "No Q2 Land deals in scope.")
+        _set_ph(slide, 144, f"{q_label} Forward Look — {territory}")
+        _set_ph(slide, 145, f"No {q_label} Land deals in scope.")
         return
 
     # Build the readiness assessment per deal
@@ -1186,16 +1201,16 @@ def slide_q2_forward_look(prs, pipeline, enrichment, territory, workbook_path=No
 
     if silent_count == len(deals_enriched) and len(deals_enriched) > 0:
         headline = (
-            f"Q2 {territory}: {len(q2)} deals, {_fmt_eur(total_q2_arr)}. "
-            f"⚠ Zero recent activity across the entire Q2 book."
+            f"{q_label} {territory}: {len(q2)} deals, {_fmt_eur(total_q2_arr)}. "
+            f"⚠ Zero recent activity across the entire {q_label} book."
         )
     elif silent_count > 0:
         headline = (
-            f"Q2 {territory}: {len(q2)} deals, {_fmt_eur(total_q2_arr)}. "
+            f"{q_label} {territory}: {len(q2)} deals, {_fmt_eur(total_q2_arr)}. "
             f"{silent_count} of {len(q2)} deals silent or quiet."
         )
     else:
-        headline = f"Q2 {territory}: {len(q2)} deals, {_fmt_eur(total_q2_arr)}."
+        headline = f"{q_label} {territory}: {len(q2)} deals, {_fmt_eur(total_q2_arr)}."
 
     _set_ph(slide, 144, headline)
     _set_ph(
@@ -1331,65 +1346,70 @@ def slide_q2_forward_look(prs, pipeline, enrichment, territory, workbook_path=No
             para.space_after = Pt(1)
 
 
-def slide_q2_outlook(prs, pipeline, won_lost, territory):
-    """Q2 Outlook — what's promised, what's delivered so far, what moved."""
+def slide_quarter_outlook(
+    prs,
+    pipeline,
+    won_lost,
+    territory,
+    q_label="Q2",
+    month_start="2026-04",
+    month_end="2026-06",
+    month_range_label="Apr-Jun",
+):
+    """Quarter Outlook — what's promised, what's delivered so far, what moved."""
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
 
-    # Q2 pipeline = open deals closing Apr-Jun
-    q2 = [
+    qtr = [
         r
         for r in pipeline
-        if "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
+        if month_start <= str(r.get("Close Date", ""))[:7] <= month_end
     ]
-    q2_opp_arr = sum(_unw(r) for r in q2)
-    q2_fc_arr = sum(_wtd(r) for r in q2)
-    q2_arr = q2_opp_arr
-    commit = [r for r in q2 if r.get("Forecast Category") == "Commit"]
+    qtr_opp_arr = sum(_unw(r) for r in qtr)
+    qtr_fc_arr = sum(_wtd(r) for r in qtr)
+    qtr_arr = qtr_opp_arr
+    commit = [r for r in qtr if r.get("Forecast Category") == "Commit"]
     commit_opp = sum(_unw(r) for r in commit)
     commit_fc = sum(_wtd(r) for r in commit)
     commit_arr = commit_opp
-    bc = [r for r in q2 if r.get("Forecast Category") == "Best Case"]
+    bc = [r for r in qtr if r.get("Forecast Category") == "Best Case"]
     bc_arr = sum(_unw(r) for r in bc)
 
-    # Q2 won/lost so far
-    q2_won = [
+    qtr_won = [
         r
         for r in won_lost
         if "Won" in str(r.get("Stage", ""))
-        and "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
+        and month_start <= str(r.get("Close Date", ""))[:7] <= month_end
     ]
-    q2_lost = [
+    qtr_lost = [
         r
         for r in won_lost
         if "Won" not in str(r.get("Stage", ""))
-        and "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
+        and month_start <= str(r.get("Close Date", ""))[:7] <= month_end
     ]
-    q2_won_arr = sum(_unw(r) for r in q2_won)
-    q2_lost_arr = sum(_unw(r) for r in q2_lost)
+    qtr_won_arr = sum(_unw(r) for r in qtr_won)
+    qtr_lost_arr = sum(_unw(r) for r in qtr_lost)
 
-    # Data-forward title with Q2 velocity + commit coverage
-    commit_pct = commit_arr / q2_arr * 100 if q2_arr else 0
     _set_ph(
         slide,
         144,
-        f"Q2 book {_fmt_eur(q2_arr)} unweighted, {_fmt_eur(q2_fc_arr)} weighted. "
-        f"{len(q2)} deals closing Apr-Jun.",
+        f"{q_label} book {_fmt_eur(qtr_arr)} unweighted, {_fmt_eur(qtr_fc_arr)} weighted. "
+        f"{len(qtr)} deals closing {month_range_label}.",
     )
-    _set_ph(slide, 42, f"Q2 Outlook, {territory}")
-    _set_ph(slide, 56, f"Q2 Outlook, {territory}")
-    _set_ph(slide, 58, f"Q2 Outlook, {territory}")
-    _set_ph(slide, 60, f"Q2 Outlook, {territory}")
+    _set_ph(slide, 42, f"{q_label} Outlook, {territory}")
+    _set_ph(slide, 56, f"{q_label} Outlook, {territory}")
+    _set_ph(slide, 58, f"{q_label} Outlook, {territory}")
+    _set_ph(slide, 60, f"{q_label} Outlook, {territory}")
 
-    _add_gradient_metric(slide, 0, _fmt_eur(q2_arr))
+    _add_gradient_metric(slide, 0, _fmt_eur(qtr_arr))
     _add_gradient_metric(slide, 1, _fmt_eur(commit_arr))
-    _add_gradient_metric(slide, 2, f"{len(q2_won)}W / {len(q2_lost)}L")
-    _add_gradient_metric(slide, 3, _fmt_eur(q2_won_arr))
+    _add_gradient_metric(slide, 2, f"{len(qtr_won)}W / {len(qtr_lost)}L")
+    _add_gradient_metric(slide, 3, _fmt_eur(qtr_won_arr))
 
     _set_ph(
         slide,
         22,
-        f"Q2 book {_fmt_eur(q2_opp_arr)} unweighted, {_fmt_eur(q2_fc_arr)} weighted. "
-        f"{len(q2)} deals closing Apr-Jun.",
+        f"{q_label} book {_fmt_eur(qtr_opp_arr)} unweighted, {_fmt_eur(qtr_fc_arr)} weighted. "
+        f"{len(qtr)} deals closing {month_range_label}.",
     )
     _set_ph(
         slide,
@@ -1400,14 +1420,27 @@ def slide_q2_outlook(prs, pipeline, won_lost, territory):
     _set_ph(
         slide,
         57,
-        f"Q2 results so far: {len(q2_won)} won ({_fmt_eur(q2_won_arr)}) vs {len(q2_lost)} lost ({_fmt_eur(q2_lost_arr)}). "
-        f"{'Lost exceeds won, review loss reasons.' if q2_lost_arr > q2_won_arr else 'Positive trajectory.'}",
+        f"{q_label} results so far: {len(qtr_won)} won ({_fmt_eur(qtr_won_arr)}) vs {len(qtr_lost)} lost ({_fmt_eur(qtr_lost_arr)}). "
+        f"{'Lost exceeds won, review loss reasons.' if qtr_lost_arr > qtr_won_arr else 'Positive trajectory.'}",
     )
     _set_ph(
         slide,
         59,
-        f"Won ARR: {_fmt_eur(q2_won_arr)}. "
-        f"{'Early in quarter, {:.0f}% of commit delivered.'.format(q2_won_arr / max(commit_arr, 1) * 100) if commit_arr else 'No commit baseline.'}",
+        f"Won ARR: {_fmt_eur(qtr_won_arr)}. "
+        f"{'Early in quarter, {:.0f}% of commit delivered.'.format(qtr_won_arr / max(commit_arr, 1) * 100) if commit_arr else 'No commit baseline.'}",
+    )
+
+
+def slide_q2_outlook(prs, pipeline, won_lost, territory):
+    slide_quarter_outlook(
+        prs,
+        pipeline,
+        won_lost,
+        territory,
+        q_label="Q2",
+        month_start="2026-04",
+        month_end="2026-06",
+        month_range_label="Apr-Jun",
     )
 
 
@@ -1489,10 +1522,10 @@ def slide_forecast_accuracy(prs, won_lost, pipeline, territory):
 
     _set_ph(slide, 144, f"Forecast Accuracy, {territory}")
 
-    _set_ph(slide, 42, f"Forecast Accuracy - {territory}, Q2 2026")
-    _set_ph(slide, 56, f"Forecast Accuracy - {territory}, Q2 2026")
-    _set_ph(slide, 58, f"Forecast Accuracy - {territory}, Q2 2026")
-    _set_ph(slide, 60, f"Forecast Accuracy - {territory}, Q2 2026")
+    _set_ph(slide, 42, f"Forecast Accuracy - {territory}, Q2-Q3 2026")
+    _set_ph(slide, 56, f"Forecast Accuracy - {territory}, Q2-Q3 2026")
+    _set_ph(slide, 58, f"Forecast Accuracy - {territory}, Q2-Q3 2026")
+    _set_ph(slide, 60, f"Forecast Accuracy - {territory}, Q2-Q3 2026")
 
     _add_gradient_metric(slide, 0, _fmt_eur(won_arr))
     _add_gradient_metric(slide, 1, _fmt_eur(lost_arr))
@@ -1536,7 +1569,7 @@ def slide_pipeline_combined(prs, pipeline, territory):
     _set_ph(slide, 144, f"Pipeline Overview, {territory}")
 
     if not pipeline:
-        _set_ph(slide, 145, "No open Land deals with Q1 or Q2 close dates.")
+        _set_ph(slide, 145, "No open Land deals with Q1-Q3 close dates.")
         _set_ph(
             slide,
             42,
@@ -1708,7 +1741,7 @@ def slide_top_deals(prs, pipeline):
         _set_ph(
             slide,
             145,
-            "No open Land deals with Q1 or Q2 close dates in this territory.",
+            "No open Land deals with Q1-Q3 close dates in this territory.",
         )
         return
     # Data-forward title: largest deal named in the headline + total concentration.
@@ -1788,36 +1821,36 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
     """
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_CONTENT])
 
-    # Q2 2026 scope: close date Apr-Jun 2026
-    def _in_q2(d):
+    # Scope to Q2+Q3 close dates
+    def _in_forward(d):
         cd = str(d.get("close_date") or "")[:10]
-        return cd >= "2026-04-01" and cd <= "2026-06-30"
+        return cd >= "2026-04-01" and cd <= "2026-09-30"
 
-    q2_deals = [d for d in risk_deals if _in_q2(d)]
+    fwd_deals = [d for d in risk_deals if _in_forward(d)]
 
-    if not q2_deals:
-        _set_ph(slide, 144, "Top Deals at Risk in Q2, no flags")
+    if not fwd_deals:
+        _set_ph(slide, 144, "Top Deals at Risk in Q2-Q3, no flags")
         _set_ph(
             slide,
             145,
-            f"No Q2-closing Land deals in {territory} triggered risk scoring. "
+            f"No Q2/Q3-closing Land deals in {territory} triggered risk scoring. "
             "Rule set: push >= 3, close past or <30 days at stage <4, no activity "
             "60d+, missing next step, weighted coverage <20% on >500K deal, "
             ">1M deal pushed twice. Full scoring on Deal Risk Scoring tab.",
         )
         return
 
-    top = q2_deals[:10]
+    top = fwd_deals[:10]
     total_arr = sum(d["arr"] for d in top)
     _set_ph(
         slide,
         144,
-        f"Top {len(top)} Q2 Deals at Risk, {_fmt_eur(total_arr)} exposed",
+        f"Top {len(top)} Q2-Q3 Deals at Risk, {_fmt_eur(total_arr)} exposed",
     )
     _set_ph(
         slide,
         145,
-        f"Q2 FY26 close dates (Apr-Jun 2026) in {territory}. Composite score "
+        f"Q2-Q3 FY26 close dates (Apr-Sep 2026) in {territory}. Composite score "
         "combines push count, close-date slip risk, staleness, missing next-step, "
         "and low weighted coverage. Full ranking on Deal Risk Scoring tab.",
     )
@@ -3049,7 +3082,7 @@ def slide_definitions(prs, snapshot_date, pipeline=None):
         "",
         "Scope",
         "  Type: Land only.",
-        "  Close date: Q1 or Q2 FY26.",
+        "  Close date: Q1-Q3 FY26.",
         "  Accounts with simcorp, test, or delete in the name are excluded.",
         "  Owners Sabiniewicz and Profit are excluded (test sandbox).",
         "",
@@ -3317,9 +3350,9 @@ def build_deck(
         def _has_type(rows):
             return bool(rows) and ("Type" in rows[0])
 
-        def _in_q1q2(r):
+        def _in_scope(r):
             cd = str(r.get("Close Date", "") or "")[:10]
-            return cd >= "2026-01-01" and cd <= "2026-06-30"
+            return cd >= "2026-01-01" and cd <= "2026-09-30"
 
         if _has_type(pipeline):
             pipeline = [r for r in pipeline if _is_land(r)]
@@ -3332,9 +3365,9 @@ def build_deck(
             r.get("Opportunity") for r in pipeline + won_lost if r.get("Opportunity")
         }
 
-        pipeline = [r for r in pipeline if _in_q1q2(r)]
-        won_lost = [r for r in won_lost if _in_q1q2(r)]
-        approvals = [r for r in approvals if _in_q1q2(r)]
+        pipeline = [r for r in pipeline if _in_scope(r)]
+        won_lost = [r for r in won_lost if _in_scope(r)]
+        approvals = [r for r in approvals if _in_scope(r)]
 
         # Pipeline Inspection: keep deals that belong to the Land universe,
         # regardless of close date, so the coaching view stays complete.
@@ -3350,7 +3383,7 @@ def build_deck(
         # belongs on the cover slide and in the Definitions slide, not in
         # every slide title. Keep titles clean and executive.
         print(
-            f"  LAND + Q1-Q2 FILTER: pipeline={len(pipeline)}  "
+            f"  LAND + Q1-Q3 FILTER: pipeline={len(pipeline)}  "
             f"won/lost={len(won_lost)}  approvals={len(approvals)}  "
             f"pi={len(pi_data)}  q1mov={len(q1_movement)}  "
             f"renewals={len(renewals)}"
@@ -3505,12 +3538,47 @@ def build_deck(
     slide_win_loss_diagnostic(prs, won_lost, territory, dashboard_path=dashboard_wb)
     print(f"  [OK] {n}. Why We Lost")
 
-    # 6. Q2 Outlook (summary numbers)
-    n += 1
-    slide_q2_outlook(prs, pipeline, won_lost, territory)
-    print(f"  [OK] {n}. Q2 Outlook")
+    # 6-7. Quarter Outlook + Forward Look (Q2 first, Q3 if Q2 is empty)
+    _q2_deals = [
+        r
+        for r in pipeline
+        if "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
+    ]
+    _q3_deals = [
+        r
+        for r in pipeline
+        if "2026-07" <= str(r.get("Close Date", ""))[:7] <= "2026-09"
+    ]
 
-    # 7. Q2 Forward Look (enriched per-deal readiness from live SF)
+    _quarters_to_show = []
+    if _q2_deals:
+        _quarters_to_show.append(
+            ("Q2", "2026-04", "2026-06", "Apr-Jun", "2026-04-01", "2026-06-30")
+        )
+    elif _q3_deals:
+        _quarters_to_show.append(
+            ("Q3", "2026-07", "2026-09", "Jul-Sep", "2026-07-01", "2026-09-30")
+        )
+    if not _quarters_to_show:
+        _quarters_to_show.append(
+            ("Q2", "2026-04", "2026-06", "Apr-Jun", "2026-04-01", "2026-06-30")
+        )
+
+    for _qlabel, _mstart, _mend, _mrange, _dstart, _dend in _quarters_to_show:
+        n += 1
+        slide_quarter_outlook(
+            prs,
+            pipeline,
+            won_lost,
+            territory,
+            q_label=_qlabel,
+            month_start=_mstart,
+            month_end=_mend,
+            month_range_label=_mrange,
+        )
+        print(f"  [OK] {n}. {_qlabel} Outlook")
+
+    # Forward Look (enriched per-deal readiness from live SF)
     try:
         import json as _json
 
@@ -3545,27 +3613,33 @@ def build_deck(
             _sf_session.headers.update(
                 {"Authorization": f"Bearer {_auth['accessToken']}"}
             )
-            _q2_enrichment = _fetch_q2_enrichment(
-                _sf_session, _auth["instanceUrl"], _terr_soql
-            )
-            if _q2_enrichment:
-                n += 1
-                slide_q2_forward_look(
-                    prs,
-                    pipeline,
-                    _q2_enrichment,
-                    territory,
-                    workbook_path=workbook_path,
+            for _qlabel, _mstart, _mend, _mrange, _dstart, _dend in _quarters_to_show:
+                _enrich = _fetch_quarter_enrichment(
+                    _sf_session,
+                    _auth["instanceUrl"],
+                    _terr_soql,
+                    start_date=_dstart,
+                    end_date=_dend,
                 )
-                print(
-                    f"  [OK] {n}. Q2 Forward Look ({len(_q2_enrichment)} deals enriched)"
-                )
-            else:
-                print("  [SKIP] Q2 Forward Look: no enrichment data")
+                if _enrich:
+                    n += 1
+                    slide_q2_forward_look(
+                        prs,
+                        pipeline,
+                        _enrich,
+                        territory,
+                        workbook_path=workbook_path,
+                        q_label=_qlabel,
+                        month_start=_mstart,
+                        month_end=_mend,
+                    )
+                    print(f"  [OK] {n}. {_qlabel} Forward Look ({len(_enrich)} deals)")
+                else:
+                    print(f"  [SKIP] {_qlabel} Forward Look: no enrichment data")
         else:
-            print("  [SKIP] Q2 Forward Look: territory config not found")
+            print("  [SKIP] Forward Look: territory config not found")
     except Exception as exc:
-        print(f"  [SKIP] Q2 Forward Look: {exc}")
+        print(f"  [SKIP] Forward Look: {exc}")
 
     # CUT: Pipeline Overview (duplicate — stage data already in Exec Summary)
 
@@ -3660,6 +3734,11 @@ def build_deck(
         for r in renewals
         if "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
     ]
+    q3_renewals = [
+        r
+        for r in renewals
+        if "2026-07" <= str(r.get("Close Date", ""))[:7] <= "2026-09"
+    ]
 
     def _acv_renew(r):
         return float(r.get("ACV Unweighted (EUR)") or r.get("ACV (EUR)") or 0)
@@ -3678,6 +3757,8 @@ def build_deck(
         "q1_land_lost_arr": sum(_unw(r) for r in q1_losses),
         "q2_renewals": len(q2_renewals),
         "q2_renewals_acv": sum(_acv_renew(r) for r in q2_renewals),
+        "q3_renewals": len(q3_renewals),
+        "q3_renewals_acv": sum(_acv_renew(r) for r in q3_renewals),
         "approved_2026": sum(
             1 for r in approvals if str(r.get("Status", "")).strip() == "Approved 2026"
         ),
