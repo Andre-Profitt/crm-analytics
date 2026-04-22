@@ -830,7 +830,7 @@ def slide_executive_summary(
     prs, pipeline, won_lost, renewals, kpis, territory, pi_data=None
 ):
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
-    _set_ph(slide, 144, f"Executive Summary, {territory}")
+    _set_ph(slide, 144, f"Exec. Summary | {territory}")
 
     # Pipeline KPIs — both ARR types
     total_opp_arr = sum(_unw(r) for r in pipeline)
@@ -866,10 +866,10 @@ def slide_executive_summary(
     owner_callout = _top_pushed_owner(pi_data or [])
 
     # Column headers
-    _set_ph(slide, 42, f"Executive Summary, {territory}")
-    _set_ph(slide, 56, f"Executive Summary, {territory}")
-    _set_ph(slide, 58, f"Executive Summary, {territory}")
-    _set_ph(slide, 60, f"Executive Summary, {territory}")
+    _set_ph(slide, 42, f"Exec. Summary | {territory}")
+    _set_ph(slide, 56, f"Exec. Summary | {territory}")
+    _set_ph(slide, 58, f"Exec. Summary | {territory}")
+    _set_ph(slide, 60, f"Exec. Summary | {territory}")
 
     # Gradient metrics
     _add_gradient_metric(slide, 0, _fmt_eur(total_arr))
@@ -914,7 +914,7 @@ def slide_q1_promised_vs_delivered(prs, q1_summary, territory):
         return
 
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
-    _set_ph(slide, 144, f"Q1 Promised vs Delivered, {territory}")
+    _set_ph(slide, 144, f"Q1 Promised vs Delivered | {territory}")
 
     promised = q1_summary.get("promised_arr", 0)
     won_arr = q1_summary.get("won_arr", 0)
@@ -924,10 +924,10 @@ def slide_q1_promised_vs_delivered(prs, q1_summary, territory):
     advanced = q1_summary.get("advanced_count", 0)
     regressed = q1_summary.get("regressed_count", 0)
 
-    _set_ph(slide, 42, f"Q1 Promised vs Delivered, {territory}")
-    _set_ph(slide, 56, f"Q1 Promised vs Delivered, {territory}")
-    _set_ph(slide, 58, f"Q1 Promised vs Delivered, {territory}")
-    _set_ph(slide, 60, f"Q1 Promised vs Delivered, {territory}")
+    _set_ph(slide, 42, f"Q1 Promised vs Delivered | {territory}")
+    _set_ph(slide, 56, f"Q1 Promised vs Delivered | {territory}")
+    _set_ph(slide, 58, f"Q1 Promised vs Delivered | {territory}")
+    _set_ph(slide, 60, f"Q1 Promised vs Delivered | {territory}")
 
     _add_gradient_metric(slide, 0, _fmt_eur(promised))
     _add_gradient_metric(slide, 1, _fmt_eur(won_arr))
@@ -987,7 +987,7 @@ def slide_q1_promised_vs_delivered(prs, q1_summary, territory):
         )
         p = txBox.text_frame.paragraphs[0]
         run = p.add_run()
-        run.text = "Top won and lost deals in Q1"
+        run.text = "Key won and lost deals in Q1"
         run.font.size = Pt(10)
         run.font.bold = True
         run.font.color.rgb = DARK
@@ -1396,10 +1396,10 @@ def slide_quarter_outlook(
     )
     if q_label == "Q3":
         _set_ph(slide, 145, "No Q2 Land pipeline. Showing Q3 forward book.")
-    _set_ph(slide, 42, f"{q_label} Outlook, {territory}")
-    _set_ph(slide, 56, f"{q_label} Outlook, {territory}")
-    _set_ph(slide, 58, f"{q_label} Outlook, {territory}")
-    _set_ph(slide, 60, f"{q_label} Outlook, {territory}")
+    _set_ph(slide, 42, f"{q_label} Outlook | {territory}")
+    _set_ph(slide, 56, f"{q_label} Outlook | {territory}")
+    _set_ph(slide, 58, f"{q_label} Outlook | {territory}")
+    _set_ph(slide, 60, f"{q_label} Outlook | {territory}")
 
     _add_gradient_metric(slide, 0, _fmt_eur(qtr_arr))
     _add_gradient_metric(slide, 1, _fmt_eur(commit_arr))
@@ -1456,7 +1456,7 @@ def slide_pipeline_overview(prs, pipeline, territory):
     if breakdown:
         top_s, top_c, top_a, _top_w = max(breakdown, key=lambda x: x[2])
         pct = top_c / max(len(pipeline), 1) * 100
-        _set_ph(slide, 144, f"Pipeline Overview, {territory}")
+        _set_ph(slide, 144, f"Pipeline Overview | {territory}")
         _set_ph(
             slide,
             145,
@@ -1521,12 +1521,12 @@ def slide_forecast_accuracy(prs, won_lost, pipeline, territory):
     pipe_deals = [r for r in pipeline if r.get("Forecast Category") == "Pipeline"]
     pipe_arr = sum(_unw(r) for r in pipe_deals)
 
-    _set_ph(slide, 144, f"Forecast Accuracy, {territory}")
+    _set_ph(slide, 144, f"Forecast Accuracy | {territory}")
 
-    _set_ph(slide, 42, f"Forecast Accuracy, {territory}")
-    _set_ph(slide, 56, f"Forecast Accuracy, {territory}")
-    _set_ph(slide, 58, f"Forecast Accuracy, {territory}")
-    _set_ph(slide, 60, f"Forecast Accuracy, {territory}")
+    _set_ph(slide, 42, f"Forecast Accuracy | {territory}")
+    _set_ph(slide, 56, f"Forecast Accuracy | {territory}")
+    _set_ph(slide, 58, f"Forecast Accuracy | {territory}")
+    _set_ph(slide, 60, f"Forecast Accuracy | {territory}")
 
     _add_gradient_metric(slide, 0, _fmt_eur(won_arr))
     _add_gradient_metric(slide, 1, _fmt_eur(lost_arr))
@@ -1567,7 +1567,7 @@ def slide_pipeline_combined(prs, pipeline, territory):
     total_arr = total_opp
     breakdown = _stage_breakdown(pipeline)
 
-    _set_ph(slide, 144, f"Pipeline Overview, {territory}")
+    _set_ph(slide, 144, f"Pipeline Overview | {territory}")
 
     if not pipeline:
         _set_ph(slide, 145, "No open Land deals with Q1-Q3 close dates.")
@@ -1738,7 +1738,7 @@ def slide_top_deals(prs, pipeline):
 
     total_arr = sum(_unw(r) for r in top)
     if not top:
-        _set_ph(slide, 144, "Top Deals")
+        _set_ph(slide, 144, "Key Deals")
         _set_ph(
             slide,
             145,
@@ -1754,7 +1754,7 @@ def slide_top_deals(prs, pipeline):
         slide,
         144,
         (
-            f"Top {len(top)} open deals = {_fmt_eur(total_arr)}. "
+            f"Key {len(top)} open deals = {_fmt_eur(total_arr)}. "
             f"{biggest_account} leads at {_fmt_eur(biggest_arr)}; "
             f"top 5 = {top5_share * 100:.0f}% of this book."
         ),
@@ -1830,7 +1830,7 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
     fwd_deals = [d for d in risk_deals if _in_forward(d)]
 
     if not fwd_deals:
-        _set_ph(slide, 144, "Top Deals at Risk in Q2-Q3, no flags")
+        _set_ph(slide, 144, "Key Deals at Risk in Q2-Q3, no flags")
         _set_ph(
             slide,
             145,
@@ -1843,7 +1843,7 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
     _set_ph(
         slide,
         144,
-        f"Top {len(top)} Q2-Q3 Deals at Risk, {_fmt_eur(total_arr)} exposed",
+        f"Key {len(top)} Q2-Q3 Deals at Risk, {_fmt_eur(total_arr)} exposed",
     )
     _set_ph(
         slide,
@@ -2055,7 +2055,7 @@ def slide_win_loss_diagnostic(prs, won_lost, territory, dashboard_path=None):
     total_arr = sum(loss["arr"] for loss in losses)
 
     if total_n == 0:
-        _set_ph(slide, 144, f"Why We Lost, Q1, {territory}")
+        _set_ph(slide, 144, f"Why We Lost Q1 | {territory}")
         _set_ph(slide, 145, "No Q1 Land losses in scope.")
         return
 
@@ -2164,7 +2164,7 @@ def slide_owner_coaching(prs, slip_owners, risk_deals, territory):
     """
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_CONTENT])
     if not slip_owners:
-        _set_ph(slide, 144, f"Owner Coaching, {territory}")
+        _set_ph(slide, 144, f"Owner Coaching | {territory}")
         _set_ph(
             slide,
             145,
@@ -2281,7 +2281,7 @@ def _inject_insight_bullets_into_summary(prs, bullets):
 def slide_executive_insights(prs, bullets, director, territory):
     """Synthesized findings for this director's territory. 3-5 bullets."""
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_CONTENT])
-    _set_ph(slide, 144, f"Executive Insights, {territory}")
+    _set_ph(slide, 144, f"Executive Insights | {territory}")
     _set_ph(
         slide,
         145,
@@ -2873,7 +2873,7 @@ def slide_pi_link(prs, territory):
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_CONTENT])
     link = PI_LINKS.get(territory, "")
 
-    _set_ph(slide, 144, f"Pipeline Inspection, {territory}")
+    _set_ph(slide, 144, f"Pipeline Inspection | {territory}")
     _set_ph(slide, 145, "Live view in Salesforce")
 
     lines = [
@@ -2960,7 +2960,7 @@ def slide_pushed_deals(prs, pi_data):
             f"Highest: {top_name} ({top_push}×). Deals pushed 5+ times warrant direct conversation with owner.",
         )
     else:
-        _set_ph(slide2, 144, "Pipeline Inspection, Top Pushed Deals")
+        _set_ph(slide2, 144, "Pipeline Inspection | Key Pushed Deals")
     _set_ph(slide2, 145, "Ranked by push count")
 
     rows = [
@@ -3017,7 +3017,7 @@ def slide_forecast_breakdown(prs, pi_data):
         slide,
         144,
         (
-            f"Forecast mix: {_fmt_eur(total_arr)} across {len(pi_data)} "
+            f"Forecast Breakdown: {_fmt_eur(total_arr)} across {len(pi_data)} "
             f"open deals. Commit = {_fmt_eur(commit_arr)} "
             f"({commit_share * 100:.0f}%)."
         ),
@@ -3251,7 +3251,7 @@ def slide_forecast_combined(prs, won_lost, pipeline, pi_data, territory):
         _unw(r) for r in pipeline if r.get("Forecast Category") == "Commit"
     )
 
-    _set_ph(slide, 144, f"Forecast Accuracy, {territory}")
+    _set_ph(slide, 144, f"Forecast Accuracy | {territory}")
     _set_ph(slide, 42, f"Forecast Accuracy - {territory}")
     _set_ph(slide, 56, f"Forecast Accuracy - {territory}")
     _set_ph(slide, 58, f"Forecast Accuracy - {territory}")
@@ -3287,7 +3287,7 @@ def slide_forecast_combined(prs, won_lost, pipeline, pi_data, territory):
             slide2,
             144,
             (
-                f"Forecast mix: {_fmt_eur(total_pi_arr)} across {len(pi_data)} "
+                f"Forecast Breakdown: {_fmt_eur(total_pi_arr)} across {len(pi_data)} "
                 f"open deals. Commit = {_fmt_eur(commit_arr)} "
                 f"({commit_share * 100:.0f}%)."
             ),
@@ -3645,7 +3645,7 @@ def build_deck(
     # 8. Top Deals
     n += 1
     slide_top_deals(prs, pipeline)
-    print(f"  [OK] {n}. Top Deals")
+    print(f"  [OK] {n}. Key Deals")
 
     # 8. Deal Risk Scoring
     if analytics.get("risk_deals"):
