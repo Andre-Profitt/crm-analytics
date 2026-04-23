@@ -3948,12 +3948,11 @@ def build_deck(
     print(f"  [OK] {n}. End Slide")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    prs.save(str(output_path))
-    print(f"\nSaved: {output_path}")
 
-    # Sidecar: write the headline numbers that the deck was built from so
-    # validate_tie_out.py can compare without regex-parsing PowerPoint text.
-    # This is the deterministic contract between the builder and the validator.
+    # Sidecar: write BEFORE the deck so a crash between them doesn't leave
+    # a deck without its validation contract. The validator needs the sidecar
+    # to exist for every deck; an orphan deck without sidecar is worse than
+    # a sidecar without a deck (which the validator can detect and skip).
     import json as _json
     from datetime import datetime as _dt
 
@@ -4019,6 +4018,9 @@ def build_deck(
     sidecar_path = output_path.with_suffix(".json")
     sidecar_path.write_text(_json.dumps(sidecar, indent=2))
     print(f"Sidecar: {sidecar_path}")
+
+    prs.save(str(output_path))
+    print(f"Saved: {output_path}")
 
 
 def main():

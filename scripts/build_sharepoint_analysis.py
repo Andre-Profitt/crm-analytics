@@ -2413,8 +2413,13 @@ def build_territory_scorecard(wb, overdue_rows, kyc_rows):
     )
     ws["A2"].font = CAPTION_FONT
 
-    overdue_by_dir = Counter(r.get("Director", "") for r in overdue_rows)
-    kyc_by_dir = Counter(r.get("Director", "") for r in kyc_rows)
+    terr_to_dir = {t: n for n, t, *_ in DIRECTORS}
+    overdue_by_dir = Counter(
+        terr_to_dir.get(r.get("territory", ""), "") for r in overdue_rows
+    )
+    kyc_by_dir = Counter(
+        terr_to_dir.get(r.get("territory", ""), r.get("region", "")) for r in kyc_rows
+    )
 
     headers = [
         "Director",
@@ -5830,11 +5835,10 @@ def main():
     # the territory's region family.
     if args.territory:
         overdue_rows = [r for r in overdue_rows if r.get("territory") == args.territory]
-        region_prefix = args.territory.split()[0]  # APAC / EMEA / NA
         kyc_rows = [
             r
             for r in kyc_rows
-            if not r.get("region") or region_prefix.lower() in str(r["region"]).lower()
+            if r.get("region") and args.territory.lower() in str(r["region"]).lower()
         ]
 
     wb = Workbook()
