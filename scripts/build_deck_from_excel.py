@@ -1024,7 +1024,7 @@ def slide_executive_summary(
 
     # Won/Lost
     won = [r for r in won_lost if "Won" in str(r.get("Stage", ""))]
-    lost = [r for r in won_lost if "Won" not in str(r.get("Stage", ""))]
+    lost = [r for r in won_lost if "Lost" in str(r.get("Stage", ""))]
     won_arr = sum(_unw(r) for r in won)
     lost_arr = sum(_unw(r) for r in lost)
     total_decisions = len(won) + len(lost)
@@ -1572,7 +1572,7 @@ def slide_quarter_outlook(
     qtr_lost = [
         r
         for r in won_lost
-        if "Won" not in str(r.get("Stage", ""))
+        if "Lost" in str(r.get("Stage", ""))
         and month_start <= str(r.get("Close Date", ""))[:7] <= month_end
     ]
     qtr_won_arr = sum(_unw(r) for r in qtr_won)
@@ -1698,7 +1698,7 @@ def slide_forecast_accuracy(prs, won_lost, pipeline, territory):
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
 
     won = [r for r in won_lost if "Won" in str(r.get("Stage", ""))]
-    lost = [r for r in won_lost if "Won" not in str(r.get("Stage", ""))]
+    lost = [r for r in won_lost if "Lost" in str(r.get("Stage", ""))]
     won_arr = sum(_unw(r) for r in won)
     lost_arr = sum(_unw(r) for r in lost)
     total_decisions = len(won) + len(lost)
@@ -3454,7 +3454,7 @@ def slide_forecast_combined(prs, won_lost, pipeline, pi_data, territory):
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
 
     won = [r for r in won_lost if "Won" in str(r.get("Stage", ""))]
-    lost = [r for r in won_lost if "Won" not in str(r.get("Stage", ""))]
+    lost = [r for r in won_lost if "Lost" in str(r.get("Stage", ""))]
     won_arr = sum(_unw(r) for r in won)
     lost_arr = sum(_unw(r) for r in lost)
     total_decisions = len(won) + len(lost)
@@ -3614,7 +3614,7 @@ def build_deck(
 
     # Build Q1 Promised vs Delivered summary from won/lost data
     won = [r for r in won_lost if "Won" in str(r.get("Stage", ""))]
-    lost = [r for r in won_lost if "Won" not in str(r.get("Stage", ""))]
+    lost = [r for r in won_lost if "Lost" in str(r.get("Stage", ""))]
     q1_won = [
         r for r in won if str(r.get("Close Date", ""))[:7] <= FQ["prior"]["month_end"]
     ]
@@ -3974,7 +3974,7 @@ def build_deck(
     q1_losses = [
         r
         for r in land_wl_rows
-        if "Won" not in str(r.get("Stage", ""))
+        if "Lost" in str(r.get("Stage", ""))
         and str(r.get("Close Date", ""))[:7] <= FQ["prior"]["month_end"]
     ]
     q2_renewals = [

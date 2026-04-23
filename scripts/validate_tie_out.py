@@ -198,7 +198,7 @@ def excel_metrics(workbook_path, *, scopes=None):
         r
         for r in won_lost
         if is_land(r)
-        and "Won" not in str(r.get("Stage", ""))
+        and "Lost" in str(r.get("Stage", ""))
         and prior_quarter_scope.contains(r.get("Close Date"))
     ]
     q2_renewals = [
@@ -297,7 +297,7 @@ def regional_metrics(regional_wb_path, *, scopes=None):
             if "Won" in stage:
                 q1_wins += 1
                 q1_wins_arr += arr
-            else:
+            elif "Lost" in stage:
                 q1_lost += 1
 
     def _count_listed(tab, q1q2_close_only=False):
@@ -454,10 +454,10 @@ def sf_metrics(session, instance, director, *, scopes=None):
     )
     q1w_c, q1w_arr = int(r.get("c") or 0), float(r.get("s") or 0)
 
-    # 3. Q1 Land losses (IsClosed=true, IsWon=false, CloseDate in Q1)
+    # 3. Q1 Land losses (IsClosed=true, StageName='0 - Lost', CloseDate in Q1)
     r = _agg(
         "SELECT COUNT(Id) c FROM Opportunity "
-        f"{common} AND IsClosed=true AND IsWon=false AND Type='Land' "
+        f"{common} AND IsClosed=true AND StageName='0 - Lost' AND Type='Land' "
         f"AND CloseDate >= {prior_quarter_scope.start_date} AND CloseDate <= {prior_quarter_scope.end_date}"
     )
     q1l_c = int(r.get("c") or 0)

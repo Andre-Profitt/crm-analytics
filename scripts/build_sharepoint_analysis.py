@@ -1800,7 +1800,7 @@ def build_summary_live(wb, data):
             value=(
                 f"=COUNTIFS(LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
-                f'LandWonLostDetail[Stage],"<>*Won*",'
+                f'LandWonLostDetail[Stage],"*Lost*",'
                 f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["prior_quarter_start"]}",'
                 f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["prior_quarter_end"]}")'
             ),
@@ -1812,7 +1812,7 @@ def build_summary_live(wb, data):
                 f"=SUMIFS(LandWonLostDetail[ARR Unwtd],"
                 f"LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
-                f'LandWonLostDetail[Stage],"<>*Won*",'
+                f'LandWonLostDetail[Stage],"*Lost*",'
                 f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["prior_quarter_start"]}",'
                 f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["prior_quarter_end"]}")'
             ),
@@ -3816,7 +3816,7 @@ def build_owner_scorecard(wb):
             if "Won" in stage:
                 o["q1_won"] += 1
                 o["q1_won_arr"] += arr
-            elif "Lost" in stage or "No Opportunity" in stage:
+            elif "Lost" in stage:
                 o["q1_lost"] += 1
                 o["q1_lost_arr"] += arr
             # Cycle time: only counted for resolved (won/lost) deals with
@@ -3955,7 +3955,7 @@ def build_competitive_win_loss(wb):
                 if comp:
                     by_comp[comp]["won_n"] += 1
                     by_comp[comp]["won_arr"] += arr
-            elif "Lost" in stage or "No Opportunity" in stage:
+            elif "Lost" in stage:
                 if comp:
                     by_comp[comp]["lost_n"] += 1
                     by_comp[comp]["lost_arr"] += arr
@@ -4760,7 +4760,7 @@ def build_charts_sheet(wb):
                 f"=SUMIFS(LandWonLostDetail[ARR Unwtd],"
                 f"LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
-                f'LandWonLostDetail[Stage],"<>*Won*",'
+                f'LandWonLostDetail[Stage],"*Lost*",'
                 f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["prior_quarter_start"]}",'
                 f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["prior_quarter_end"]}")'
             ),
@@ -5311,7 +5311,7 @@ def gather_director_data(wb_path, oid, tid, session, instance):
                 all_won_land.append(rec)
                 if _is_q1_of_analysis_year(rec["close_date"]):
                     q1_won_deals.append(rec)
-        else:
+        elif "Lost" in str(r.get("Stage", "")):
             if is_land and _is_q1_of_analysis_year(str(r.get("Close Date", ""))):
                 q1_lost_deals.append(
                     {
