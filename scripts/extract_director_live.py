@@ -33,6 +33,7 @@ try:
     from monthly_platform.models import (
         ActivitySignal,
         ApprovalDeal,
+        BundleManifestEntry,
         CloseDateEvent,
         CommitItem,
         DatasetSource,
@@ -43,6 +44,7 @@ try:
         PIDeal,
         PipelineDeal,
         RenewalDeal,
+        RunManifest,
         SourceContract,
         StageEvent,
         WonLostDeal,
@@ -54,6 +56,7 @@ except ModuleNotFoundError:  # pragma: no cover
     from scripts.monthly_platform.models import (  # noqa: F811
         ActivitySignal,
         ApprovalDeal,
+        BundleManifestEntry as BundleManifestEntry,  # noqa: F811
         CloseDateEvent,
         CommitItem,
         DatasetSource,
@@ -64,6 +67,7 @@ except ModuleNotFoundError:  # pragma: no cover
         PIDeal,
         PipelineDeal,
         RenewalDeal,
+        RunManifest as RunManifest,  # noqa: F811
         SourceContract,
         StageEvent,
         WonLostDeal,
@@ -489,6 +493,65 @@ def _write_run_audit(output_dir: Path, payload: dict[str, Any]) -> None:
             )
     (output_dir / "summary.md").write_text(
         "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_run_manifest(
+    manifest_path: Path,
+    *,
+    processed: list[dict],
+    failures: list[dict],
+    durations: dict[str, float],
+    snapshot_date: str,
+    started_at: str,
+    finished_at: str,
+    query_telemetry_totals: dict,
+) -> None:
+    import dataclasses as _dc
+
+    directors = [
+        BundleManifestEntry(
+            name=item["director"],
+            territory=item["territory"],
+            status="ok",
+            bundle_path=item.get("bundle_path", ""),
+            workbook_path=item.get("workbook_path", ""),
+            row_counts=item.get("counts", {}),
+            duration_seconds=durations.get(item["territory"], 0.0),
+        )
+        for item in processed
+    ]
+    failed = [
+        BundleManifestEntry(
+            name=item.get("territory", ""),
+            territory=item.get("territory", ""),
+            status="failed",
+            bundle_path="",
+            workbook_path="",
+            row_counts={},
+            duration_seconds=0.0,
+            failure_reason=item.get("message", ""),
+        )
+        for item in failures
+    ]
+    manifest = RunManifest(
+        schema_version="1",
+        run_date=snapshot_date,
+        started_at=started_at,
+        finished_at=finished_at,
+        directors=directors,
+        failures=failed,
+        telemetry={
+            "total_queries": query_telemetry_totals.get("queries", 0),
+            "total_rows": query_telemetry_totals.get("rows", 0),
+            "total_duration_seconds": query_telemetry_totals.get("duration_ms", 0)
+            / 1000.0,
+        },
+    )
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(_dc.asdict(manifest), indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -1324,9 +1387,12 @@ def main():
 
     # Auth once; reuse across every territory. Saves ~1s × N sf-CLI subprocess
     # calls and removes N/A token-rotation windows mid-run.
+    _run_started_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     token, instance_url = get_auth()
     session = build_session(token)
     corp_ccy = get_corporate_currency(session, instance_url)
+
+    _territory_durations: dict[str, float] = {}
 
     def _run_one(territory):
         config = TERRITORIES[territory]
@@ -1341,6 +1407,14 @@ def main():
             corp_ccy=corp_ccy,
         )
 
+    def _run_one_timed(territory):
+        import time
+
+        t0 = time.monotonic()
+        result = _run_one(territory)
+        _territory_durations[territory] = round(time.monotonic() - t0, 1)
+        return result
+
     processed: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
 
@@ -1352,7 +1426,7 @@ def main():
 
         print(f"\nExtracting {len(territories)} territories in parallel...\n")
         with ThreadPoolExecutor(max_workers=min(9, len(territories))) as pool:
-            futures = {pool.submit(_run_one, t): t for t in territories}
+            futures = {pool.submit(_run_one_timed, t): t for t in territories}
             for f in as_completed(futures):
                 t = futures[f]
                 try:
@@ -1372,7 +1446,7 @@ def main():
     else:
         for t in territories:
             try:
-                processed.append(_run_one(t))
+                processed.append(_run_one_timed(t))
             except Exception as exc:
                 import traceback as _tb
 
@@ -1440,6 +1514,20 @@ def main():
     audit_dir = AUDIT_OUTPUT_ROOT / args.snapshot_date
     _write_run_audit(audit_dir, audit_payload)
     print(f"Director live extract audit: {_display_path(audit_dir)}")
+
+    _write_run_manifest(
+        BUNDLE_OUTPUT_ROOT / args.snapshot_date / "manifest.json",
+        processed=processed,
+        failures=failures,
+        durations=_territory_durations,
+        snapshot_date=args.snapshot_date,
+        started_at=_run_started_at,
+        finished_at=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        query_telemetry_totals=query_totals,
+    )
+    print(
+        f"Run manifest: {_display_path(BUNDLE_OUTPUT_ROOT / args.snapshot_date / 'manifest.json')}"
+    )
 
     if failures:
         print(f"\n{len(failures)} failure(s):")

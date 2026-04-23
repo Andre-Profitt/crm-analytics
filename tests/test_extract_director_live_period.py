@@ -495,3 +495,38 @@ def test_extract_territory_writes_json_bundle(tmp_path: Path, monkeypatch) -> No
     assert workbook_path.exists()
     assert result["territory"] == "APAC"
     assert "bundle_path" in result
+
+
+def test_write_run_manifest(tmp_path: Path) -> None:
+    from scripts.extract_director_live import _write_run_manifest
+
+    processed = [
+        {
+            "territory": "APAC",
+            "director": "Jesper Tyrer",
+            "workbook_path": "output/jesper-tyrer.xlsx",
+            "bundle_path": "output/jesper-tyrer.json",
+            "counts": {"pipeline_open": 12, "won_lost": 5},
+        },
+    ]
+    manifest_path = tmp_path / "manifest.json"
+    _write_run_manifest(
+        manifest_path,
+        processed=processed,
+        failures=[],
+        durations={"APAC": 3.2},
+        snapshot_date="2026-04-22",
+        started_at="2026-04-22T09:30:00Z",
+        finished_at="2026-04-22T09:32:45Z",
+        query_telemetry_totals={"queries": 76, "rows": 24539, "duration_ms": 21900},
+    )
+
+    assert manifest_path.exists()
+    data = json.loads(manifest_path.read_text())
+    assert data["schema_version"] == "1"
+    assert data["run_date"] == "2026-04-22"
+    assert len(data["directors"]) == 1
+    assert data["directors"][0]["name"] == "Jesper Tyrer"
+    assert data["directors"][0]["status"] == "ok"
+    assert data["directors"][0]["duration_seconds"] == 3.2
+    assert data["failures"] == []
