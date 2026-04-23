@@ -24,6 +24,7 @@ Exit code is 0 if every step succeeded, 1 otherwise.
 import argparse
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -40,6 +41,115 @@ WORKBOOKS_ROOT = OUTPUT_ROOT / "director_live_workbooks"
 DECKS_ROOT = OUTPUT_ROOT / "simcorp_director_decks"
 SHAREPOINT_ROOT = OUTPUT_ROOT / "sharepoint"
 LOGS_ROOT = OUTPUT_ROOT / "pipeline_logs"
+
+# Territory config key -> professional deck territory label.
+# "Pension & Insurance" is branded "NA Pension & Insurance" in the deck name.
+_TERRITORY_DECK_LABELS: dict[str, str] = {
+    "APAC": "APAC",
+    "Central Europe": "Central Europe",
+    "UK & Ireland": "UK & Ireland",
+    "Southern Europe": "Southern Europe",
+    "NL & Nordics": "NL & Nordics",
+    "Middle East & Africa": "Middle East & Africa",
+    "Canada": "Canada",
+    "NA Asset Management": "NA Asset Management",
+    "Pension & Insurance": "NA Pension & Insurance",
+}
+
+# Reverse lookup: lowered director last-name fragments -> territory config key.
+# Deck filenames are "{director-slug}-LAND.pptx" where the slug is derived from
+# the workbook stem (e.g. "jesper-tyrer").  We match by lower-cased stem prefix.
+_DIRECTOR_STEM_TO_TERRITORY: dict[str, str] = {}
+
+
+def _load_territory_config() -> dict:
+    """Load sd_monthly_territories.json and populate director-stem lookup."""
+    cfg_path = ROOT / "config" / "sd_monthly_territories.json"
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+    territories = cfg.get("territories", {})
+    for territory_key, entry in territories.items():
+        director = entry.get("director", "")
+        # Build a slug that matches what the workbook stem looks like:
+        # "Jesper Tyrer" -> "jesper-tyrer"
+        slug = director.lower().replace(" ", "-")
+        _DIRECTOR_STEM_TO_TERRITORY[slug] = territory_key
+    return territories
+
+
+def _month_year_label(date_stamp: str) -> str:
+    """'2026-04-20' -> 'April 2026'."""
+    dt = datetime.strptime(date_stamp[:10], "%Y-%m-%d")
+    return dt.strftime("%B %Y")
+
+
+def _rename_deliverables(decks_dir: Path, date_stamp: str) -> dict:
+    """Rename deck files and sharepoint workbooks to professional names.
+
+    Returns a step-like dict with rename results for the manifest.
+    """
+    month_year = _month_year_label(date_stamp)
+    renames: list[dict[str, str]] = []
+    errors: list[str] = []
+
+    # --- Rename decks ---
+    if decks_dir.exists():
+        for pptx in sorted(decks_dir.glob("*.pptx")):
+            if pptx.name.startswith("~"):
+                continue
+            old_name = pptx.name
+
+            # Exec Rollup
+            if old_name == "Exec Rollup.pptx":
+                new_name = f"Sales Director Monthly - Exec Rollup - {month_year}.pptx"
+            else:
+                # Strip the "-LAND" suffix to get the director slug
+                stem = pptx.stem
+                if stem.endswith("-LAND"):
+                    stem = stem[: -len("-LAND")]
+                slug = stem.lower()
+                territory_key = _DIRECTOR_STEM_TO_TERRITORY.get(slug)
+                if territory_key is None:
+                    errors.append(f"No territory mapping for deck stem '{stem}'")
+                    continue
+                label = _TERRITORY_DECK_LABELS.get(territory_key, territory_key)
+                new_name = f"Sales Director Monthly - {label} - {month_year}.pptx"
+
+            if old_name != new_name:
+                new_path = pptx.parent / new_name
+                shutil.move(str(pptx), str(new_path))
+                renames.append({"from": old_name, "to": new_name})
+
+    # --- Rename sharepoint workbooks ---
+    if SHAREPOINT_ROOT.exists():
+        for xlsx in sorted(SHAREPOINT_ROOT.glob("FY26 Pipeline Review, *.xlsx")):
+            if xlsx.name.startswith("~"):
+                continue
+            old_name = xlsx.name
+            # "FY26 Pipeline Review, APAC.xlsx" -> region = "APAC"
+            region = old_name.replace("FY26 Pipeline Review, ", "").replace(".xlsx", "")
+            new_name = f"FY26 Pipeline Review - {region} - {month_year}.xlsx"
+            if old_name != new_name:
+                new_path = xlsx.parent / new_name
+                shutil.move(str(xlsx), str(new_path))
+                renames.append({"from": old_name, "to": new_name})
+
+    status = "ok" if not errors else "failed"
+    print(f"  [3c_rename_deliverables] {status}: {len(renames)} files renamed")
+    if errors:
+        for e in errors:
+            print(f"    ERROR: {e}")
+
+    return {
+        "name": "3c_rename_deliverables",
+        "command": "rename_deliverables",
+        "exit_code": 0 if not errors else 1,
+        "duration_seconds": 0.0,
+        "log_path": "",
+        "status": status,
+        "renames": renames,
+        "errors": errors,
+    }
 
 
 def run_step(name, cmd, log_path):
@@ -271,6 +381,8 @@ def main():
         print(f"Lock conflict: {_manifest_path(conflict_path)}")
         return 1
 
+    _load_territory_config()
+
     print(f"Monthly Sales Directors Review pipeline, date {date_stamp}")
     print(f"Logs: {log_dir.relative_to(ROOT)}")
     print()
@@ -307,7 +419,10 @@ def main():
         _append_step_artifact(
             step,
             "source_contract_audit",
-            OUTPUT_ROOT / "source_contract_audit" / date_stamp / "source_contract_audit.json",
+            OUTPUT_ROOT
+            / "source_contract_audit"
+            / date_stamp
+            / "source_contract_audit.json",
         )
         _append_step_artifact(
             step,
@@ -360,7 +475,10 @@ def main():
         _append_step_artifact(
             refresh_step,
             "forward_quarter_registry_refresh_summary",
-            OUTPUT_ROOT / "source_contract_registry_refresh" / date_stamp / "summary.md",
+            OUTPUT_ROOT
+            / "source_contract_registry_refresh"
+            / date_stamp
+            / "summary.md",
         )
         _append_step_artifact(
             refresh_step,
@@ -599,7 +717,9 @@ def main():
                 OUTPUT_ROOT / "data_quality" / date_stamp / "summary.md",
             )
             manifest["steps"].append(step)
-            data_quality_flags_path = OUTPUT_ROOT / "data_quality" / date_stamp / "flags.json"
+            data_quality_flags_path = (
+                OUTPUT_ROOT / "data_quality" / date_stamp / "flags.json"
+            )
             if data_quality_flags_path.exists():
                 data_quality_diff_step = run_step(
                     "1c2_data_quality_snapshot_diff",
@@ -699,7 +819,10 @@ def main():
             _append_step_artifact(
                 analysis_contract_step,
                 "sharepoint_analysis_contract_summary",
-                OUTPUT_ROOT / "sharepoint_analysis_contract" / date_stamp / "summary.md",
+                OUTPUT_ROOT
+                / "sharepoint_analysis_contract"
+                / date_stamp
+                / "summary.md",
             )
             manifest["steps"].append(analysis_contract_step)
             analysis_contract_audit_path = (
@@ -737,7 +860,9 @@ def main():
                 )
                 manifest["steps"].append(diff_step)
             if analysis_contract_step["exit_code"] != 0:
-                print("SharePoint analysis contract validation failed. Aborting downstream steps.")
+                print(
+                    "SharePoint analysis contract validation failed. Aborting downstream steps."
+                )
                 _write_manifest_with_release_packet(manifest, log_dir)
                 return 1
         else:
@@ -787,6 +912,13 @@ def main():
                     log_dir / "3_ship_exec_rollup.log",
                 )
                 manifest["steps"].append(step)
+
+            # Rename decks + sharepoint workbooks to professional names
+            rename_result = _rename_deliverables(
+                DECKS_ROOT / date_stamp / "land-only", date_stamp
+            )
+            manifest["steps"].append(rename_result)
+
             font_normalization_step = run_step(
                 "3a_normalize_deck_fonts",
                 [
@@ -983,14 +1115,14 @@ def main():
                 _append_step_artifact(
                     font_audit_step,
                     "deck_font_audit_summary",
-                    OUTPUT_ROOT
-                    / "deck_font_audit"
-                    / date_stamp
-                    / "summary.md",
+                    OUTPUT_ROOT / "deck_font_audit" / date_stamp / "summary.md",
                 )
                 manifest["steps"].append(font_audit_step)
                 deck_font_audit_path = (
-                    OUTPUT_ROOT / "deck_font_audit" / date_stamp / "deck_font_audit.json"
+                    OUTPUT_ROOT
+                    / "deck_font_audit"
+                    / date_stamp
+                    / "deck_font_audit.json"
                 )
                 if deck_font_audit_path.exists():
                     font_diff_step = run_step(
@@ -1021,7 +1153,9 @@ def main():
                     )
                 manifest["steps"].append(font_diff_step)
             if deck_delivery_step["exit_code"] != 0:
-                print("Deck delivery contract validation failed. Aborting downstream steps.")
+                print(
+                    "Deck delivery contract validation failed. Aborting downstream steps."
+                )
                 _write_manifest_with_release_packet(manifest, log_dir)
                 return 1
         else:
@@ -1092,7 +1226,9 @@ def main():
                 OUTPUT_ROOT / "tie_out" / date_stamp / "summary.md",
             )
             manifest["steps"].append(step)
-            tie_out_audit_path = OUTPUT_ROOT / "tie_out" / date_stamp / "tie_out_audit.json"
+            tie_out_audit_path = (
+                OUTPUT_ROOT / "tie_out" / date_stamp / "tie_out_audit.json"
+            )
             tie_out_diff_step = None
             if tie_out_audit_path.exists():
                 tie_out_diff_step = run_step(
@@ -1108,7 +1244,10 @@ def main():
                 _append_step_artifact(
                     tie_out_diff_step,
                     "tie_out_snapshot_diff",
-                    OUTPUT_ROOT / "tie_out_snapshot_diff" / date_stamp / "tie_out_snapshot_diff.json",
+                    OUTPUT_ROOT
+                    / "tie_out_snapshot_diff"
+                    / date_stamp
+                    / "tie_out_snapshot_diff.json",
                 )
                 _append_step_artifact(
                     tie_out_diff_step,
@@ -1135,12 +1274,15 @@ def main():
                 scope_step,
                 "deck_scope_summary",
                 OUTPUT_ROOT / "deck_scope_audit" / date_stamp / "summary.md",
-                )
+            )
             manifest["steps"].append(scope_step)
             _write_manifest(manifest, log_dir)
             if (
                 step["exit_code"] != 0
-                or (tie_out_diff_step is not None and tie_out_diff_step["exit_code"] != 0)
+                or (
+                    tie_out_diff_step is not None
+                    and tie_out_diff_step["exit_code"] != 0
+                )
                 or scope_step["exit_code"] != 0
             ):
                 print("Validation failed. Aborting knowledge-base update.")
@@ -1229,12 +1371,9 @@ def main():
                 )
                 manifest["steps"].append(notes_contract_diff_step)
             _write_manifest(manifest, log_dir)
-            if (
-                notes_contract_step["exit_code"] != 0
-                or (
-                    notes_contract_diff_step is not None
-                    and notes_contract_diff_step["exit_code"] != 0
-                )
+            if notes_contract_step["exit_code"] != 0 or (
+                notes_contract_diff_step is not None
+                and notes_contract_diff_step["exit_code"] != 0
             ):
                 print("Obsidian notes validation failed.")
                 _write_manifest_with_release_packet(manifest, log_dir)
@@ -1334,7 +1473,9 @@ def _write_manifest_with_release_packet(manifest, log_dir):
                     "history_generated_at": history_payload.get("generated_at"),
                     "history_run_count": history_payload.get("run_count"),
                     "history_green_run_count": history_payload.get("green_run_count"),
-                    "history_blocked_run_count": history_payload.get("blocked_run_count"),
+                    "history_blocked_run_count": history_payload.get(
+                        "blocked_run_count"
+                    ),
                     "history_current_green_streak": history_payload.get(
                         "current_green_streak"
                     ),
@@ -1348,8 +1489,7 @@ def _write_manifest_with_release_packet(manifest, log_dir):
                         latest_core_state_transition.get("core_state_changes") or []
                     ),
                     "history_latest_core_state_transition_publish_blockers_added": list(
-                        latest_core_state_transition.get("publish_blockers_added")
-                        or []
+                        latest_core_state_transition.get("publish_blockers_added") or []
                     ),
                     "history_latest_core_state_transition_publish_blockers_resolved": list(
                         latest_core_state_transition.get("publish_blockers_resolved")
@@ -1360,9 +1500,7 @@ def _write_manifest_with_release_packet(manifest, log_dir):
                         or []
                     ),
                     "history_latest_core_state_transition_pipeline_blockers_resolved": list(
-                        latest_core_state_transition.get(
-                            "pipeline_blockers_resolved"
-                        )
+                        latest_core_state_transition.get("pipeline_blockers_resolved")
                         or []
                     ),
                     "history_latest_blocked_run_date": history_payload.get(

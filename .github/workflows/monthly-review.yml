@@ -93,6 +93,76 @@ jobs:
             obsidian/Monthly/
           retention-days: 90
 
+      - name: Upload deliverables to SharePoint
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SNAPSHOT_DATE: ${{ steps.date.outputs.date }}
+        run: |
+          az login --service-principal \
+            -u "$AZURE_CLIENT_ID" \
+            -p "$AZURE_CLIENT_SECRET" \
+            --tenant "$AZURE_TENANT_ID" \
+            --output none
+
+          TOKEN=$(az account get-access-token \
+            --resource https://graph.microsoft.com \
+            --query accessToken -o tsv)
+
+          DRIVE_ID="b!NFdN4U0FoUmZxNNOBNAFO95fRH4lEKdPm1y4Rq_UXNSNhf32U6-8R7dL79jOAP15"
+
+          python3 - "$TOKEN" "$DRIVE_ID" "$SNAPSHOT_DATE" <<'PYEOF'
+          import sys, os, math, requests
+          from pathlib import Path
+          from datetime import datetime
+
+          token, drive_id, snap_date = sys.argv[1], sys.argv[2], sys.argv[3]
+          dt = datetime.strptime(snap_date[:10], "%Y-%m-%d")
+          quarter = f"Q{math.ceil(dt.month / 3)} {dt.year}"
+          folder = f"General/Book of Business/Sales Director Reporting/{quarter}"
+          base = "https://graph.microsoft.com/v1.0"
+          headers = {"Authorization": f"Bearer {token}"}
+
+          files_to_upload = []
+          decks_dir = Path(f"output/simcorp_director_decks/{snap_date}/land-only")
+          if decks_dir.exists():
+              files_to_upload.extend(sorted(decks_dir.glob("*.pptx")))
+          sp_dir = Path("output/sharepoint")
+          if sp_dir.exists():
+              files_to_upload.extend(sorted(sp_dir.glob("*.xlsx")))
+
+          for fp in files_to_upload:
+              if fp.name.startswith("~"):
+                  continue
+              upload_path = f"{folder}/{fp.name}"
+              url = f"{base}/drives/{drive_id}/root:/{upload_path}:/content"
+              size = fp.stat().st_size
+              if size < 4 * 1024 * 1024:
+                  with open(fp, "rb") as f:
+                      r = requests.put(url, headers={**headers, "Content-Type": "application/octet-stream"}, data=f)
+                  r.raise_for_status()
+                  print(f"  uploaded {fp.name} ({size:,} bytes)")
+              else:
+                  # Large file: create upload session
+                  session_url = f"{base}/drives/{drive_id}/root:/{upload_path}:/createUploadSession"
+                  sr = requests.post(session_url, headers=headers, json={"item": {"@microsoft.graph.conflictBehavior": "replace"}})
+                  sr.raise_for_status()
+                  upload_url = sr.json()["uploadUrl"]
+                  chunk = 10 * 1024 * 1024
+                  with open(fp, "rb") as f:
+                      offset = 0
+                      while offset < size:
+                          data = f.read(chunk)
+                          end = offset + len(data) - 1
+                          r = requests.put(upload_url, headers={"Content-Range": f"bytes {offset}-{end}/{size}"}, data=data)
+                          r.raise_for_status()
+                          offset += len(data)
+                  print(f"  uploaded {fp.name} ({size:,} bytes, chunked)")
+
+          print(f"SharePoint upload complete: {len(files_to_upload)} files -> {folder}")
+          PYEOF
+
       - name: Commit updated vault + ledgers
         run: |
           git config user.name "github-actions[bot]"
