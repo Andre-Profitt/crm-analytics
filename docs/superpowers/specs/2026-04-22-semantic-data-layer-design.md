@@ -15,7 +15,7 @@ A typed intermediate data layer using frozen Python dataclasses. The extract bui
 ## Architecture
 
 ```
-Salesforce (SOQL + PI API + Forecast API)
+Salesforce (SOQL + PI list-view API)
     |
     v
 extract_territory()
@@ -41,14 +41,19 @@ One JSON file per director. Row-oriented, flat, boring.
   "director": "Jesper Tyrer",
   "territory": "APAC",
   "corp_ccy": "EUR",
-  "extract_timestamp": "2026-04-22T09:32:24",
+  "extract_timestamp": "2026-04-22T09:32:24Z",
   "source_contract": {
     "sf_org": "simcorp.my.salesforce.com",
     "api_version": "v66.0",
-    "soql_where": "Account_Unit_Group__c = 'SC Asia'",
-    "query_count": 8,
-    "total_rows": 2714,
-    "query_duration_ms": 4200
+    "territory_soql_where": "Account_Unit_Group__c = 'SC Asia'",
+    "extract_timestamp": "2026-04-22T09:32:24Z",
+    "sources": {
+      "pipeline_open": {"source_type": "soql", "source_id": null, "query_label": "APAC:pipeline_open", "row_count": 12, "duration_ms": 800},
+      "won_lost": {"source_type": "soql", "source_id": null, "query_label": "APAC:won_lost", "row_count": 45, "duration_ms": 600},
+      "pi_current": {"source_type": "list_view", "source_id": "00BTb00000Ksa4bMAB", "query_label": "APAC:pi", "row_count": 18, "duration_ms": 400},
+      "pi_forward": {"source_type": "list_view", "source_id": "00BTb00000LEdNBMA1", "query_label": "APAC:pi_forward", "row_count": 6, "duration_ms": 300},
+      "stage_events": {"source_type": "field_history", "source_id": null, "query_label": "APAC:field_history", "row_count": 180, "duration_ms": 1200}
+    }
   },
   "dataset_counts": {
     "pipeline_open": 12,
@@ -99,14 +104,14 @@ output/director_live_workbooks/{date}/
   ...
 ```
 
-`manifest.json` is the primary machine-readable run output:
+`manifest.json` is the primary machine-readable run output. In Phase 1, it is **additive** — the existing `director_live_extract_audit.json` remains until the cadence orchestrator is migrated to read manifests. The manifest becomes the sole truth source only after cadence migration.
 
 ```json
 {
   "schema_version": "1",
   "run_date": "2026-04-22",
-  "started_at": "2026-04-22T09:30:00",
-  "finished_at": "2026-04-22T09:32:45",
+  "started_at": "2026-04-22T09:30:00Z",
+  "finished_at": "2026-04-22T09:32:45Z",
   "directors": [
     {
       "name": "Jesper Tyrer",
@@ -300,24 +305,23 @@ class TrendSnapshot:
 
 ```python
 @dataclass(frozen=True)
+class DatasetSource:
+    source_type: str             # "soql", "list_view", "field_history", "derived"
+    source_id: str | None        # report ID, list view ID, or None for SOQL
+    query_label: str
+    row_count: int
+    duration_ms: int
+
+@dataclass(frozen=True)
 class SourceContract:
     sf_org: str
     api_version: str
-    soql_where: str
-    query_count: int
-    total_rows: int
-    query_duration_ms: int
+    territory_soql_where: str
+    extract_timestamp: str       # UTC ISO with Z
+    sources: dict[str, DatasetSource]   # keyed by dataset name
 
 @dataclass(frozen=True)
-class DirectorBundle:
-    schema_version: str
-    snapshot_date: str
-    director: str
-    territory: str
-    corp_ccy: str
-    extract_timestamp: str
-    source_contract: SourceContract
-    dataset_counts: dict[str, int]
+class Datasets:
     pipeline_open: list[PipelineDeal]
     won_lost: list[WonLostDeal]
     renewals: list[RenewalDeal]
@@ -332,6 +336,18 @@ class DirectorBundle:
     movement_prior: list[MovementEvent]
     movement_current: list[MovementEvent]
     snapshot_trend: list[TrendSnapshot]
+
+@dataclass(frozen=True)
+class DirectorBundle:
+    schema_version: str
+    snapshot_date: str
+    director: str
+    territory: str
+    corp_ccy: str
+    extract_timestamp: str       # UTC ISO with Z
+    source_contract: SourceContract
+    dataset_counts: dict[str, int]
+    datasets: Datasets
 
     def to_json(self) -> str:
         return json.dumps(dataclasses.asdict(self), indent=2)
@@ -423,13 +439,14 @@ Checks: ISO date formats, non-negative ARR, valid stage names, valid forecast ca
 - Does not change any SOQL queries or SF source logic.
 - Does not change any deck slide content or formatting.
 - Does not add new analytics or metrics.
-- Does not change the cadence orchestrator's control flow.
+- Does not change the cadence orchestrator's control flow (Phase 1).
 - Does not remove Excel — it becomes a render artifact produced from the bundle.
+- Does not add Forecast API sources. The v1 extract uses SOQL + PI list-view API only. Forecast API integration is a future enrichment.
 
 ## Migration strategy
 
-Phase 1: Add models, bundle serialization, and Excel renderer. Extract writes both JSON and Excel. No consumer changes. Existing pipeline continues to work from Excel.
+Phase 1: Add models, bundle serialization, and Excel renderer. Extract writes both JSON bundles and Excel workbooks. The existing `director_live_extract_audit.json` continues to be written alongside the new `manifest.json` — the cadence orchestrator still reads the old audit artifact. No downstream consumer changes in Phase 1. Existing pipeline continues to work from Excel.
 
-Phase 2: Cut consumers over one at a time (deck builder first). Each consumer reads from the bundle instead of the workbook. The workbook is still generated for directors who open it directly.
+Phase 2: Cut consumers over one at a time (deck builder first). Each consumer reads from `DirectorBundle.from_json()` instead of the workbook. The workbook is still generated for directors who open it directly. Cadence orchestrator migrated to read `manifest.json` instead of the old extract audit. Old audit artifact dropped.
 
 Phase 3: Remove `read_sheet()` calls from consumers. The Excel renderer is the only code that writes workbook sheets. Extract → Bundle → (JSON + Excel + Deck + Analytics) is the final architecture.
