@@ -22,23 +22,37 @@ These are the **legacy production lane**. This is the pipeline that currently pr
 | `audit_deck_scope.py`               | Validates slide-level numeric claims against sidecar     |
 | `generate_obsidian_notes.py`        | Updates Obsidian vault + MoM snapshot ledger             |
 
-### What is being built but is not production yet (37 scripts)
+### Cadence lane — now production-viable (37 scripts)
 
-These are the **modular lane**. This is the intended future-state architecture. It uses JSON snapshots, Claude-assisted briefs, validated fact packs, and pluggable deck renderers. It does NOT have a CI scheduler and has NOT been used to produce decks for a live review.
+These are the **cadence lane**, orchestrated by `run_sales_director_monthly_cadence.py`. As of 2026-04-22, this lane owns the full extraction chain and has been verified with a live unattended run (9/9 directors, 0 failures, release packet publish_ready=True).
 
-| Key scripts                                     | What they do                                                       |
-| ----------------------------------------------- | ------------------------------------------------------------------ |
-| `run_sales_director_monthly_master_builder.py`  | **Orchestrator.** JSON snapshot → Claude brief → fact pack → deck. |
-| `build_validated_director_brief.py`             | Claude-assisted monthly brief with fact validation                 |
-| `extract_director_workbook_snapshot.py`         | Workbook → JSON snapshot                                           |
-| `build_sales_director_monthly_shell.py`         | Shell/template for director monthly reports                        |
-| `validate_sales_director_shell_contract.py`     | Contract validation for shell output                               |
-| `run_sales_director_canonical_shell_builder.py` | Canonical shell builder orchestrator                               |
-| `build_sd_monthly_deck_v2.py`                   | v2 deck builder (modular lane)                                     |
-| `contract_lint.py`                              | Source contract linter                                             |
-| + 29 more                                       | Regional/global variants, author prompts, snapshot builders        |
+**The canonical operator command is:**
 
-**Do not** wire these into the production pipeline without finishing the scheduler and validating parity with the legacy lane.
+```bash
+python3 scripts/run_sales_director_monthly_cadence.py monthly-run --snapshot-date 2026-04-22 --unattended
+```
+
+**What it does (in order):**
+
+1. Source contract audit + diff + forward-quarter registry refresh
+2. Live Salesforce extraction (wraps the same `extract_director_live.py`)
+3. Historical trending extraction + snapshot diff
+4. Workbook contract validation
+5. Native SimCorp deck rendering (default) or legacy JS renderer (explicit opt-in)
+6. Publish gate + canonical promotion
+7. Regional/global rollups
+8. Release packet generation
+
+| Key scripts                                    | What they do                                                               |
+| ---------------------------------------------- | -------------------------------------------------------------------------- |
+| `run_sales_director_monthly_cadence.py`        | **Canonical operator control plane.** Owns extraction + build + publish.   |
+| `run_sales_director_monthly_master_builder.py` | Director batch builder (called by cadence).                                |
+| `build_sales_director_monthly_shell.py`        | Native SimCorp template renderer (default).                                |
+| `run_sales_global_summary_builder.py`          | Global summary rollup (chained by cadence).                                |
+| `run_sales_region_monthly_builder.py`          | Regional rollup (chained by cadence).                                      |
+| + 32 more                                      | Snapshot extractors, briefs, validators, contract linters, author prompts. |
+
+**Relationship to legacy lane:** The cadence lane wraps the same extraction scripts (`extract_director_live.py`, `extract_historical_trending.py`) but owns failure semantics and operator reporting. The legacy `run_monthly_director_review.py` still works but should be treated as a fallback, not the primary path.
 
 ### What is a different workstream entirely (22 scripts)
 
