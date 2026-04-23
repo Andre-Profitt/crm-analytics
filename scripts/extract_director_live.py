@@ -206,6 +206,7 @@ def _build_pipeline_inspection_rows(
     analysis_year: int,
     close_start: str | None = None,
     close_end: str | None = None,
+    corp_ccy: str = "EUR",
 ) -> list[list]:
     rows = []
     for rec in pi_raw:
@@ -242,6 +243,7 @@ def _build_pipeline_inspection_rows(
             if isinstance(score_obj, dict)
             else None
         )
+        ccy = f.get("CurrencyIsoCode", {}).get("value", corp_ccy)
         rows.append(
             [
                 name,
@@ -249,6 +251,7 @@ def _build_pipeline_inspection_rows(
                 str(f.get("StageName", {}).get("value", "")),
                 fc,
                 f.get("APTS_Forecast_ARR__c", {}).get("value") or 0,
+                ccy,
                 close,
                 f.get("PushCount", {}).get("value") or 0,
                 score,
@@ -663,7 +666,9 @@ def extract_territory(
                 r.get("Lost_to_Competitor__c", "") or "",
             ]
         )
-    _add_sheet(wb, "Pipeline Open FY26", headers, rows, eur_cols=[7, 8])
+    _add_sheet(
+        wb, f"Pipeline Open {period['fy_label']}", headers, rows, eur_cols=[7, 8]
+    )
 
     # ── 2. Won/Lost (from combined query, closed deals) ──
     headers = [
@@ -698,7 +703,7 @@ def extract_territory(
                 (r.get("CreatedDate") or "")[:10],
             ]
         )
-    _add_sheet(wb, "Won Lost FY26", headers, rows, eur_cols=[6])
+    _add_sheet(wb, f"Won Lost {period['fy_label']}", headers, rows, eur_cols=[6])
 
     # ── 3. Commercial Approval (open Land, reporting year) ──
     # Approvals reuse the same open pipeline records, filtered to Land type.
@@ -844,27 +849,28 @@ def extract_territory(
                 "",  # Comments column for director
             ]
         )
-    _add_sheet(wb, "Renewals FY26", headers, rows, eur_cols=[6])
+    _add_sheet(wb, f"Renewals {period['fy_label']}", headers, rows, eur_cols=[6])
 
     # ── 5. Pipeline Inspection (open reporting-year deals from PI list view) ──
     print("  PI view...", end=" ", flush=True)
     pi_raw = fetch_pi(session, instance_url, pi_lv, label=f"{territory}:pi")
-    headers = [
+    pi_headers = [
         "Opportunity",
         "Owner",
         "Stage",
         "Forecast Category",
-        f"ARR Weighted ({corp_ccy})",
+        "ARR Weighted (native ccy)",
+        "Currency",
         "Close Date",
         "Push Count",
         "Score",
         "Priority",
     ]
     pi_rows = _build_pipeline_inspection_rows(
-        pi_raw, analysis_year=int(period["analysis_year"])
+        pi_raw, analysis_year=int(period["analysis_year"]), corp_ccy=corp_ccy
     )
     print(f"{len(pi_rows)} open {period['fy_label']} deals")
-    _add_sheet(wb, "Pipeline Inspection", headers, pi_rows, eur_cols=[5])
+    _add_sheet(wb, "Pipeline Inspection", pi_headers, pi_rows, eur_cols=[5])
 
     # ── 5a. Forward-quarter Pipeline Inspection (quarter-scoped PI source) ──
     forward_pi_rows: list[list] = []
@@ -881,12 +887,13 @@ def extract_territory(
             analysis_year=int(period["analysis_year"]),
             close_start=forward_pi_source["start_date"],
             close_end=forward_pi_source["end_date"],
+            corp_ccy=corp_ccy,
         )
         print(f"{len(forward_pi_rows)} open {forward_pi_source['quarter_title']} deals")
         _add_sheet(
             wb,
             "Pipeline Inspection Forward",
-            headers,
+            pi_headers,
             forward_pi_rows,
             eur_cols=[5],
         )
@@ -1370,12 +1377,12 @@ def extract_territory(
         ws[f"{col}{len(kpis) + 8}"].fill = HEADER_FILL
     sheets = [
         (
-            "Pipeline Open FY26",
+            f"Pipeline Open {period['fy_label']}",
             len(pipeline),
             f"SOQL — open, stages 1-6, {period['fy_label']}",
         ),
         (
-            "Won Lost FY26",
+            f"Won Lost {period['fy_label']}",
             len(won_lost),
             f"SOQL — closed, stages 0/7/8, {period['fy_label']}",
         ),
@@ -1384,7 +1391,11 @@ def extract_territory(
             commercial_approval_rows,
             f"SOQL — open Land, {period['fy_label']}",
         ),
-        ("Renewals FY26", len(renewals), f"SOQL — open Renewal, {period['fy_label']}"),
+        (
+            f"Renewals {period['fy_label']}",
+            len(renewals),
+            f"SOQL — open Renewal, {period['fy_label']}",
+        ),
         (
             "Pipeline Inspection",
             len(pi_rows),
