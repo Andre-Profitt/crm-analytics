@@ -1872,7 +1872,7 @@ def slide_pipeline_stage3_plus(prs, pipeline, territory):
     stage3_arr = sum(_unw(r) for r in stage3_plus)
 
     _set_ph(slide, 144, "Pipeline Volume Stage 3+")
-    _set_ph(slide, 145, "FY26 year to date")
+    _set_ph(slide, 145, f"FY{FQ['fy'] % 100:02d} year to date")
 
     # Key deals sidebar (right side — top 3 by ARR)
     key_deals = sorted(stage3_plus, key=lambda r: _unw(r), reverse=True)[:3]
@@ -2920,7 +2920,7 @@ def slide_renewals(prs, renewals):
             slide,
             144,
             (
-                f"{len(annual)} renewals due FY26, {_fmt_eur(total_acv)} ACV "
+                f"{len(annual)} renewals due {_fy_label}, {_fmt_eur(total_acv)} ACV "
                 f"({q_breakdown})."
             ),
         )
@@ -2931,12 +2931,16 @@ def slide_renewals(prs, renewals):
         _set_ph(
             slide,
             145,
-            f"Total FY26 ACV: {_fmt_eur(total_acv)} across "
+            f"Total FY{FQ['fy'] % 100:02d} ACV: {_fmt_eur(total_acv)} across "
             f"{len(annual)} {'renewal' if len(annual) == 1 else 'renewals'}. "
             f"{q_breakdown}.",
         )
     else:
-        _set_ph(slide, 145, "No FY26 renewals in scope for this territory.")
+        _set_ph(
+            slide,
+            145,
+            f"No FY{FQ['fy'] % 100:02d} renewals in scope for this territory.",
+        )
         return
 
     # Single annual table, sorted by close date, with commentary column

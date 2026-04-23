@@ -4489,8 +4489,8 @@ def build_forecast_bias(wb):
 
 
 def build_approvals_dashboard(wb):
-    """One-page approvals dashboard: Approved YTD / Pending / Missing blocks."""
-    ws = wb.create_sheet("Approvals Dashboard")
+    print("  [SKIP] Approvals Dashboard: removed (redundant with Approvals Overview)")
+    return
     ws["A1"] = "Approvals Dashboard"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
