@@ -764,6 +764,11 @@ def main():
 
         # Stage 2: Analyze in Excel (SharePoint-ready analysis workbooks)
         if not args.skip_analysis:
+            # Clean stale sharepoint output before rebuild
+            if SHAREPOINT_ROOT.exists():
+                for stale in SHAREPOINT_ROOT.glob("*.xlsx"):
+                    if not stale.name.startswith("~"):
+                        stale.unlink()
             SHAREPOINT_ROOT.mkdir(parents=True, exist_ok=True)
             step = run_step(
                 "2a_analyze_consolidated_review",
