@@ -2416,7 +2416,7 @@ def build_territory_scorecard(wb, overdue_rows, kyc_rows):
         "Open Deals",
         "Open ARR Unwtd",
         "Open ARR Wtd",
-        "Weighted Coverage %",
+        "Avg Probability %",
         f"{RUNTIME_PERIOD['prior_quarter_label']} Won ARR",
         f"{RUNTIME_PERIOD['prior_quarter_label']} Lost ARR",
         f"{RUNTIME_PERIOD['prior_quarter_label']} Win Rate %",
@@ -3338,9 +3338,6 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
     total_q1_won = sum(d["q1_won_arr"] for d in data_store.values())
     total_q1_lost = sum(d["q1_lost_arr"] for d in data_store.values())
     total_q1_outcome = total_q1_won + total_q1_lost
-    total_q1_won / total_q1_outcome if total_q1_outcome else 0
-    sum(d["slip_still_open_count"] for d in data_store.values())
-    sum(d["slip_still_open_arr"] for d in data_store.values())
 
     # Top-deal concentration (recomputes the same aggregate as ARR Concentration)
     all_deals = []
@@ -3357,8 +3354,6 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
     all_deals.sort(key=lambda x: -x[3])
     top5_sum = sum(d[3] for d in all_deals[:5])
     top20_sum = sum(d[3] for d in all_deals[:20])
-    top5_sum / total_open_unwtd if total_open_unwtd else 0
-    top20_sum / total_open_unwtd if total_open_unwtd else 0
 
     # Pipeline velocity: read prior-quarter totals from the already-built tab.
     contract = _historical_trending_contract()
@@ -3380,7 +3375,7 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
             dates_row = vrows[block_header_idx + 1]
             dates = [c for c in dates_row[1:] if c]
             if dates:
-                f"{dates[0]} -> {dates[-1]}"
+                pass  # dates range available if needed
             director_rows = []
             i = block_header_idx + 2
             while i < len(vrows) and vrows[i] and vrows[i][0]:
@@ -3392,11 +3387,8 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
                 q1_initial += series[0] if series else 0
                 q1_final += series[-1] if series else 0
                 i += 1
-            q1_final - q1_initial
             if director_rows:
-                movers = sorted(director_rows, key=lambda dr: dr[1][-1] - dr[1][0])
-                movers[0]
-                movers[-1]
+                pass  # movers available if needed
 
     # Top-stage backlog from Pipeline Pivot
     biggest_stage = ""
@@ -3466,18 +3458,9 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
         wr = q1w / tot if tot else None
         scored_territories.append({"name": name, "wr": wr, "won": q1w, "lost": q1l})
     with_wr = [t for t in scored_territories if t["wr"] is not None]
-    max(with_wr, key=lambda t: t["wr"]) if with_wr else None  # type: ignore[arg-type]
-
-    # Biggest concentration territories
-    max(data_store.items(), key=lambda x: x[1]["open_unwtd"])  # (name, d)
-    min(
-        data_store.items(),
-        key=lambda x: x[1]["open_unwtd"] if x[1]["open_unwtd"] else 1e15,
-    )
-
-    # Overdue + KYC totals
-    len(overdue_rows)
-    len(kyc_rows)
+    # (dead expressions for best/worst territory, concentration, overdue/kyc
+    # totals were removed — values are available from scored_territories,
+    # data_store, overdue_rows, kyc_rows if narrative needs them later)
 
     # Build narrative
     def _m(n):
@@ -3693,9 +3676,9 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
     _write_row(
         num,
         "Open opportunities with past close dates (overdue).",
-        "=COUNTA('Overdue Open Opps'!A:A)-4",
-        "Subtracts 4 header rows. Every row is a live SF opp whose close "
-        "date has slipped past today.",
+        len(overdue_rows),
+        "Python-computed count of overdue open opps (avoids COUNTA "
+        "double-count from summary block rows).",
         _hyperlink("Overdue Open Opps", "A1", "Overdue Open Opps"),
     )
     num += 1
@@ -3703,9 +3686,9 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
     _write_row(
         num,
         "Accounts in the active pipeline with no KYC approval on file.",
-        "=COUNTA('KYC Missing'!A:A)-4",
-        "KYC Missing lists active accounts without a linked KYC record. "
-        "Blocks Commercial Approval routing.",
+        len(kyc_rows),
+        "Python-computed count of KYC-missing accounts (avoids COUNTA "
+        "double-count from summary block rows).",
         _hyperlink("KYC Missing", "A1", "KYC Missing"),
     )
     num += 1
@@ -4206,8 +4189,7 @@ def build_sales_velocity(wb):
         lost_arr = d.get("q1_lost_arr", 0.0)
         total_arr = won_arr + lost_arr
         win_rate = won_arr / total_arr if total_arr else 0
-        total_closed = wins + d.get("q1_lost_count", 0)
-        avg_size = total_arr / total_closed if total_closed else 0
+        avg_size = won_arr / wins if wins else 0
         # Cycle time: approximate from won list if dates present.
         cycle_sum = 0.0
         cycle_n = 0
@@ -5888,7 +5870,7 @@ def main():
     build_deal_age_distribution(wb)
     build_account_penetration(wb)
     build_forecast_bias(wb)
-    build_approvals_dashboard(wb)
+    # build_approvals_dashboard removed — redundant with build_approvals_overview_sheet
     build_days_in_stage_by_director(wb)
     build_win_rate_trend(wb)
     build_executive_insights(
