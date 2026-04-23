@@ -133,3 +133,98 @@ def test_all_models_are_frozen():
     )
     with pytest.raises(dataclasses.FrozenInstanceError):
         deal.account = "Changed"
+
+
+# ── Container model serialization tests ─────────────────────────────────────
+
+import json
+
+from bundle_factory import make_test_bundle
+from scripts.monthly_platform.models import (
+    DirectorBundle,
+    BundleManifestEntry,
+    RunManifest,
+)
+
+
+def test_director_bundle_json_round_trip():
+    bundle = make_test_bundle()
+    json_str = bundle.to_json()
+    restored = DirectorBundle.from_json(json_str)
+    assert restored == bundle
+
+
+def test_director_bundle_from_dict():
+    bundle = make_test_bundle()
+    d = json.loads(bundle.to_json())
+    restored = DirectorBundle.from_dict(d)
+    assert restored.director == "Jesper Tyrer"
+    assert restored.territory == "APAC"
+    assert len(restored.datasets.pipeline_open) == 1
+    assert restored.datasets.pipeline_open[0].arr_unweighted == 500000.0
+    assert (
+        restored.source_contract.sources["pi_current"].source_id == "00BTb00000Ksa4bMAB"
+    )
+
+
+def test_dataset_counts_match_actual_lengths():
+    bundle = make_test_bundle()
+    d = json.loads(bundle.to_json())
+    restored = DirectorBundle.from_dict(d)
+    assert restored.dataset_counts["pipeline_open"] == len(
+        restored.datasets.pipeline_open
+    )
+    assert restored.dataset_counts["won_lost"] == len(restored.datasets.won_lost)
+    assert restored.dataset_counts["pi_current"] == len(restored.datasets.pi_current)
+
+
+def test_bundle_manifest_entry_round_trip():
+    entry = BundleManifestEntry(
+        name="Jesper Tyrer",
+        territory="APAC",
+        status="ok",
+        bundle_path="output/director_bundles/2026-04-22/jesper-tyrer.json",
+        workbook_path="output/director_live_workbooks/2026-04-22/jesper-tyrer.xlsx",
+        row_counts={"pipeline_open": 12, "won_lost": 5},
+        duration_seconds=3.2,
+        failure_reason=None,
+    )
+    d = dataclasses.asdict(entry)
+    restored = BundleManifestEntry(**d)
+    assert restored == entry
+
+
+def test_run_manifest_round_trip():
+    entry = BundleManifestEntry(
+        name="Jesper Tyrer",
+        territory="APAC",
+        status="ok",
+        bundle_path="output/director_bundles/2026-04-22/jesper-tyrer.json",
+        workbook_path="output/director_live_workbooks/2026-04-22/jesper-tyrer.xlsx",
+        row_counts={"pipeline_open": 12},
+        duration_seconds=3.2,
+        failure_reason=None,
+    )
+    manifest = RunManifest(
+        schema_version="1",
+        run_date="2026-04-22",
+        started_at="2026-04-22T09:30:00Z",
+        finished_at="2026-04-22T09:32:45Z",
+        directors=[entry],
+        failures=[],
+        telemetry={
+            "total_queries": 76,
+            "total_rows": 24539,
+            "total_duration_seconds": 21.9,
+        },
+    )
+    json_str = json.dumps(dataclasses.asdict(manifest), indent=2)
+    d = json.loads(json_str)
+    restored = RunManifest(
+        **{
+            **d,
+            "directors": [BundleManifestEntry(**e) for e in d["directors"]],
+            "failures": [BundleManifestEntry(**e) for e in d["failures"]],
+        }
+    )
+    assert restored == manifest
