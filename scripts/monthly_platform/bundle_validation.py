@@ -11,15 +11,16 @@ if TYPE_CHECKING:
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 _VALID_STAGES = {
+    "0 - No Opportunity",
+    "0 - Lost",
     "1 - Prospecting",
     "2 - Discovery",
     "3 - Engagement",
     "4 - Shortlisted",
     "5 - Preferred",
     "6 - Contracting",
-    "7 - Closed Won",
-    "8 - Closed Lost",
-    "9 - Closed Opt Out",
+    "7 - Opt Out",
+    "8 - Won",
 }
 
 _VALID_FORECAST_CATEGORIES = {

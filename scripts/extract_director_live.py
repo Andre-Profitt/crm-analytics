@@ -1291,6 +1291,22 @@ def extract_territory(
         ),
     )
 
+    # Validate bundle before writing
+    try:
+        from monthly_platform.bundle_validation import (
+            validate_bundle as _validate_bundle,
+        )
+    except ModuleNotFoundError:
+        from scripts.monthly_platform.bundle_validation import (
+            validate_bundle as _validate_bundle,
+        )
+
+    validation_errors = _validate_bundle(bundle)
+    if validation_errors:
+        print(f"  [WARN] bundle validation: {len(validation_errors)} issue(s)")
+        for err in validation_errors[:5]:
+            print(f"    - {err}")
+
     # Write JSON bundle
     slug = re.sub(r"[^a-z0-9]+", "-", director.lower()).strip("-")
     bundle_dir = BUNDLE_OUTPUT_ROOT / snapshot_date
