@@ -4022,116 +4022,13 @@ def build_competitive_win_loss(wb):
 def build_stage_conversion_per_territory(wb):
     """Per-territory stage entry → advance → win funnel.
 
-    Reads OpportunityFieldHistory via each director's Stage History sheet
-    (populated by extract_director_live.py). Each event is a stage transition;
-    we derive entry counts per stage + advances + wins per territory.
+    REMOVED: The original implementation fabricated conversion rates from
+    current stage position (a deal at Stage 5 was counted as having entered
+    stages 1-4, which is wrong -- deals can skip stages). Real implementation
+    requires OpportunityFieldHistory stage_history_events in data_store, which
+    gather_director_data does not currently extract.
     """
-    ws = wb.create_sheet("Stage Conversion by Territory")
-    ws["A1"] = "Stage Conversion, Per Territory"
-    ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
-    ws["A2"] = (
-        "Per-territory funnel derived from OpportunityFieldHistory StageName "
-        "events. 'Entered' = transitions INTO the stage. 'Advanced' = went on "
-        "to a later stage. 'Won' = ultimately reached 8 - Won. Source: Stage "
-        "History sheet on each director workbook."
-    )
-    ws["A2"].font = CAPTION_FONT
-
-    # Per-opp stage progression
-    stages_positive = [
-        "1 - Prospecting",
-        "2 - Discovery",
-        "3 - Engagement",
-        "4 - Shortlisted",
-        "5 - Preferred",
-        "6 - Contracting",
-    ]
-    stage_rank = {s: i + 1 for i, s in enumerate(stages_positive)}
-    stage_rank["8 - Won"] = 99  # sentinel > any positive stage
-    stage_rank["0 - Lost"] = -1
-    stage_rank["0 - No Opportunity"] = -2
-
-    from collections import defaultdict as _dd
-
-    per_territory_stage = _dd(
-        lambda: _dd(lambda: {"entered": set(), "advanced": set(), "won": set()})
-    )
-
-    for director_name, d in data_store.items():
-        territory = ""
-        for _n, _terr, *_rest in DIRECTORS:
-            if _n == director_name:
-                territory = _terr
-                break
-        if not territory:
-            continue
-        # Build per-opp max-stage-reached map from open + closed detail rows
-        # (proxy: we don't re-parse field history here, we approximate from
-        # current stage + wins/losses). For true history, switch to reading
-        # the Stage History sheet per director workbook.
-        for r in d.get("all_land_open_rows", []):
-            opp = r.get("Opportunity") or ""
-            stage = str(r.get("Stage") or "")
-            rank = stage_rank.get(stage, 0)
-            if rank >= 1:
-                # Every stage at or below current counts as "entered";
-                # stages strictly below current count as "advanced".
-                for idx, s in enumerate(stages_positive, 1):
-                    if idx <= rank:
-                        per_territory_stage[territory][s]["entered"].add(opp)
-                    if idx < rank and rank != 99:
-                        per_territory_stage[territory][s]["advanced"].add(opp)
-        for r in d.get("all_land_won_lost_rows", []):
-            opp = r.get("Opportunity") or ""
-            stage = str(r.get("Stage") or "")
-            if "Won" in stage:
-                # Winner reached every positive stage; advanced past every one.
-                for s in stages_positive:
-                    per_territory_stage[territory][s]["entered"].add(opp)
-                    per_territory_stage[territory][s]["advanced"].add(opp)
-                    per_territory_stage[territory][s]["won"].add(opp)
-
-    territories = [t for _n, t, *_rest in DIRECTORS]
-    headers = ["Territory", "Stage", "Entered", "Advanced", "Won", "Advance %", "Win %"]
-    row = 4
-    for ci, h in enumerate(headers, 1):
-        c = ws.cell(row=row, column=ci, value=h)
-        c.font = HEADER_FONT
-        c.fill = HEADER_FILL
-        c.alignment = CENTER
-    ws.row_dimensions[row].height = 28
-
-    row += 1
-    first_data_row = row
-    for territory in territories:
-        stages_for_terr = per_territory_stage.get(territory, {})
-        for stage in stages_positive:
-            agg = stages_for_terr.get(
-                stage, {"entered": set(), "advanced": set(), "won": set()}
-            )
-            ent = len(agg["entered"])
-            adv = len(agg["advanced"])
-            won = len(agg["won"])
-            adv_pct = adv / ent if ent else 0
-            win_pct = won / ent if ent else 0
-            vals = [territory, stage, ent, adv, won, adv_pct, win_pct]
-            for ci, v in enumerate(vals, 1):
-                c = ws.cell(row=row, column=ci, value=v)
-                if ci in (6, 7):
-                    c.number_format = "0.0%"
-                    c.alignment = RIGHT
-                elif ci in (3, 4, 5):
-                    c.alignment = RIGHT
-                else:
-                    c.alignment = LEFT
-                c.border = BORDER
-                c.font = BODY_FONT
-            row += 1
-
-    widths = [18, 20, 10, 10, 8, 12, 12]
-    for ci, w in enumerate(widths, 1):
-        ws.column_dimensions[get_column_letter(ci)].width = w
-    ws.freeze_panes = f"A{first_data_row}"
+    print("  [SKIP] Stage Conversion: no stage history data available")
 
 
 def build_sales_velocity(wb):
@@ -4693,98 +4590,17 @@ def build_approvals_dashboard(wb):
 
 
 def build_days_in_stage_by_director(wb):
-    """Per-director matrix of avg days-in-stage across the funnel."""
-    ws = wb.create_sheet("Days in Stage by Director")
-    ws["A1"] = "Days in Stage, by Director"
-    ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
-    ws["A2"] = (
-        "Average days in stage for OPEN Land deals, per director × stage. "
-        "Complements the global Days in Stage tab with per-director "
-        "accountability."
+    """Per-director matrix of avg days-in-stage across the funnel.
+
+    REMOVED: The original implementation computed (today - CreatedDate).days,
+    which is pipeline age, NOT days in the current stage. This contradicted the
+    correct global Days in Stage tab (sourced from the SF report). Correct
+    implementation requires OpportunityHistory or a DaysInStage field, which
+    we don't extract per-director.
+    """
+    print(
+        "  [SKIP] Days in Stage by Director: removed (used pipeline age, not actual stage duration)"
     )
-    ws["A2"].font = CAPTION_FONT
-
-    from collections import defaultdict as _dd
-    from datetime import date as _date
-
-    today = _date.today()
-    # {director: {stage: [days, days, ...]}}
-    by_dir = _dd(lambda: _dd(list))
-    for director_name, d in data_store.items():
-        for r in d.get("all_land_open_rows", []):
-            stage = str(r.get("Stage") or "")
-            created = str(r.get("Created") or "")[:10]
-            if not created or created < "2020-01-01":
-                continue
-            try:
-                days = (today - _date.fromisoformat(created)).days
-                if 0 < days <= 3000:
-                    by_dir[director_name][stage].append(days)
-            except ValueError:
-                continue
-
-    stages = [
-        "1 - Prospecting",
-        "2 - Discovery",
-        "3 - Engagement",
-        "4 - Shortlisted",
-        "5 - Preferred",
-        "6 - Contracting",
-    ]
-    row = 4
-    headers = ["Director"] + stages + ["Avg Overall"]
-    for ci, h in enumerate(headers, 1):
-        c = ws.cell(row=row, column=ci, value=h)
-        c.font = HEADER_FONT
-        c.fill = HEADER_FILL
-        c.alignment = CENTER
-    ws.row_dimensions[row].height = 28
-
-    row += 1
-    first_data_row = row
-    for director_name in sorted(data_store):
-        agg = by_dir.get(director_name, {})
-        vals = [director_name]
-        all_days = []
-        for stage in stages:
-            sd = agg.get(stage, [])
-            all_days.extend(sd)
-            vals.append(int(sum(sd) / len(sd)) if sd else 0)
-        vals.append(int(sum(all_days) / len(all_days)) if all_days else 0)
-        for ci, v in enumerate(vals, 1):
-            c = ws.cell(row=row, column=ci, value=v)
-            if ci > 1:
-                c.alignment = RIGHT
-            else:
-                c.alignment = LEFT
-            c.border = BORDER
-            c.font = BODY_FONT
-        row += 1
-    last_data_row = row - 1
-
-    # Color scale on all stage columns (red = long days, green = short)
-    if last_data_row >= first_data_row:
-        from openpyxl.formatting.rule import ColorScaleRule
-
-        for ci in range(2, 2 + len(stages)):
-            letter = get_column_letter(ci)
-            ws.conditional_formatting.add(
-                f"{letter}{first_data_row}:{letter}{last_data_row}",
-                ColorScaleRule(
-                    start_type="min",
-                    start_color="D4EDDA",
-                    mid_type="percentile",
-                    mid_value=50,
-                    mid_color="FFF3CD",
-                    end_type="max",
-                    end_color="F8D7DA",
-                ),
-            )
-
-    widths = [22] + [14] * len(stages) + [14]
-    for ci, w in enumerate(widths, 1):
-        ws.column_dimensions[get_column_letter(ci)].width = w
-    ws.freeze_panes = f"A{first_data_row}"
 
 
 def build_win_rate_trend(wb):
