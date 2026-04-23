@@ -513,7 +513,7 @@ def run_extraction_chain(
                 ),
             )
         )
-    if live_extract_stage["returncode"] != 0:
+    if live_extract_stage["returncode"] == 1:
         return {
             "status": "blocked",
             "failed_stage": live_extract_stage["name"],
@@ -522,6 +522,27 @@ def run_extraction_chain(
             "workbook_dir": str(workbook_dir),
             "stages": stages,
         }
+    if live_extract_stage["returncode"] == 2:
+        # Partial success — check audit to decide whether to proceed.
+        _n_ok, _n_fail = 0, 0
+        if live_extract_audit_path.exists():
+            _audit = load_json(live_extract_audit_path)
+            _n_ok = len(_audit.get("processed", []))
+            _n_fail = len(_audit.get("failures", []))
+        if _n_ok < 7:
+            return {
+                "status": "blocked",
+                "failed_stage": live_extract_stage["name"],
+                "detail": f"partial extraction: {_n_ok} ok, {_n_fail} failed (need >= 7)",
+                "snapshot_date": snapshot_date,
+                "workbook_root": str(resolved_workbook_root),
+                "workbook_dir": str(workbook_dir),
+                "stages": stages,
+            }
+        live_extract_stage["status"] = "partial"
+        live_extract_stage["detail"] = (
+            f"{_n_ok} territories ok, {_n_fail} failed — proceeding"
+        )
 
     historical_stage = run_audited_stage(
         stage_name="1b_extract_historical_trending",

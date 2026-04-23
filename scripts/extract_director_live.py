@@ -30,6 +30,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 try:
+    from monthly_platform import SF_API_VERSION
     from monthly_platform.period import resolve_period_context
 except ModuleNotFoundError:  # pragma: no cover
     from scripts.monthly_platform.period import resolve_period_context
@@ -279,7 +280,7 @@ def get_auth() -> tuple[str, str]:
 
 def get_corporate_currency(session, instance_url):
     resp = session.get(
-        f"{instance_url}/services/data/v66.0/query",
+        f"{instance_url}/services/data/{SF_API_VERSION}/query",
         params={"q": "SELECT IsoCode FROM CurrencyType WHERE IsCorporate=true"},
     )
     records = resp.json().get("records", [])
@@ -343,7 +344,7 @@ def run_soql(session, instance_url: str, query: str, label: str = "") -> list[di
 
     start = time.monotonic()
     records = []
-    url = f"{instance_url}/services/data/v66.0/query"
+    url = f"{instance_url}/services/data/{SF_API_VERSION}/query"
     params: dict | None = {"q": query}
     total_attempts = 0
     while True:
@@ -377,7 +378,7 @@ def fetch_pi(session, instance_url: str, lv_id: str, label: str = "") -> list[di
     import time
 
     start = time.monotonic()
-    url = f"{instance_url}/services/data/v66.0/ui-api/list-records/{lv_id}?pageSize=200"
+    url = f"{instance_url}/services/data/{SF_API_VERSION}/ui-api/list-records/{lv_id}?pageSize=200"
     records = []
     total_attempts = 0
     while url and len(records) < 2000:
@@ -1620,7 +1621,11 @@ def main():
     }
     audit_payload = {
         "run_date": args.snapshot_date,
-        "status": "failed" if failures else "ok",
+        "status": "failed"
+        if (failures and not processed)
+        else "partial"
+        if failures
+        else "ok",
         "scope": "all" if args.all else "territory",
         "territories_requested": territories,
         "processed": processed,
@@ -1636,7 +1641,9 @@ def main():
         print(f"\n{len(failures)} failure(s):")
         for item in failures:
             print(f"  {item['territory']}: {item['message']}")
-        sys.exit(1)
+        if not processed:
+            sys.exit(1)  # total failure — no territories succeeded
+        sys.exit(2)  # partial success — some territories succeeded
 
 
 if __name__ == "__main__":
