@@ -78,6 +78,7 @@ REGIONAL_TERRITORY = {
     "Adam Steinhaus": "NA Insurance",
 }
 
+
 def resolve_runtime_scopes(as_of_date: str | None = None):
     report_date = str(as_of_date or datetime.now().strftime("%Y-%m-%d"))[:10]
     period = resolve_period_context(
@@ -133,7 +134,7 @@ def _parse_eur(label):
 
 def _quarter(date_str):
     s = str(date_str or "")[:10]
-    if not s.startswith("2026"):
+    if not s.startswith(str(datetime.now().year)):
         return None
     try:
         m = int(s[5:7])
@@ -720,7 +721,9 @@ def write_tieout_artifacts(run_date, all_results, failures=None):
         ),
         "failures": failures,
         "directors": directors,
-        "note_path": str((VAULT / "Monthly" / run_date[:7] / "tie-out.md").relative_to(ROOT)),
+        "note_path": str(
+            (VAULT / "Monthly" / run_date[:7] / "tie-out.md").relative_to(ROOT)
+        ),
     }
     (output_dir / "tie_out_audit.json").write_text(
         json.dumps(payload, indent=2) + "\n",
@@ -742,7 +745,11 @@ def write_tieout_artifacts(run_date, all_results, failures=None):
         lines.append("- none")
     else:
         for item in directors:
-            status = "clean" if item["mismatch_count"] == 0 else f"{item['mismatch_count']} mismatch(es)"
+            status = (
+                "clean"
+                if item["mismatch_count"] == 0
+                else f"{item['mismatch_count']} mismatch(es)"
+            )
             lines.append(f"- `{item['slug']}`: `{status}`")
     lines.extend(["", "## Failures", ""])
     if not failures:
