@@ -19,15 +19,16 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 try:
-    from monthly_platform.period import sheet_names
+    from monthly_platform.period import resolve_period_context, sheet_names
 except ModuleNotFoundError:  # pragma: no cover
-    from scripts.monthly_platform.period import sheet_names
+    from scripts.monthly_platform.period import resolve_period_context, sheet_names
 
 SN = sheet_names()
+PERIOD = resolve_period_context()
 
 DASHBOARD_ID = "01ZTb00000FSP7hMAH"  # Sales Directors Monthly
 SALES_OPS_DASHBOARD_ID = "01ZTb00000FSP9JMAX"  # Sales Ops Quarterly KPI
-WORKBOOKS_DIR = Path("output/director_live_workbooks/2026-04-15")
+WORKBOOKS_DIR = Path(f"output/director_live_workbooks/{PERIOD.snapshot_date}")
 
 NAVY = "1F3864"
 LIGHT = "F2F2F2"
@@ -248,7 +249,7 @@ def parse_eur(label):
 
 
 def fetch_q1_history(session, instance):
-    """Close date + stage changes for Q1 2026 deals, global."""
+    """Close date + stage changes for prior-quarter deals, global."""
     base_excl = (
         "(NOT Opportunity.Account.Name LIKE '%simcorp%') "
         "AND (NOT Opportunity.Account.Name LIKE '%test%') "
@@ -325,10 +326,11 @@ def fetch_q1_history(session, instance):
 
 
 def build_q1_history_raw(wb, history_rows):
-    ws = wb.create_sheet("Q1 History Raw")
+    pq = PERIOD.prior_quarter
+    ws = wb.create_sheet(f"{pq.label} History Raw")
     write_raw_report_tab(
         ws,
-        "Q1 2026 Field History, Raw Events",
+        f"{pq.title} Field History, Raw Events",
         (
             "Every CloseDate and StageName change on a non-test, non-internal "
             "Land/Expand/Renewal opportunity since October 2025. One row per "
@@ -385,8 +387,9 @@ def build_q1_history_raw(wb, history_rows):
 
 
 def build_q1_slips_pivot(wb, history_rows):
-    """Pivot: Territory x Type x Stage with count and ARR for Q1 slips (still-open)."""
-    # Identify slip events: CloseDate change where old is in Q1 2026 and new > Q1
+    """Pivot: Territory x Type x Stage with count and ARR for prior-quarter slips (still-open)."""
+    pq = PERIOD.prior_quarter
+    # Identify slip events: CloseDate change where old is in prior quarter and new > it
     slips_by_opp = {}
     for r in history_rows:
         if r["field"] != "CloseDate":
@@ -395,13 +398,13 @@ def build_q1_slips_pivot(wb, history_rows):
         new = r["new_value"]
         if not (old and new) or old == new:
             continue
-        if "2026-01-01" <= old <= "2026-03-31" and new > "2026-03-31":
+        if pq.start_date <= old <= pq.end_date and new > pq.end_date:
             slips_by_opp[r["opp_id"]] = r  # overwrite keeps latest
     # Only keep those still open
     still_open = {k: v for k, v in slips_by_opp.items() if not v["is_closed"]}
 
-    ws = wb.create_sheet("Q1 Slips Pivot")
-    ws["A1"] = "Q1 Slips, Still Open"
+    ws = wb.create_sheet(f"{pq.label} Slips Pivot")
+    ws["A1"] = f"{pq.label} Slips, Still Open"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
 
     # Pivot 1: Territory x Type (count + ARR)
@@ -475,7 +478,8 @@ def build_q1_slips_pivot(wb, history_rows):
 
 
 def build_q1_slips_by_owner(wb, history_rows):
-    ws = wb.create_sheet("Q1 Slips by Owner")
+    pq = PERIOD.prior_quarter
+    ws = wb.create_sheet(f"{pq.label} Slips by Owner")
     # Latest slip per opp, still open
     slips = {}
     for r in history_rows:
@@ -484,7 +488,7 @@ def build_q1_slips_by_owner(wb, history_rows):
         old, new = r["old_value"], r["new_value"]
         if not (old and new) or old == new:
             continue
-        if "2026-01-01" <= old <= "2026-03-31" and new > "2026-03-31":
+        if pq.start_date <= old <= pq.end_date and new > pq.end_date:
             slips[r["opp_id"]] = r
     still_open = [r for r in slips.values() if not r["is_closed"]]
 
@@ -500,7 +504,7 @@ def build_q1_slips_by_owner(wb, history_rows):
         key=lambda x: (-x[2], -x[3]),
     )
 
-    ws["A1"] = "Q1 Slips, by Owner"
+    ws["A1"] = f"{pq.label} Slips, by Owner"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
 
     headers = ["Owner", "Primary Territory", "Slip Count", "Slip ARR (EUR)"]
@@ -528,6 +532,13 @@ def build_q1_slips_by_owner(wb, history_rows):
 
 def build_q1_changes_by_region(wb, history_rows):
     """Cross-tab: territory x change type with counts and ARR impact."""
+    pq = PERIOD.prior_quarter
+    cq = PERIOD.current_quarter
+    fq = PERIOD.forward_quarter
+    # Derive Q4 end from the reporting window (end of FY)
+    fy_end = PERIOD.reporting_window_end
+    next_fy = f"FY{int(PERIOD.fiscal_year[2:]) + 1:02d}"
+
     # Latest slip per opp
     slip_latest = {}
     for r in history_rows:
@@ -541,10 +552,10 @@ def build_q1_changes_by_region(wb, history_rows):
     # Categorise each latest slip event
     regions = defaultdict(
         lambda: {
-            "q1_to_q2": {"n": 0, "arr": 0.0},
-            "q1_to_q3": {"n": 0, "arr": 0.0},
-            "q1_to_q4": {"n": 0, "arr": 0.0},
-            "q1_to_fy27": {"n": 0, "arr": 0.0},
+            "pq_to_cq": {"n": 0, "arr": 0.0},
+            "pq_to_fq": {"n": 0, "arr": 0.0},
+            "pq_to_q4": {"n": 0, "arr": 0.0},
+            "pq_to_next_fy": {"n": 0, "arr": 0.0},
             "pulled_in": {"n": 0, "arr": 0.0},
             "closed_won": {"n": 0, "arr": 0.0},
             "closed_lost": {"n": 0, "arr": 0.0},
@@ -554,8 +565,8 @@ def build_q1_changes_by_region(wb, history_rows):
         t = r["territory"] or "Unspecified"
         old, new = r["old_value"], r["new_value"]
         arr = r["arr"]
-        in_q1 = "2026-01-01" <= old <= "2026-03-31"
-        if not in_q1:
+        in_pq = pq.start_date <= old <= pq.end_date
+        if not in_pq:
             continue
         if r["is_closed"]:
             if r["is_won"]:
@@ -564,26 +575,26 @@ def build_q1_changes_by_region(wb, history_rows):
                 bucket = "closed_lost"
         elif new < old:
             bucket = "pulled_in"
-        elif new <= "2026-06-30":
-            bucket = "q1_to_q2"
-        elif new <= "2026-09-30":
-            bucket = "q1_to_q3"
-        elif new <= "2026-12-31":
-            bucket = "q1_to_q4"
+        elif new <= cq.end_date:
+            bucket = "pq_to_cq"
+        elif new <= fq.end_date:
+            bucket = "pq_to_fq"
+        elif new <= fy_end:
+            bucket = "pq_to_q4"
         else:
-            bucket = "q1_to_fy27"
+            bucket = "pq_to_next_fy"
         regions[t][bucket]["n"] += 1
         regions[t][bucket]["arr"] += arr
 
-    ws = wb.create_sheet("Q1 Changes by Region")
-    ws["A1"] = "Q1 2026 Close-Date Changes, by Region"
+    ws = wb.create_sheet(f"{pq.label} Changes by Region")
+    ws["A1"] = f"{pq.title} Close-Date Changes, by Region"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
 
     bucket_list = [
-        ("q1_to_q2", "Slipped to Q2"),
-        ("q1_to_q3", "Slipped to Q3"),
-        ("q1_to_q4", "Slipped to Q4"),
-        ("q1_to_fy27", "Slipped to FY27+"),
+        ("pq_to_cq", f"Slipped to {cq.label}"),
+        ("pq_to_fq", f"Slipped to {fq.label}"),
+        ("pq_to_q4", "Slipped to Q4"),
+        ("pq_to_next_fy", f"Slipped to {next_fy}+"),
         ("pulled_in", "Pulled In"),
         ("closed_won", "Closed Won"),
         ("closed_lost", "Closed Lost"),
@@ -656,15 +667,16 @@ def build_q1_changes_by_region(wb, history_rows):
 
 
 def build_stage_progression(wb, history_rows):
-    """Matrix of old-stage to new-stage transitions among Q1 opportunities."""
-    # Q1 deals = any deal whose close date ever sat in Q1 2026
+    """Matrix of old-stage to new-stage transitions among prior-quarter opportunities."""
+    pq = PERIOD.prior_quarter
+    # Prior-quarter deals = any deal whose close date ever sat in that quarter
     q1_opp_ids = set()
     for r in history_rows:
         if r["field"] == "CloseDate":
             old, new = r["old_value"], r["new_value"]
-            if old and "2026-01-01" <= old <= "2026-03-31":
+            if old and pq.start_date <= old <= pq.end_date:
                 q1_opp_ids.add(r["opp_id"])
-            if new and "2026-01-01" <= new <= "2026-03-31":
+            if new and pq.start_date <= new <= pq.end_date:
                 q1_opp_ids.add(r["opp_id"])
     # Stage transitions on those deals
     matrix = defaultdict(lambda: defaultdict(int))
@@ -693,8 +705,8 @@ def build_stage_progression(wb, history_rows):
         key=lambda s: stage_order.index(s) if s in stage_order else 99,
     )
 
-    ws = wb.create_sheet("Q1 Stage Transitions")
-    ws["A1"] = "Q1 Stage Transitions (From / To)"
+    ws = wb.create_sheet(f"{pq.label} Stage Transitions")
+    ws["A1"] = f"{pq.label} Stage Transitions (From / To)"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
 
     headers = ["From \\ To"] + stages
@@ -967,20 +979,22 @@ def build_methodology(wb):
         ),
         ("", ""),
         (
-            "Q1 history",
+            f"{PERIOD.prior_quarter.label} history",
             (
                 "Pulled from OpportunityFieldHistory for the CloseDate and "
                 "StageName fields, starting October 2025. One row per change "
-                "event. Raw events live on Q1 History Raw; analytical summaries "
-                "follow on the next three tabs."
+                f"event. Raw events live on {PERIOD.prior_quarter.label} History "
+                "Raw; analytical summaries follow on the next three tabs."
             ),
         ),
         ("", ""),
         (
-            "Q1 slip definition",
+            f"{PERIOD.prior_quarter.label} slip definition",
             (
-                "An opportunity that had a CloseDate in Q1 2026 at some point "
-                "and has since been pushed to a later date. The Q1 Slips Pivot "
+                f"An opportunity that had a CloseDate in "
+                f"{PERIOD.prior_quarter.title} at some point "
+                "and has since been pushed to a later date. The "
+                f"{PERIOD.prior_quarter.label} Slips Pivot "
                 "counts only deals still open today; deals that have since "
                 "closed won or lost are excluded."
             ),
@@ -990,9 +1004,9 @@ def build_methodology(wb):
             "Stage transition matrix",
             (
                 "Every StageName change on any opportunity whose close date "
-                "ever sat in Q1 2026. Green cells are forward motion, red are "
-                "regressions. Use this to spot widespread slippage between "
-                "specific stages."
+                f"ever sat in {PERIOD.prior_quarter.title}. Green cells are "
+                "forward motion, red are regressions. Use this to spot "
+                "widespread slippage between specific stages."
             ),
         ),
         ("", ""),
@@ -1146,7 +1160,7 @@ def build_stage_conversion(wb, history_rows):
         )
 
     ws = wb.create_sheet("Stage Conversion")
-    ws["A1"] = "Stage Conversion Rates, FY26 to date"
+    ws["A1"] = f"Stage Conversion Rates, {PERIOD.fiscal_year} to date"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     headers = [
         "Stage",
@@ -1539,7 +1553,9 @@ def build_stage_transition_matrix(wb, history_rows):
     from openpyxl.formatting.rule import ColorScaleRule
 
     ws = wb.create_sheet("Stage Transition Matrix")
-    ws["A1"] = "Stage Transition Matrix, Q1 FY26"
+    ws["A1"] = (
+        f"Stage Transition Matrix, {PERIOD.prior_quarter.label} {PERIOD.fiscal_year}"
+    )
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
         "Rows = From Stage, Columns = To Stage. Cell = count of unique opportunities that made "
