@@ -18,6 +18,17 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+try:
+    from monthly_platform.historical_trending import (
+        resolve_historical_trending_contract,
+    )
+    from monthly_platform.period import resolve_period_context
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts.monthly_platform.historical_trending import (
+        resolve_historical_trending_contract,
+    )
+    from scripts.monthly_platform.period import resolve_period_context
+
 
 ROOT = Path(__file__).resolve().parents[1]
 VAULT = ROOT / "obsidian"
@@ -35,7 +46,8 @@ DIRECTORS = [
     ("Adam Steinhaus", "NA Pension & Insurance", "adam-steinhaus.xlsx"),
 ]
 
-# Q1 Trend Consolidated uses short territory labels that differ from DIRECTORS.
+# Historical-trending consolidated tabs use short territory labels that differ
+# from DIRECTORS.
 TERRITORY_TO_DIRECTOR = {
     "APAC": "Jesper Tyrer",
     "EMEA Central": "Sarah Pittroff",
@@ -69,7 +81,64 @@ STAGES_IN_ORDER = [
     "6 - Contracting",
 ]
 
-Q2_RANGE = ("2026-04-01", "2026-06-30")
+
+def _resolve_runtime_period_context(
+    *,
+    as_of_date: str | None = None,
+) -> dict[str, str]:
+    report_date = str(as_of_date or datetime.now().strftime("%Y-%m-%d"))[:10]
+    period = resolve_period_context(
+        as_of_date=report_date,
+        snapshot_date=report_date,
+        deck_date=report_date,
+    )
+    return {
+        "report_date": report_date,
+        "analysis_year": str(period.current_quarter.year),
+        "prior_quarter_label": period.prior_quarter.label,
+        "prior_quarter_title": period.prior_quarter.title,
+        "prior_quarter_start": period.prior_quarter.start_date,
+        "prior_quarter_end": period.prior_quarter.end_date,
+        "current_quarter_label": period.current_quarter.label,
+        "current_quarter_title": period.current_quarter.title,
+        "current_quarter_start": period.current_quarter.start_date,
+        "current_quarter_end": period.current_quarter.end_date,
+    }
+
+
+RUNTIME_PERIOD = _resolve_runtime_period_context()
+
+
+def _configure_runtime_period(*, as_of_date: str | None = None) -> dict[str, str]:
+    global RUNTIME_PERIOD
+    RUNTIME_PERIOD = _resolve_runtime_period_context(as_of_date=as_of_date)
+    return RUNTIME_PERIOD
+
+
+def _retrospective_quarter_label() -> str:
+    return str(RUNTIME_PERIOD["prior_quarter_label"])
+
+
+def _retrospective_quarter_title() -> str:
+    return str(RUNTIME_PERIOD["prior_quarter_title"])
+
+
+def _historical_trending_contract():
+    return resolve_historical_trending_contract(
+        retrospective_label=RUNTIME_PERIOD["prior_quarter_label"],
+        retrospective_title=RUNTIME_PERIOD["prior_quarter_title"],
+        current_label=RUNTIME_PERIOD["current_quarter_label"],
+        current_title=RUNTIME_PERIOD["current_quarter_title"],
+    )
+
+
+def _is_in_current_quarter(value) -> bool:
+    token = str(value or "")[:10]
+    return bool(token) and (
+        RUNTIME_PERIOD["current_quarter_start"]
+        <= token
+        <= RUNTIME_PERIOD["current_quarter_end"]
+    )
 
 
 def _slug(name):
@@ -188,7 +257,7 @@ def _director_stats(director, territory, wb_path):
         "renewals_q2": sum(
             1
             for r in renewals
-            if "2026-04" <= str(r.get("Close Date", ""))[:7] <= "2026-06"
+            if _is_in_current_quarter(str(r.get("Close Date", ""))[:10])
         ),
         "q1_slip_events": len(q1_mov),
         "top_land_deals": sorted(
@@ -218,8 +287,8 @@ def _read_analytics_workbook():
         "concentration_summary": None,
         "pivot_stage_totals": {},
         "pivot_director_totals": [],
-        "velocity_q1": {},
-        "velocity_q2": {},
+        "velocity_retrospective": {},
+        "velocity_current": {},
         "slip_top_owners": [],
         "scorecard": [],
         "transitions_top": [],
@@ -232,6 +301,7 @@ def _read_analytics_workbook():
 
     if fy26.exists():
         wb = load_workbook(fy26, data_only=True, read_only=True)
+        contract = _historical_trending_contract()
 
         if "ARR Concentration" in wb.sheetnames:
             ws = wb["ARR Concentration"]
@@ -309,11 +379,13 @@ def _read_analytics_workbook():
                     series = [r[j + 1] or 0 for j in range(len(dates))]
                     data_rows.append((director, series))
                     i += 1
-                bucket = (
-                    findings["velocity_q1"]
-                    if "Q1" in label
-                    else findings["velocity_q2"]
-                )
+                bucket = None
+                if str(label).startswith(f"{contract.retrospective_title} "):
+                    bucket = findings["velocity_retrospective"]
+                elif str(label).startswith(f"{contract.current_title} "):
+                    bucket = findings["velocity_current"]
+                if bucket is None:
+                    continue
                 bucket["dates"] = dates
                 bucket["directors"] = data_rows
 
@@ -371,9 +443,9 @@ def _read_analytics_workbook():
 
         # Forecast Variance cells are SUMIFS formulas that openpyxl cannot
         # evaluate (read_only data_only returns None). Aggregate directly from
-        # Q1 Trend Consolidated's Bucket helper column instead.
-        if "Q1 Trend Consolidated" in wb.sheetnames:
-            ws = wb["Q1 Trend Consolidated"]
+        # the retrospective trend tab's Bucket helper column instead.
+        if contract.retrospective_consolidated_sheet in wb.sheetnames:
+            ws = wb[contract.retrospective_consolidated_sheet]
             rows = list(ws.iter_rows(values_only=True))
             # Row 1 is header (Territory, Account, ..., Initial ARR, Final ARR,
             # Initial Stage, Final Stage, Bucket).
@@ -632,6 +704,8 @@ def _update_snapshot_history(run_date, all_stats):
     else:
         history = {"snapshots": []}
 
+    retrospective_label = _retrospective_quarter_label()
+    retrospective_title = _retrospective_quarter_title()
     per_dir = {}
     for s in all_stats:
         per_dir[s["director"]] = {
@@ -649,6 +723,12 @@ def _update_snapshot_history(run_date, all_stats):
             # views that want the whole book.
             "all_open_land_deals": s["open_land_deals"],
             "all_open_land_arr_unwtd": s["open_land_arr_unwtd"],
+            "retrospective_land_label": retrospective_label,
+            "retrospective_land_title": retrospective_title,
+            "retrospective_land_won_count": s["q1_won_count"],
+            "retrospective_land_won_arr": s["q1_won_arr"],
+            "retrospective_land_lost_count": s["q1_lost_count"],
+            "retrospective_land_lost_arr": s["q1_lost_arr"],
             "q1_won_count": s["q1_won_count"],
             "q1_won_arr": s["q1_won_arr"],
             "q1_lost_count": s["q1_lost_count"],
@@ -679,6 +759,10 @@ def _update_snapshot_history(run_date, all_stats):
         {
             "run_date": run_date,
             "period": run_date[:7],
+            "retrospective_quarter_label": retrospective_label,
+            "retrospective_quarter_title": retrospective_title,
+            "current_quarter_label": RUNTIME_PERIOD["current_quarter_label"],
+            "current_quarter_title": RUNTIME_PERIOD["current_quarter_title"],
             "directors": per_dir,
             "totals": totals,
         }
@@ -697,6 +781,7 @@ def _churn_asset_path(territory):
 def write_monthly_summary(
     month_dir, run_date, all_stats, manifest, findings=None, all_losses=None
 ):
+    contract = _historical_trending_contract()
     path = month_dir / "README.md"
     lines = [
         f"# {datetime.strptime(run_date, '%Y-%m-%d').strftime('%B %Y')} review",
@@ -722,8 +807,8 @@ def write_monthly_summary(
         [
             f"- Open Land pipeline: {total_open} deals, "
             f"{_fmt(total_unwtd)} unweighted, {_fmt(total_wtd)} weighted.",
-            f"- Q1 Land wins: {total_q1_won} deals, {_fmt(total_q1_won_arr)}.",
-            f"- Q1 Land losses: {total_q1_lost} deals, {_fmt(total_q1_lost_arr)}.",
+            f"- {_retrospective_quarter_label()} Land wins: {total_q1_won} deals, {_fmt(total_q1_won_arr)}.",
+            f"- {_retrospective_quarter_label()} Land losses: {total_q1_lost} deals, {_fmt(total_q1_lost_arr)}.",
             f"- Approvals: {total_approved} approved 2026, "
             f"{total_cond} pending approval, "
             f"{total_missing} missing Stage 3+.",
@@ -766,11 +851,14 @@ def write_monthly_summary(
         for stage, total in sorted(findings["pivot_stage_totals"].items()):
             lines.append(f"| {stage} | {_fmt(total)} |")
 
-    if findings.get("velocity_q1") or findings.get("velocity_q2"):
+    if findings.get("velocity_retrospective") or findings.get("velocity_current"):
         lines.extend(["", "## Pipeline velocity", ""])
         for label, block in [
-            ("Q1 2026", findings.get("velocity_q1") or {}),
-            ("Q2 2026", findings.get("velocity_q2") or {}),
+            (
+                contract.retrospective_title,
+                findings.get("velocity_retrospective") or {},
+            ),
+            (contract.current_title, findings.get("velocity_current") or {}),
         ]:
             dates = block.get("dates") or []
             dirs = block.get("directors") or []
@@ -853,8 +941,8 @@ def write_monthly_summary(
                 f"{d['proof']} |"
             )
 
-    # Forecast Variance, Q1 2026 decomposition. Values computed from the
-    # Bucket helper column on Q1 Trend Consolidated (SUMIFS on the tab).
+    # Forecast Variance, retrospective-quarter decomposition. Values computed
+    # from the Bucket helper column on the retrospective trend tab.
     if findings.get("variance_totals"):
         totals = findings["variance_totals"]
         by_dir = findings.get("variance_by_director", {})
@@ -878,11 +966,11 @@ def write_monthly_summary(
         lines.extend(
             [
                 "",
-                "## Forecast Variance, Q1 2026",
+                f"## Forecast Variance, {contract.retrospective_title}",
                 "",
                 f"Initial ARR {_fmt(totals.get('initial', 0))} -> "
                 f"final {_fmt(totals.get('final', 0))} "
-                f"(net {_fmt(delta)}). Q1 book {sign} EUR "
+                f"(net {_fmt(delta)}). {contract.retrospective_label} book {sign} EUR "
                 f"{abs(delta) / 1_000_000:.1f}M: {narrative} "
                 f"(Won {_fmt(won)}, Lost {_fmt(lost)}, "
                 f"Added {_fmt(totals.get('Added', 0))}, "
@@ -1009,18 +1097,19 @@ def write_monthly_director(
     stage_at_loss=None,
 ):
     """Auto-generated monthly snapshot. Overwritten every run. Never hand-edit."""
+    contract = _historical_trending_contract()
     slug = _slug(stats["director"])
     path = month_dir / f"{slug}.auto.md"
     top = stats["top_land_deals"]
     push = stats["owner_push_concentration"]
     period = run_date[:7]
 
-    # Pull per-director Q1/Q2 snapshot trajectory if the workbook is available
+    # Pull per-director retrospective/current snapshot trajectory if available.
     velocity_lines = []
     if wb_path is not None and wb_path.exists():
         for period_label, sheet in [
-            ("Q1 2026", "Q1 Snapshot Trend"),
-            ("Q2 2026", "Q2 Snapshot Trend"),
+            (contract.retrospective_title, contract.retrospective_snapshot_sheet),
+            (contract.current_title, contract.current_snapshot_sheet),
         ]:
             dates, totals = _read_snapshot_trend(wb_path, sheet)
             if not dates or not totals:
@@ -1055,13 +1144,13 @@ def write_monthly_director(
         f"- Open Land pipeline: {stats['open_land_deals']} deals, "
         f"{_fmt(stats['open_land_arr_unwtd'])} unweighted, "
         f"{_fmt(stats['open_land_arr_wtd'])} weighted.",
-        f"- Q1 Land outcome: {stats['q1_won_count']} wins "
+        f"- {_retrospective_quarter_label()} Land outcome: {stats['q1_won_count']} wins "
         f"({_fmt(stats['q1_won_arr'])}), {stats['q1_lost_count']} losses "
         f"({_fmt(stats['q1_lost_arr'])}).",
         f"- Commercial approvals: {stats['approved_2026']} approved 2026, "
         f"{stats['conditionally_approved']} pending approval, "
         f"{stats['missing_approval']} missing Stage 3+.",
-        f"- Q2 renewals due: {stats['renewals_q2']}.",
+        f"- {RUNTIME_PERIOD['current_quarter_label']} renewals due: {stats['renewals_q2']}.",
         f"- Q1 movement events in scope: {stats['q1_slip_events']}.",
     ]
     if top:
@@ -1081,24 +1170,23 @@ def write_monthly_director(
         lines.extend(["", "## Pipeline velocity, per snapshot", ""])
         lines.extend(velocity_lines)
 
-    # Top Q2 deals at risk, scoped to this director + Q2 2026 close dates.
-    # Reconciles to deck slide 9 (Top Q2 Deals at Risk).
+    # Top current-quarter deals at risk, scoped to this director.
+    # Reconciles to the deck's risk scoring slide.
     if findings and findings.get("deal_risk"):
         director = stats["director"]
-        q2_lo, q2_hi = Q2_RANGE
         mine = [
             d
             for d in findings["deal_risk"]
             if d.get("director") == director
-            and q2_lo <= str(d.get("close_date", ""))[:10] <= q2_hi
+            and _is_in_current_quarter(str(d.get("close_date", ""))[:10])
         ]
         if mine:
             lines.extend(
                 [
                     "",
-                    "## Top Q2 deals at risk",
+                    f"## Top {RUNTIME_PERIOD['current_quarter_label']} deals at risk",
                     "",
-                    "Composite risk score, this director, Q2 2026 close dates. "
+                    f"Composite risk score, this director, {RUNTIME_PERIOD['current_quarter_title']} close dates. "
                     "Reason codes and weights on Parameters tab.",
                     "",
                     "| Score | Account | Opportunity | Stage | ARR | Reasons | Proof |",
@@ -1283,6 +1371,7 @@ def main():
     args = parser.parse_args()
 
     run_date = args.date
+    _configure_runtime_period(as_of_date=run_date)
     wb_dir = args.workbooks_dir or (
         ROOT / "output" / "director_live_workbooks" / run_date
     )

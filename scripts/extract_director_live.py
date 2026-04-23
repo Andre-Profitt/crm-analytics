@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract live Salesforce data into a director Excel workbook.
 
-Uses Alex P's methodology: Opportunity ARR (unweighted), FY26 only,
+Uses Alex P's methodology: Opportunity ARR (unweighted), reporting year only,
 stages 1-6 for open pipeline, account/owner exclusions.
 
 The Excel workbook is the single editable source of truth.
@@ -19,8 +19,9 @@ import argparse
 import json
 import subprocess
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import requests
 from openpyxl import Workbook
@@ -28,8 +29,15 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+try:
+    from monthly_platform.period import resolve_period_context
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts.monthly_platform.period import resolve_period_context
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "output" / "director_live_workbooks"
+SOURCE_CONTRACT_AUDIT_ROOT = REPO_ROOT / "output" / "source_contract_audit"
+AUDIT_OUTPUT_ROOT = REPO_ROOT / "output" / "director_live_extract"
 
 # ── Territory config ──
 # Loaded from config/sd_monthly_territories.json so that onboarding a new
@@ -54,7 +62,6 @@ OWNER_EXCLUDE = (
     "AND (NOT Owner.Name LIKE '%Sabiniewicz%') AND (NOT Owner.Name LIKE '%Profit%')"
 )
 TYPE_FILTER = "AND Type IN ('Land', 'Expand', 'Renewal')"
-FY26_CLOSE = "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-12-31"
 OPEN_STAGES = "AND StageName IN ('1 - Prospecting', '2 - Discovery', '3 - Engagement', '4 - Shortlisted', '5 - Preferred', '6 - Contracting')"
 CLOSED_STAGES = "AND IsClosed = true"
 
@@ -81,6 +88,183 @@ HEADER_FILL = PatternFill(start_color="083EA7", end_color="083EA7", fill_type="s
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
 DATA_FONT = Font(size=9)
 EUR_FMT = "#,##0"
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _runtime_period(snapshot_date: str):
+    period = resolve_period_context(
+        as_of_date=snapshot_date,
+        snapshot_date=snapshot_date,
+        deck_date=snapshot_date,
+    )
+    analysis_year = period.current_quarter.year
+    return {
+        "snapshot_date": snapshot_date,
+        "analysis_year": analysis_year,
+        "fy_label": period.fiscal_year,
+        "fy_close_filter": (
+            f"AND CloseDate >= {analysis_year}-01-01 "
+            f"AND CloseDate <= {analysis_year}-12-31"
+        ),
+        "q1_start": f"{analysis_year}-01-01",
+        "q1_end": f"{analysis_year}-03-31",
+        "q2_start": f"{analysis_year}-04-01",
+        "q2_end": f"{analysis_year}-06-30",
+        "q3_start": f"{analysis_year}-07-01",
+        "current_quarter_label": period.current_quarter.label,
+        "current_quarter_title": period.current_quarter.title,
+        "forward_quarter_label": period.forward_quarter.label,
+        "forward_quarter_title": period.forward_quarter.title,
+        "forward_start": period.forward_quarter.start_date,
+        "forward_end": period.forward_quarter.end_date,
+    }
+
+
+def _quarter_label(close_date: str, analysis_year: int) -> str:
+    token = str(close_date or "")[:10]
+    if len(token) < 7 or not token.startswith(str(analysis_year)):
+        return ""
+    try:
+        month = int(token[5:7])
+    except ValueError:
+        return ""
+    return f"Q{(month - 1) // 3 + 1} {analysis_year}"
+
+
+def _resolve_forward_quarter_pi_source(
+    config: dict,
+    period: dict[str, str | int],
+    audit_fallback: dict[str, str] | None = None,
+) -> dict[str, str] | None:
+    source = (config.get("forward_quarter_pi_list_views") or {}).get(
+        period["forward_quarter_label"]
+    )
+    list_view_id = ""
+    list_view_label = ""
+    if isinstance(source, dict):
+        list_view_id = str(
+            source.get("list_view_id") or source.get("id") or ""
+        ).strip()
+        list_view_label = str(
+            source.get("list_view_label") or source.get("label") or ""
+        ).strip()
+    if not list_view_id and isinstance(audit_fallback, dict):
+        list_view_id = str(audit_fallback.get("list_view_id") or "").strip()
+        list_view_label = str(audit_fallback.get("list_view_label") or "").strip()
+    if not list_view_id:
+        return None
+    return {
+        "list_view_id": list_view_id,
+        "list_view_label": list_view_label or f"PI {period['forward_quarter_title']}",
+        "quarter_label": str(period["forward_quarter_label"]),
+        "quarter_title": str(period["forward_quarter_title"]),
+        "start_date": str(period["forward_start"]),
+        "end_date": str(period["forward_end"]),
+    }
+
+
+def _load_forward_quarter_pi_audit_fallback(
+    snapshot_date: str,
+    *,
+    quarter_label: str,
+) -> dict[str, dict[str, str]]:
+    audit_path = (
+        SOURCE_CONTRACT_AUDIT_ROOT
+        / str(snapshot_date)[:10]
+        / "source_contract_audit.json"
+    )
+    if not audit_path.exists():
+        return {}
+    try:
+        payload = json.loads(audit_path.read_text())
+    except (OSError, ValueError, json.JSONDecodeError):
+        return {}
+    candidate = (
+        payload.get("candidate_forward_quarter")
+        or payload.get("candidate_q3")
+        or {}
+    )
+    if str(candidate.get("quarter_label") or "").strip() != str(quarter_label).strip():
+        return {}
+    fallback: dict[str, dict[str, str]] = {}
+    for item in candidate.get("pi_list_views") or []:
+        territory = str(item.get("territory") or "").strip()
+        list_view_id = str(item.get("list_view_id") or "").strip()
+        if (
+            territory
+            and list_view_id
+            and str(item.get("status") or "").strip() == "ok"
+        ):
+            fallback[territory] = {
+                "list_view_id": list_view_id,
+                "list_view_label": str(item.get("list_view_label") or "").strip(),
+            }
+    return fallback
+
+
+def _build_pipeline_inspection_rows(
+    pi_raw: list[dict],
+    *,
+    analysis_year: int,
+    close_start: str | None = None,
+    close_end: str | None = None,
+) -> list[list]:
+    rows = []
+    for rec in pi_raw:
+        f = rec.get("fields", {})
+        name = str(f.get("Name", {}).get("value", ""))
+        close = str(f.get("CloseDate", {}).get("value", ""))
+        is_closed = f.get("IsClosed", {}).get("value", False)
+        fc = str(f.get("ForecastCategoryName", {}).get("value", ""))
+        opp_type = str(f.get("Type", {}).get("value", ""))
+        if opp_type and opp_type != "Land":
+            continue
+        if is_closed or fc in ("Omitted", "Closed"):
+            continue
+        if close and close[:4] != str(analysis_year):
+            continue
+        if close_start or close_end:
+            if not close:
+                continue
+            if close_start and close < close_start:
+                continue
+            if close_end and close > close_end:
+                continue
+        if any(p.lower() in name.lower() for p in ("simcorp", "test account")):
+            continue
+        owner_obj = f.get("Owner", {}).get("value")
+        owner = (
+            owner_obj.get("fields", {}).get("Name", {}).get("value", "")
+            if isinstance(owner_obj, dict)
+            else ""
+        )
+        score_obj = f.get("OpportunityScore", {}).get("value")
+        score = (
+            score_obj.get("fields", {}).get("Score", {}).get("value")
+            if isinstance(score_obj, dict)
+            else None
+        )
+        rows.append(
+            [
+                name,
+                owner,
+                str(f.get("StageName", {}).get("value", "")),
+                fc,
+                f.get("APTS_Forecast_ARR__c", {}).get("value") or 0,
+                close,
+                f.get("PushCount", {}).get("value") or 0,
+                score,
+                "Yes" if f.get("IsPriorityRecord", {}).get("value") else "",
+            ]
+        )
+    rows.sort(key=lambda x: -(x[4] or 0))
+    return rows
 
 
 def get_auth() -> tuple[str, str]:
@@ -203,6 +387,63 @@ def fetch_pi(session, instance_url: str, lv_id: str, label: str = "") -> list[di
     return records
 
 
+def _write_run_audit(output_dir: Path, payload: dict[str, Any]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "director_live_extract_audit.json").write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    query_totals = payload.get("query_telemetry_totals") or {}
+    lines = [
+        f"# Director Live Extract Audit — {payload.get('run_date', '')}",
+        "",
+        f"- Status: `{payload.get('status', 'unknown')}`",
+        f"- Scope: `{payload.get('scope', 'unknown')}`",
+        f"- Territories requested: `{len(payload.get('territories_requested') or [])}`",
+        f"- Territories processed: `{len(payload.get('processed') or [])}`",
+        f"- Failures: `{len(payload.get('failures') or [])}`",
+        f"- Query count: `{query_totals.get('queries', 0)}`",
+        f"- Query rows: `{query_totals.get('rows', 0)}`",
+        f"- Query duration ms: `{query_totals.get('duration_ms', 0)}`",
+        "",
+        "## Processed",
+        "",
+    ]
+    processed = payload.get("processed") or []
+    if not processed:
+        lines.append("- none")
+    else:
+        for item in processed:
+            forward_pi = item.get("forward_quarter_pi") or {}
+            forward_fragment = ""
+            if forward_pi.get("status") != "unavailable":
+                forward_fragment = (
+                    f", PI forward {forward_pi.get('quarter_title', '')}: "
+                    f"{forward_pi.get('deal_count', 0)}"
+                )
+            lines.append(
+                f"- `{item.get('territory', '')}` / `{item.get('director', '')}`: "
+                f"pipeline `{item.get('counts', {}).get('pipeline_open', 0)}`, "
+                f"PI `{item.get('counts', {}).get('pipeline_inspection', 0)}`"
+                f"{forward_fragment}, "
+                f"workbook `{item.get('workbook_path', '')}`"
+            )
+    lines.extend(["", "## Failures", ""])
+    failures = payload.get("failures") or []
+    if not failures:
+        lines.append("- none")
+    else:
+        for item in failures:
+            lines.append(
+                f"- `{item.get('territory', '')}`: "
+                f"`{item.get('error_type', 'error')}` {item.get('message', '')}"
+            )
+    (output_dir / "summary.md").write_text(
+        "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )
+
+
 def build_session(token: str) -> requests.Session:
     """Build a requests.Session with the SF bearer token set.
 
@@ -287,6 +528,31 @@ def extract_territory(
     director = config["director"]
     where = config["soql_where"]
     pi_lv = config["pi_list_view_id"]
+    period = _runtime_period(snapshot_date)
+    configured_forward_pi_source = (
+        (config.get("forward_quarter_pi_list_views") or {}).get(
+            period["forward_quarter_label"]
+        )
+        or {}
+    )
+    audit_forward_pi_sources = _load_forward_quarter_pi_audit_fallback(
+        snapshot_date,
+        quarter_label=str(period["forward_quarter_label"]),
+    )
+    forward_pi_source = _resolve_forward_quarter_pi_source(
+        config,
+        period,
+        audit_fallback=audit_forward_pi_sources.get(territory),
+    )
+    forward_pi_source_origin = "unavailable"
+    if isinstance(configured_forward_pi_source, dict) and str(
+        configured_forward_pi_source.get("list_view_id")
+        or configured_forward_pi_source.get("id")
+        or ""
+    ).strip():
+        forward_pi_source_origin = "configured"
+    elif territory in audit_forward_pi_sources:
+        forward_pi_source_origin = "audit_fallback"
 
     print(f"\n{'=' * 60}")
     print(f"  {director} ({territory})")
@@ -299,9 +565,13 @@ def extract_territory(
     wb = Workbook()
     wb.remove(wb.active)
 
-    # ── 1. Open Pipeline (stages 1-6, FY26) ──
+    # ── 1. Open Pipeline (stages 1-6, reporting year) ──
     print("  Pipeline...", end=" ", flush=True)
-    q = f"SELECT {PIPELINE_FIELDS} FROM Opportunity WHERE {where} AND IsClosed = false {FY26_CLOSE} {OPEN_STAGES} {TYPE_FILTER} {ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} ORDER BY APTS_Opportunity_ARR__c DESC NULLS LAST"
+    q = (
+        f"SELECT {PIPELINE_FIELDS} FROM Opportunity WHERE {where} AND IsClosed = false "
+        f"{period['fy_close_filter']} {OPEN_STAGES} {TYPE_FILTER} {ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} "
+        "ORDER BY APTS_Opportunity_ARR__c DESC NULLS LAST"
+    )
     pipeline = run_soql(session, instance_url, q, label=f"{territory}:pipeline_open")
     print(f"{len(pipeline)} deals")
 
@@ -361,12 +631,16 @@ def extract_territory(
         )
     _add_sheet(wb, "Pipeline Open FY26", headers, rows, eur_cols=[7, 8])
 
-    # ── 2. Won/Lost (FY26 closed) ──
+    # ── 2. Won/Lost (reporting year closed) ──
     print("  Won/Lost...", end=" ", flush=True)
     # Reason_Won_Lost__c is the only field we need that isn't already in
     # PIPELINE_FIELDS; Lost_to_Competitor__c is now pulled on both open and
     # closed deals, so it's already included.
-    q = f"SELECT {PIPELINE_FIELDS}, Reason_Won_Lost__c FROM Opportunity WHERE {where} AND IsClosed = true {FY26_CLOSE} {CLOSED_STAGES} {TYPE_FILTER} {ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} ORDER BY CloseDate DESC"
+    q = (
+        f"SELECT {PIPELINE_FIELDS}, Reason_Won_Lost__c FROM Opportunity WHERE {where} "
+        f"AND IsClosed = true {period['fy_close_filter']} {CLOSED_STAGES} {TYPE_FILTER} "
+        f"{ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} ORDER BY CloseDate DESC"
+    )
     won_lost = run_soql(session, instance_url, q, label=f"{territory}:won_lost")
     print(f"{len(won_lost)} deals")
 
@@ -404,7 +678,7 @@ def extract_territory(
         )
     _add_sheet(wb, "Won Lost FY26", headers, rows, eur_cols=[6])
 
-    # ── 3. Commercial Approval (open Land, FY26) ──
+    # ── 3. Commercial Approval (open Land, reporting year) ──
     # Approvals reuse the same open pipeline records, filtered to Land type.
     # All approval fields are now in PIPELINE_FIELDS, so we skip the separate
     # SOQL call entirely — saves one SF round-trip per director (9/run).
@@ -415,7 +689,9 @@ def extract_territory(
         approval_status = str(r.get("Approval_Status__c") or "").strip()
         if r.get("Stage_20_Approval__c"):
             # Fully approved — split by year
-            if str(r.get("Stage_20_Approval_Date__c", ""))[:4] == "2026":
+            if str(r.get("Stage_20_Approval_Date__c", ""))[:4] == str(
+                period["analysis_year"]
+            ):
                 approved_2026.append(r)
             else:
                 approved_prior.append(r)
@@ -509,14 +785,15 @@ def extract_territory(
             ]
         )
     _add_sheet(wb, "Commercial Approval", headers, rows, eur_cols=[6])
+    commercial_approval_rows = len(rows)
 
-    # ── 4. Renewals (open, FY26, sorted by close date) ──
+    # ── 4. Renewals (open, reporting year, sorted by close date) ──
     print("  Renewals...", end=" ", flush=True)
     q = (
         f"SELECT Account.Name, Name, Owner.Name, StageName, CloseDate, "
         f"convertCurrency(Amount) Amount, Probability, NextStep FROM Opportunity "
         f"WHERE {where} AND IsClosed = false AND Type = 'Renewal' "
-        f"{FY26_CLOSE} {ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} ORDER BY CloseDate ASC"
+        f"{period['fy_close_filter']} {ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} ORDER BY CloseDate ASC"
     )
     renewals = run_soql(session, instance_url, q, label=f"{territory}:renewals")
     print(f"{len(renewals)} renewals")
@@ -547,7 +824,7 @@ def extract_territory(
         )
     _add_sheet(wb, "Renewals FY26", headers, rows, eur_cols=[6])
 
-    # ── 5. Pipeline Inspection (open FY26 from PI list view) ──
+    # ── 5. Pipeline Inspection (open reporting-year deals from PI list view) ──
     print("  PI view...", end=" ", flush=True)
     pi_raw = fetch_pi(session, instance_url, pi_lv, label=f"{territory}:pi")
     headers = [
@@ -561,51 +838,38 @@ def extract_territory(
         "Score",
         "Priority",
     ]
-    rows = []
-    for rec in pi_raw:
-        f = rec.get("fields", {})
-        name = str(f.get("Name", {}).get("value", ""))
-        close = str(f.get("CloseDate", {}).get("value", ""))
-        is_closed = f.get("IsClosed", {}).get("value", False)
-        fc = str(f.get("ForecastCategoryName", {}).get("value", ""))
-        opp_type = str(f.get("Type", {}).get("value", ""))
-        # Filter: Land only, FY26, not internal, not closed, not omitted
-        if opp_type and opp_type != "Land":
-            continue
-        if is_closed or fc in ("Omitted", "Closed"):
-            continue
-        if close and close[:4] > "2026":
-            continue
-        if any(p.lower() in name.lower() for p in ("simcorp", "test account")):
-            continue
-        owner_obj = f.get("Owner", {}).get("value")
-        owner = (
-            owner_obj.get("fields", {}).get("Name", {}).get("value", "")
-            if isinstance(owner_obj, dict)
-            else ""
+    pi_rows = _build_pipeline_inspection_rows(
+        pi_raw, analysis_year=int(period["analysis_year"])
+    )
+    print(f"{len(pi_rows)} open {period['fy_label']} deals")
+    _add_sheet(wb, "Pipeline Inspection", headers, pi_rows, eur_cols=[5])
+
+    # ── 5a. Forward-quarter Pipeline Inspection (quarter-scoped PI source) ──
+    forward_pi_rows: list[list] = []
+    if forward_pi_source:
+        print("  PI forward quarter...", end=" ", flush=True)
+        forward_pi_raw = fetch_pi(
+            session,
+            instance_url,
+            forward_pi_source["list_view_id"],
+            label=f"{territory}:pi_forward:{forward_pi_source['quarter_label']}",
         )
-        score_obj = f.get("OpportunityScore", {}).get("value")
-        score = (
-            score_obj.get("fields", {}).get("Score", {}).get("value")
-            if isinstance(score_obj, dict)
-            else None
+        forward_pi_rows = _build_pipeline_inspection_rows(
+            forward_pi_raw,
+            analysis_year=int(period["analysis_year"]),
+            close_start=forward_pi_source["start_date"],
+            close_end=forward_pi_source["end_date"],
         )
-        rows.append(
-            [
-                name,
-                owner,
-                str(f.get("StageName", {}).get("value", "")),
-                fc,
-                f.get("APTS_Forecast_ARR__c", {}).get("value") or 0,
-                close,
-                f.get("PushCount", {}).get("value") or 0,
-                score,
-                "Yes" if f.get("IsPriorityRecord", {}).get("value") else "",
-            ]
+        print(
+            f"{len(forward_pi_rows)} open {forward_pi_source['quarter_title']} deals"
         )
-    rows.sort(key=lambda x: -(x[4] or 0))
-    print(f"{len(rows)} open FY26 deals")
-    _add_sheet(wb, "Pipeline Inspection", headers, rows, eur_cols=[5])
+        _add_sheet(
+            wb,
+            "Pipeline Inspection Forward",
+            headers,
+            forward_pi_rows,
+            eur_cols=[5],
+        )
 
     # ── 5b. Activity volume per open deal ──
     # Group Task + Event count per Opportunity for the 30/60/90-day windows.
@@ -621,7 +885,7 @@ def extract_territory(
         # so we batch in 200s defensively.
         from datetime import timedelta as _td
 
-        today = datetime.now().date()
+        today = date.fromisoformat(snapshot_date)
         # Single 90-day window for now. If we add 30/60-day breakdowns later,
         # compute them the same way and COUNT_DISTINCT by WhatId over the
         # appropriate ActivityDate range.
@@ -742,12 +1006,7 @@ def extract_territory(
         close = str(r.get("CloseDate") or "")[:10]
         # Derive quarter from close date for period grouping.
         qtr = ""
-        if close.startswith("2026") and len(close) >= 7:
-            try:
-                m = int(close[5:7])
-                qtr = f"Q{(m - 1) // 3 + 1} 2026"
-            except ValueError:
-                qtr = ""
+        qtr = _quarter_label(close, int(period["analysis_year"]))
         fi_rows_out.append(
             [
                 _val(r, "Account.Name"),
@@ -848,15 +1107,13 @@ def extract_territory(
         stage = opp.get("StageName", "")
         is_closed = opp.get("IsClosed", False)
 
-        # Q1 slipped: close date WAS in Q1 2026, got pushed out of Q1,
-        # AND the push event itself occurred in 2026. Excludes legacy deals
-        # that had a Q1 2026 close date set in 2025 and got pushed before
-        # FY26 even started; the review is about what slipped THIS year.
+        # Q1 slipped: close date WAS in Q1 of the reporting year, got pushed
+        # out of Q1, and the push event itself occurred in that reporting year.
         if (
-            old_val >= "2026-01-01"
-            and old_val <= "2026-03-31"
-            and new_val > "2026-03-31"
-            and change_date >= "2026-01-01"
+            old_val >= period["q1_start"]
+            and old_val <= period["q1_end"]
+            and new_val > period["q1_end"]
+            and change_date >= period["q1_start"]
             and oid not in seen_slip
         ):
             seen_slip.add(oid)
@@ -874,8 +1131,8 @@ def extract_territory(
                 ]
             )
 
-        # Post-Q1 pushed: any push after March 31
-        if change_date >= "2026-04-01" and not is_closed and oid not in seen_push:
+        # Post-Q1 pushed: any push after the end of Q1 in the reporting year.
+        if change_date >= period["q2_start"] and not is_closed and oid not in seen_push:
             seen_push.add(oid)
             post_q1_pushed_rows.append(
                 [
@@ -927,10 +1184,10 @@ def extract_territory(
         is_closed = opp.get("IsClosed", False)
 
         if (
-            old_val >= "2026-04-01"
-            and old_val <= "2026-06-30"
-            and new_val > "2026-06-30"
-            and change_date >= "2026-04-01"
+            old_val >= period["q2_start"]
+            and old_val <= period["q2_end"]
+            and new_val > period["q2_end"]
+            and change_date >= period["q2_start"]
             and oid not in seen_q2_slip
         ):
             seen_q2_slip.add(oid)
@@ -948,7 +1205,7 @@ def extract_territory(
                 ]
             )
 
-        if change_date >= "2026-07-01" and not is_closed and oid not in seen_q2_push:
+        if change_date >= period["q3_start"] and not is_closed and oid not in seen_q2_push:
             seen_q2_push.add(oid)
             post_q2_pushed_rows.append(
                 [
@@ -1019,11 +1276,9 @@ def extract_territory(
     ws = wb.create_sheet(title="Summary", index=0)
     ws["A1"] = f"{director} ({territory})"
     ws["A1"].font = Font(bold=True, size=14, color="083EA7")
-    ws["A2"] = "Reporting period: FY2026 (Q1-Q4)"
+    ws["A2"] = f"Reporting period: {period['fy_label']} (Q1-Q4)"
     ws["A2"].font = Font(size=10, color="666666")
-    ws["A3"] = (
-        f"Extracted: {datetime.now().strftime('%Y-%m-%d %H:%M')} — live from Salesforce"
-    )
+    ws["A3"] = f"Snapshot date: {period['snapshot_date']} — live pull from Salesforce"
     ws["A3"].font = Font(size=10, color="666666")
     ws["A4"] = (
         "Methodology: Alex P — ARR Unweighted = APTS_Opportunity_ARR__c (full deal value); "
@@ -1054,18 +1309,25 @@ def extract_territory(
     kpis = [
         ("Open Pipeline Unweighted (stages 1-6)", f"EUR {total_pipeline_arr:,.0f}"),
         ("Open Deal Count", str(len(pipeline))),
-        ("Won ARR Unweighted FY26", f"EUR {won_arr:,.0f}"),
+        (f"Won ARR Unweighted {period['fy_label']}", f"EUR {won_arr:,.0f}"),
         ("Won Deal Count", str(len(won))),
-        ("Lost ARR Unweighted FY26", f"EUR {lost_arr:,.0f}"),
+        (f"Lost ARR Unweighted {period['fy_label']}", f"EUR {lost_arr:,.0f}"),
         ("Lost Deal Count", str(len(lost))),
-        ("Approved 2026 (Land)", str(len(approved_2026))),
+        (f"Approved {period['analysis_year']} (Land)", str(len(approved_2026))),
         ("Approved Prior Year", str(len(approved_prior))),
         ("Pending Approval", str(len(pending))),
         ("Missing Approval (Stage 3+)", str(len(missing))),
         ("Open Renewal ACV Unweighted", f"EUR {renewal_acv:,.0f}"),
         ("Open Renewals", str(len(renewals))),
-        ("PI Open Deals (FY26)", str(len(rows))),
+        (f"PI Open Deals ({period['fy_label']})", str(len(pi_rows))),
     ]
+    if forward_pi_source:
+        kpis.append(
+            (
+                f"PI Forward Deals ({forward_pi_source['quarter_title']})",
+                str(len(forward_pi_rows)),
+            )
+        )
     for i, (label, val) in enumerate(kpis, 7):
         ws[f"A{i}"] = label
         ws[f"B{i}"] = val
@@ -1078,12 +1340,36 @@ def extract_territory(
         ws[f"{col}{len(kpis) + 8}"].font = HEADER_FONT
         ws[f"{col}{len(kpis) + 8}"].fill = HEADER_FILL
     sheets = [
-        ("Pipeline Open FY26", len(pipeline), "SOQL — open, stages 1-6, FY26"),
-        ("Won Lost FY26", len(won_lost), "SOQL — closed, stages 0/7/8, FY26"),
-        ("Commercial Approval", len(approvals), "SOQL — open Land, FY26"),
-        ("Renewals FY26", len(renewals), "SOQL — open Renewal, FY26"),
-        ("Pipeline Inspection", len(rows), "PI list view — open, FY26"),
+        (
+            "Pipeline Open FY26",
+            len(pipeline),
+            f"SOQL — open, stages 1-6, {period['fy_label']}",
+        ),
+        (
+            "Won Lost FY26",
+            len(won_lost),
+            f"SOQL — closed, stages 0/7/8, {period['fy_label']}",
+        ),
+        (
+            "Commercial Approval",
+            commercial_approval_rows,
+            f"SOQL — open Land, {period['fy_label']}",
+        ),
+        ("Renewals FY26", len(renewals), f"SOQL — open Renewal, {period['fy_label']}"),
+        (
+            "Pipeline Inspection",
+            len(pi_rows),
+            f"PI list view — broad coaching population, {period['fy_label']}",
+        ),
     ]
+    if forward_pi_source:
+        sheets.append(
+            (
+                "Pipeline Inspection Forward",
+                len(forward_pi_rows),
+                f"PI list view — forward quarter {forward_pi_source['quarter_title']}",
+            )
+        )
     for i, (sname, count, source) in enumerate(sheets, len(kpis) + 9):
         ws[f"A{i}"] = sname
         ws[f"B{i}"] = count
@@ -1102,12 +1388,71 @@ def extract_territory(
         f"  Won/Lost: {len(won)} won (EUR {won_arr:,.0f}) / {len(lost)} lost (EUR {lost_arr:,.0f})"
     )
     print(
-        f"  Approvals: {len(approved_2026)} approved 2026 / {len(approved_prior)} prior / {len(pending)} pending / {len(missing)} missing"
+        f"  Approvals: {len(approved_2026)} approved {period['analysis_year']} / {len(approved_prior)} prior / {len(pending)} pending / {len(missing)} missing"
     )
     print(f"  Renewals: {len(renewals)} (EUR {renewal_acv:,.0f} ACV)")
-    print(f"  PI: {len(rows)} open FY26 deals")
+    print(f"  PI: {len(pi_rows)} open {period['fy_label']} deals")
+    if forward_pi_source:
+        print(
+            f"  PI forward: {len(forward_pi_rows)} open {forward_pi_source['quarter_title']} deals"
+        )
 
-    return output_path
+    return {
+        "territory": territory,
+        "director": director,
+        "snapshot_date": snapshot_date,
+        "workbook_path": _display_path(output_path),
+        "analysis_year": int(period["analysis_year"]),
+        "fy_label": str(period["fy_label"]),
+        "counts": {
+            "pipeline_open": len(pipeline),
+            "won_lost": len(won_lost),
+            "won": len(won),
+            "lost": len(lost),
+            "commercial_approval_land": len(approvals),
+            "commercial_approval_sheet_rows": commercial_approval_rows,
+            "approved_current_year": len(approved_2026),
+            "approved_prior_year": len(approved_prior),
+            "pending_approval": len(pending),
+            "missing_approval": len(missing),
+            "renewals": len(renewals),
+            "pipeline_inspection": len(pi_rows),
+            "pipeline_inspection_forward": len(forward_pi_rows),
+            "activity_volume_rows": len(activity_rows),
+            "commit_items": len(fi_rows_out),
+            "q1_movement": len(all_movement),
+            "q2_movement": len(all_q2_movement),
+            "stage_history_events": len(stage_rows),
+            "forecast_category_history_events": len(fcat_rows),
+        },
+        "arr": {
+            "pipeline_open_eur": total_pipeline_arr,
+            "won_eur": won_arr,
+            "lost_eur": lost_arr,
+            "renewal_acv_eur": renewal_acv,
+        },
+        "pi_source": {
+            "list_view_id": str(pi_lv),
+            "scope": str(period["fy_label"]),
+            "deal_count": len(pi_rows),
+        },
+        "forward_quarter_pi": {
+            "status": forward_pi_source_origin,
+            "quarter_label": str(period["forward_quarter_label"]),
+            "quarter_title": str(period["forward_quarter_title"]),
+            "list_view_id": (
+                str(forward_pi_source.get("list_view_id") or "")
+                if isinstance(forward_pi_source, dict)
+                else ""
+            ),
+            "list_view_label": (
+                str(forward_pi_source.get("list_view_label") or "")
+                if isinstance(forward_pi_source, dict)
+                else ""
+            ),
+            "deal_count": len(forward_pi_rows),
+        },
+    }
 
 
 def main():
@@ -1149,6 +1494,9 @@ def main():
             instance_url=instance_url,
         )
 
+    processed: list[dict[str, Any]] = []
+    failures: list[dict[str, str]] = []
+
     # Parallelize when multiple territories — each extraction is ~80% I/O
     # against SF, so threads scale well. Sequential for a single-territory
     # run to keep logs readable.
@@ -1158,24 +1506,35 @@ def main():
         print(f"\nExtracting {len(territories)} territories in parallel...\n")
         with ThreadPoolExecutor(max_workers=min(9, len(territories))) as pool:
             futures = {pool.submit(_run_one, t): t for t in territories}
-            failures = []
             for f in as_completed(futures):
                 t = futures[f]
                 try:
-                    f.result()
+                    processed.append(f.result())
                 except Exception as exc:
-                    failures.append((t, exc))
+                    failures.append(
+                        {
+                            "territory": t,
+                            "error_type": exc.__class__.__name__,
+                            "message": str(exc),
+                        }
+                    )
                     print(f"  [FAIL] {t}: {exc}")
-            if failures:
-                print(f"\n{len(failures)} failure(s):")
-                for t, exc in failures:
-                    print(f"  {t}: {exc}")
-                sys.exit(1)
     else:
         for t in territories:
-            _run_one(t)
+            try:
+                processed.append(_run_one(t))
+            except Exception as exc:
+                failures.append(
+                    {
+                        "territory": t,
+                        "error_type": exc.__class__.__name__,
+                        "message": str(exc),
+                    }
+                )
+                print(f"  [FAIL] {t}: {exc}")
 
     # Flush query telemetry to a run log so manifest builders can pick it up.
+    tele_path = None
     if QUERY_TELEMETRY:
         from datetime import datetime as _dt
 
@@ -1202,6 +1561,34 @@ def main():
         )
         tele_path.write_text(json.dumps(existing, indent=2) + "\n")
         print(f"\nSF query telemetry: {tele_path.relative_to(REPO_ROOT)}")
+
+    processed.sort(key=lambda item: str(item.get("territory") or ""))
+    query_totals = {
+        "queries": len(QUERY_TELEMETRY),
+        "rows": sum(int(item.get("rows") or 0) for item in QUERY_TELEMETRY),
+        "duration_ms": sum(
+            int(item.get("duration_ms") or 0) for item in QUERY_TELEMETRY
+        ),
+    }
+    audit_payload = {
+        "run_date": args.snapshot_date,
+        "status": "failed" if failures else "ok",
+        "scope": "all" if args.all else "territory",
+        "territories_requested": territories,
+        "processed": processed,
+        "failures": failures,
+        "query_telemetry_totals": query_totals,
+        "query_telemetry_path": _display_path(tele_path) if tele_path else "",
+    }
+    audit_dir = AUDIT_OUTPUT_ROOT / args.snapshot_date
+    _write_run_audit(audit_dir, audit_payload)
+    print(f"Director live extract audit: {_display_path(audit_dir)}")
+
+    if failures:
+        print(f"\n{len(failures)} failure(s):")
+        for item in failures:
+            print(f"  {item['territory']}: {item['message']}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

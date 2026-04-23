@@ -7,7 +7,7 @@ independent sources and flags mismatches. Writes the results to
 slide drifts from the workbook.
 
 Headline metrics validated:
-  - Open Land pipeline count and ARR Unwtd (Q1-Q2)
+  - Open Land active pipeline count and ARR Unwtd (Q1-Q3, excluding Omitted)
   - Q1 Land wins count and ARR
   - Q1 Land losses count
   - Q2 renewals count and ACV
@@ -26,9 +26,31 @@ from pathlib import Path
 import requests
 from openpyxl import load_workbook
 
+try:
+    from monthly_platform.policy import (
+        filter_active_pipeline_rows,
+        filter_rows_in_reporting_scope,
+        is_active_forecast_category as policy_is_active_forecast_category,
+        is_pending_approval_status as policy_is_pending_approval_status,
+        make_reporting_scope,
+        summarize_approval_rows,
+    )
+    from monthly_platform.period import resolve_period_context
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts.monthly_platform.policy import (
+        filter_active_pipeline_rows,
+        filter_rows_in_reporting_scope,
+        is_active_forecast_category as policy_is_active_forecast_category,
+        is_pending_approval_status as policy_is_pending_approval_status,
+        make_reporting_scope,
+        summarize_approval_rows,
+    )
+    from scripts.monthly_platform.period import resolve_period_context
+
 
 ROOT = Path(__file__).resolve().parents[1]
 VAULT = ROOT / "obsidian"
+OUTPUT_ROOT = ROOT / "output" / "tie_out"
 
 DIRECTORS = [
     ("Jesper Tyrer", "APAC", "jesper-tyrer"),
@@ -55,6 +77,29 @@ REGIONAL_TERRITORY = {
     "Megan Miceli": "NA Canada",
     "Adam Steinhaus": "NA Insurance",
 }
+
+def resolve_runtime_scopes(as_of_date: str | None = None):
+    report_date = str(as_of_date or datetime.now().strftime("%Y-%m-%d"))[:10]
+    period = resolve_period_context(
+        as_of_date=report_date,
+        snapshot_date=report_date,
+        deck_date=report_date,
+    )
+    return {
+        "period": period,
+        "reporting_scope": make_reporting_scope(
+            period.reporting_window_start, period.reporting_window_end
+        ),
+        "prior_quarter_scope": make_reporting_scope(
+            period.prior_quarter.start_date,
+            period.prior_quarter.end_date,
+        ),
+        "current_quarter_scope": make_reporting_scope(
+            period.current_quarter.start_date,
+            period.current_quarter.end_date,
+        ),
+        "approval_year": period.current_quarter.year,
+    }
 
 
 def _fmt_eur(n):
@@ -97,15 +142,22 @@ def _quarter(date_str):
     return f"Q{(m - 1) // 3 + 1}"
 
 
-def _in_q1q2(date_str):
-    s = str(date_str or "")[:10]
-    return "2026-01-01" <= s <= "2026-09-30"
+def _is_pending_approval_status(status):
+    return policy_is_pending_approval_status(status)
+
+
+def _is_active_forecast_category(category):
+    return policy_is_active_forecast_category(category)
 
 
 # ───────────────────────── Excel truth ────────────────────────────────────
 
 
-def excel_metrics(workbook_path):
+def excel_metrics(workbook_path, *, scopes=None):
+    scopes = scopes or resolve_runtime_scopes()
+    reporting_scope = scopes["reporting_scope"]
+    prior_quarter_scope = scopes["prior_quarter_scope"]
+    current_quarter_scope = scopes["current_quarter_scope"]
     wb = load_workbook(workbook_path, data_only=True)
 
     def _rows(name):
@@ -132,54 +184,47 @@ def excel_metrics(workbook_path):
     def acv(r):
         return float(r.get("ACV Unweighted (EUR)") or r.get("ACV (EUR)") or 0)
 
-    land_open_q1q2 = [
-        r for r in pipeline if is_land(r) and _in_q1q2(r.get("Close Date"))
-    ]
+    land_open_active = filter_active_pipeline_rows(pipeline, reporting_scope)
     q1_land_wins = [
         r
         for r in won_lost
         if is_land(r)
         and "Won" in str(r.get("Stage", ""))
-        and _quarter(r.get("Close Date")) == "Q1"
+        and prior_quarter_scope.contains(r.get("Close Date"))
     ]
     q1_land_lost = [
         r
         for r in won_lost
         if is_land(r)
         and "Won" not in str(r.get("Stage", ""))
-        and _quarter(r.get("Close Date")) == "Q1"
+        and prior_quarter_scope.contains(r.get("Close Date"))
     ]
-    q2_renewals = [r for r in renewals if _quarter(r.get("Close Date")) == "Q2"]
+    q2_renewals = [
+        r for r in renewals if current_quarter_scope.contains(r.get("Close Date"))
+    ]
 
     # Approvals scope-matched to the deck (Q1-Q2 close date filter).
-    approvals_in_scope = [r for r in approvals if _in_q1q2(r.get("Close Date"))]
+    approvals_in_scope = filter_rows_in_reporting_scope(approvals, reporting_scope)
+    approval_summary = summarize_approval_rows(approvals_in_scope)
 
     return {
-        "open_land_deals": len(land_open_q1q2),
-        "open_land_arr": sum(unw(r) for r in land_open_q1q2),
+        "open_land_deals": len(land_open_active),
+        "open_land_arr": sum(unw(r) for r in land_open_active),
         "q1_land_wins": len(q1_land_wins),
         "q1_land_wins_arr": sum(unw(r) for r in q1_land_wins),
         "q1_land_lost": len(q1_land_lost),
         "q2_renewals": len(q2_renewals),
         "q2_renewals_acv": sum(acv(r) for r in q2_renewals),
-        "approved_2026": sum(
-            1
-            for r in approvals_in_scope
-            if str(r.get("Status", "")).strip() == "Approved 2026"
-        ),
-        "conditionally_approved": sum(
-            1 for r in approvals_in_scope if "Conditionally" in str(r.get("Status", ""))
-        ),
-        "missing_stage3": sum(
-            1 for r in approvals_in_scope if "Missing" in str(r.get("Status", ""))
-        ),
+        "approved_2026": approval_summary["approved_2026"],
+        "conditionally_approved": approval_summary["conditionally_approved"],
+        "missing_stage3": approval_summary["missing_stage3"],
     }
 
 
 # ───────────────────────── Regional workbook truth ───────────────────────
 
 
-def regional_metrics(regional_wb_path):
+def regional_metrics(regional_wb_path, *, scopes=None):
     """Compute headline numbers from a per-region SharePoint workbook.
 
     Regional workbooks are scoped subsets of the master. This reader mirrors
@@ -187,6 +232,9 @@ def regional_metrics(regional_wb_path):
     Detail / Land WonLost Detail / Approvals list tabs) so the 4-way tie-out
     catches drift between the extractor and the regional builder.
     """
+    scopes = scopes or resolve_runtime_scopes()
+    reporting_scope = scopes["reporting_scope"]
+    prior_quarter_scope = scopes["prior_quarter_scope"]
     wb = load_workbook(regional_wb_path, data_only=True)
 
     def _header_index(tab, header_row_index):
@@ -211,13 +259,16 @@ def regional_metrics(regional_wb_path):
         ti = idx.get("Type")
         ci = idx.get("Close Date")
         ai = _find_col(idx, "ARR Unwtd", "ARR Unwtd (EUR)")
+        fci = idx.get("Forecast Category")
         for r in rows[1:]:
             if not r or not r[0]:
                 continue
             if ti is not None and str(r[ti] or "") != "Land":
                 continue
             cd = str(r[ci] or "")[:10] if ci is not None else ""
-            if not _in_q1q2(cd):
+            if not reporting_scope.contains(cd):
+                continue
+            if fci is not None and not _is_active_forecast_category(r[fci]):
                 continue
             open_cnt += 1
             if ai is not None:
@@ -237,7 +288,7 @@ def regional_metrics(regional_wb_path):
             if ti is not None and str(r[ti] or "") != "Land":
                 continue
             cd = str(r[ci] or "")[:10] if ci is not None else ""
-            if _quarter(cd) != "Q1":
+            if not prior_quarter_scope.contains(cd):
                 continue
             stage = str(r[si] or "") if si is not None else ""
             arr = float(r[ai] or 0) if ai is not None else 0.0
@@ -260,12 +311,12 @@ def regional_metrics(regional_wb_path):
                 continue
             if q1q2_close_only and ci is not None:
                 cd = str(r[ci] or "")[:10]
-                if not _in_q1q2(cd):
+                if not reporting_scope.contains(cd):
                     continue
             count += 1
         return count
 
-    # excel_metrics filters approvals by Q1-Q2 close date; match that scope
+    # excel_metrics filters approvals by the reporting window; match that scope
     # so Extract and Regional reconcile.
     approved = _count_listed("Approvals, 2026", q1q2_close_only=True)
     cond = _count_listed("Approval Candidates", q1q2_close_only=True)
@@ -358,10 +409,15 @@ from extract_director_live import (  # type: ignore  # noqa: E402
 DIRECTOR_TO_TERRITORY_KEY = {v["director"]: k for k, v in TERRITORIES.items()}
 
 
-def sf_metrics(session, instance, director):
+def sf_metrics(session, instance, director, *, scopes=None):
     """Run SOQL counts + sums to get the SF-side view of the same 10 metrics.
     Uses the exact same where clause as the extractor, so SF truth and Excel
     extract should agree unless there was a transient extract issue."""
+    scopes = scopes or resolve_runtime_scopes()
+    reporting_scope = scopes["reporting_scope"]
+    prior_quarter_scope = scopes["prior_quarter_scope"]
+    current_quarter_scope = scopes["current_quarter_scope"]
+    approval_year = scopes["approval_year"]
     key = DIRECTOR_TO_TERRITORY_KEY.get(director)
     if not key:
         return {}
@@ -379,11 +435,12 @@ def sf_metrics(session, instance, director):
         rec = r.get("records", [{}])[0] if isinstance(r, dict) else {}
         return rec
 
-    # 1. Open Land pipeline, Q1-Q2
+    # 1. Open Land active pipeline, reporting window
     r = _agg(
         "SELECT COUNT(Id) c, SUM(convertCurrency(APTS_Opportunity_ARR__c)) s FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-09-30"
+        f"AND CloseDate >= {reporting_scope.start_date} AND CloseDate <= {reporting_scope.end_date} "
+        "AND (ForecastCategoryName = null OR ForecastCategoryName != 'Omitted')"
     )
     open_c, open_arr = int(r.get("c") or 0), float(r.get("s") or 0)
 
@@ -391,7 +448,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c, SUM(convertCurrency(APTS_Opportunity_ARR__c)) s FROM Opportunity "
         f"{common} AND IsClosed=true AND IsWon=true AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-03-31"
+        f"AND CloseDate >= {prior_quarter_scope.start_date} AND CloseDate <= {prior_quarter_scope.end_date}"
     )
     q1w_c, q1w_arr = int(r.get("c") or 0), float(r.get("s") or 0)
 
@@ -399,7 +456,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c FROM Opportunity "
         f"{common} AND IsClosed=true AND IsWon=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-03-31"
+        f"AND CloseDate >= {prior_quarter_scope.start_date} AND CloseDate <= {prior_quarter_scope.end_date}"
     )
     q1l_c = int(r.get("c") or 0)
 
@@ -407,25 +464,25 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c, SUM(convertCurrency(Amount)) s FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Renewal' "
-        "AND CloseDate >= 2026-04-01 AND CloseDate <= 2026-06-30"
+        f"AND CloseDate >= {current_quarter_scope.start_date} AND CloseDate <= {current_quarter_scope.end_date}"
     )
     q2r_c, q2r_acv = int(r.get("c") or 0), float(r.get("s") or 0)
 
-    # 5. Approvals (Land, Q1-Q2 close date, Stage_20 approved this year)
+    # 5. Approvals (Land, reporting-window close date, Stage_20 approved this year)
     r = _agg(
         "SELECT COUNT(Id) c FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-09-30 "
+        f"AND CloseDate >= {reporting_scope.start_date} AND CloseDate <= {reporting_scope.end_date} "
         "AND Stage_20_Approval__c = true "
-        "AND CALENDAR_YEAR(Stage_20_Approval_Date__c) = 2026"
+        f"AND CALENDAR_YEAR(Stage_20_Approval_Date__c) = {approval_year}"
     )
     approved_c = int(r.get("c") or 0)
 
-    # 6. Conditionally approved (Submit_for_Stage_20_Review__c true but no approval)
+    # 6. Approval candidates pending approval (submitted but not approved)
     r = _agg(
         "SELECT COUNT(Id) c FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-09-30 "
+        f"AND CloseDate >= {reporting_scope.start_date} AND CloseDate <= {reporting_scope.end_date} "
         "AND Submit_for_Stage_20_Review__c = true "
         "AND Stage_20_Approval__c = false"
     )
@@ -437,7 +494,7 @@ def sf_metrics(session, instance, director):
     r = _agg(
         "SELECT COUNT(Id) c FROM Opportunity "
         f"{common} AND IsClosed=false AND Type='Land' "
-        "AND CloseDate >= 2026-01-01 AND CloseDate <= 2026-09-30 "
+        f"AND CloseDate >= {reporting_scope.start_date} AND CloseDate <= {reporting_scope.end_date} "
         "AND StageName IN ('3 - Engagement','4 - Shortlisted',"
         "'5 - Preferred','6 - Contracting') "
         "AND Stage_20_Approval__c = false "
@@ -548,6 +605,22 @@ def _render_value(key_label, val):
     return str(val)
 
 
+def _serialize_results(results):
+    rows = []
+    for label, s_val, e_val, rg_val, d_val, status in results:
+        rows.append(
+            {
+                "metric": label,
+                "salesforce": s_val,
+                "extract": e_val,
+                "regional": rg_val,
+                "deck": d_val,
+                "status": status,
+            }
+        )
+    return rows
+
+
 def write_tieout_note(run_date, all_results):
     period = run_date[:7]
     out_dir = VAULT / "Monthly" / period
@@ -616,16 +689,95 @@ def write_tieout_note(run_date, all_results):
     return path, total_mismatches
 
 
+def write_tieout_artifacts(run_date, all_results, failures=None):
+    failures = list(failures or [])
+    output_dir = OUTPUT_ROOT / run_date[:10]
+    output_dir.mkdir(parents=True, exist_ok=True)
+    total_checks = sum(len(r["results"]) for r in all_results)
+    total_mismatches = sum(
+        sum(1 for row in r["results"] if row[5] != "match") for r in all_results
+    )
+    directors = []
+    for record in all_results:
+        mismatch_count = sum(1 for row in record["results"] if row[5] != "match")
+        directors.append(
+            {
+                "director": record["director"],
+                "territory": record["territory"],
+                "slug": record["slug"],
+                "mismatch_count": mismatch_count,
+                "metrics": _serialize_results(record["results"]),
+            }
+        )
+    payload = {
+        "run_date": run_date[:10],
+        "status": "failed" if failures or total_mismatches else "ok",
+        "checks": total_checks,
+        "mismatches": total_mismatches,
+        "directors_audited": len(all_results),
+        "directors_with_mismatches": sum(
+            1 for item in directors if int(item["mismatch_count"]) > 0
+        ),
+        "failures": failures,
+        "directors": directors,
+        "note_path": str((VAULT / "Monthly" / run_date[:7] / "tie-out.md").relative_to(ROOT)),
+    }
+    (output_dir / "tie_out_audit.json").write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    lines = [
+        f"# Tie-Out Audit — {run_date[:10]}",
+        "",
+        f"- Status: `{payload['status']}`",
+        f"- Directors audited: `{payload['directors_audited']}`",
+        f"- Checks: `{payload['checks']}`",
+        f"- Mismatches: `{payload['mismatches']}`",
+        f"- Directors with mismatches: `{payload['directors_with_mismatches']}`",
+        "",
+        "## Directors",
+        "",
+    ]
+    if not directors:
+        lines.append("- none")
+    else:
+        for item in directors:
+            status = "clean" if item["mismatch_count"] == 0 else f"{item['mismatch_count']} mismatch(es)"
+            lines.append(f"- `{item['slug']}`: `{status}`")
+    lines.extend(["", "## Failures", ""])
+    if not failures:
+        lines.append("- none")
+    else:
+        for item in failures:
+            lines.append(
+                f"- `{item.get('issue', 'unknown')}` {item.get('message', '')}".strip()
+            )
+    (output_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"  wrote {output_dir.relative_to(ROOT)}")
+    return output_dir, total_mismatches
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"))
     args = parser.parse_args()
+    scopes = resolve_runtime_scopes(args.date)
 
     wb_root = ROOT / "output" / "director_live_workbooks" / args.date
     deck_root = ROOT / "output" / "simcorp_director_decks" / args.date / "land-only"
     regional_root = ROOT / "output" / "sharepoint"
     if not wb_root.exists() or not deck_root.exists():
         print(f"  sources missing, expected {wb_root} and {deck_root}")
+        write_tieout_artifacts(
+            args.date,
+            [],
+            failures=[
+                {
+                    "issue": "required_sources_missing",
+                    "message": f"expected {wb_root} and {deck_root}",
+                }
+            ],
+        )
         return 1
 
     token, instance = sf_auth()
@@ -640,7 +792,7 @@ def main():
         if not wb_path.exists() or not deck_path.exists():
             print(f"  skip {director}: sources missing")
             continue
-        excel = excel_metrics(wb_path)
+        excel = excel_metrics(wb_path, scopes=scopes)
         deck = deck_metrics(deck_path)
 
         regional = None
@@ -649,14 +801,14 @@ def main():
             regional_path = regional_root / f"FY26 Pipeline Review, {reg_terr}.xlsx"
             if regional_path.exists():
                 try:
-                    regional = regional_metrics(regional_path)
+                    regional = regional_metrics(regional_path, scopes=scopes)
                 except Exception as exc:
                     print(f"  {director}: regional read failed ({exc})")
             else:
                 print(f"  {director}: regional workbook missing at {regional_path}")
 
         try:
-            sf = sf_metrics(session, instance, director)
+            sf = sf_metrics(session, instance, director, scopes=scopes)
         except Exception as exc:
             print(f"  {director}: SF query failed ({exc}); skipping SF side")
             sf = {k: None for k in excel}
@@ -674,6 +826,7 @@ def main():
         )
 
     path, mism = write_tieout_note(args.date, all_results)
+    write_tieout_artifacts(args.date, all_results)
     print(f"\nTotal mismatches: {mism}")
     print(f"Tie-out note: {path.relative_to(ROOT)}")
     return 0 if mism == 0 else 1

@@ -20,13 +20,40 @@ import argparse
 import re
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from openpyxl import load_workbook
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
+
+try:
+    from monthly_platform.historical_trending import (
+        resolve_historical_trending_contract,
+    )
+    from monthly_platform.policy import (
+        is_active_forecast_category,
+        is_approved_2026_status,
+        is_missing_stage3_status,
+        is_pending_approval_status,
+        make_reporting_scope,
+        summarize_approval_rows,
+    )
+    from monthly_platform.period import resolve_period_context
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts.monthly_platform.historical_trending import (
+        resolve_historical_trending_contract,
+    )
+    from scripts.monthly_platform.policy import (
+        is_active_forecast_category,
+        is_approved_2026_status,
+        is_missing_stage3_status,
+        is_pending_approval_status,
+        make_reporting_scope,
+        summarize_approval_rows,
+    )
+    from scripts.monthly_platform.period import resolve_period_context
 
 # ── Fiscal quarter calendar (derived from run date at CLI parse time) ──
 _MONTH_LABELS = {
@@ -45,62 +72,84 @@ _MONTH_LABELS = {
 }
 
 
-def _compute_quarters(run_date: datetime):
-    """Derive fiscal quarter boundaries from the run date.
-
-    Returns a dict with prior/current/forward quarter boundaries
-    and the FY scope (prior Q start through forward Q end).
-    """
-    y = run_date.year
-    m = run_date.month
-    cur_q = (m - 1) // 3 + 1
-
-    def _qbounds(year, q):
-        start_m = (q - 1) * 3 + 1
-        end_m = q * 3
-        start = f"{year}-{start_m:02d}-01"
-        if end_m == 12:
-            end = f"{year}-12-31"
-        else:
-            end = f"{year}-{end_m + 1:02d}-01"
-            from datetime import date as _d
-
-            end = str(_d.fromisoformat(end) - timedelta(days=1))
-        month_start = f"{year}-{start_m:02d}"
-        month_end = f"{year}-{end_m:02d}"
-        label = f"{_MONTH_LABELS[start_m]}-{_MONTH_LABELS[end_m]}"
-        return {
-            "q": q,
-            "label": f"Q{q}",
-            "start": start,
-            "end": end,
-            "month_start": month_start,
-            "month_end": month_end,
-            "range_label": label,
-            "year": year,
-        }
-
-    prior = _qbounds(y, cur_q - 1) if cur_q > 1 else _qbounds(y - 1, 4)
-    current = _qbounds(y, cur_q)
-    forward = _qbounds(y, cur_q + 1) if cur_q < 4 else _qbounds(y + 1, 1)
-
-    fy_start = f"{y}-01-01"
-    fy_end = f"{y}-12-31"
-    scope_end = forward["end"]
-
+def _quarter_dict(window):
     return {
-        "fy": y,
-        "fy_start": fy_start,
-        "fy_end": fy_end,
-        "prior": prior,
-        "current": current,
-        "forward": forward,
-        "scope_start": fy_start,
-        "scope_end": scope_end,
+        "q": window.quarter,
+        "label": window.label,
+        "start": window.start_date,
+        "end": window.end_date,
+        "month_start": window.month_start,
+        "month_end": window.month_end,
+        "range_label": window.range_label,
+        "year": window.year,
     }
 
 
-FQ = _compute_quarters(datetime.now())
+def _quarter_state_from_period(report_date: str | date | datetime | None):
+    token = str(report_date or datetime.now().date())[:10]
+    period = resolve_period_context(
+        as_of_date=token,
+        snapshot_date=token,
+        deck_date=token,
+    )
+    return {
+        "fy": period.current_quarter.year,
+        "fy_start": f"{period.current_quarter.year}-01-01",
+        "fy_end": f"{period.current_quarter.year}-12-31",
+        "prior": _quarter_dict(period.prior_quarter),
+        "current": _quarter_dict(period.current_quarter),
+        "forward": _quarter_dict(period.forward_quarter),
+        "scope_start": period.reporting_window_start,
+        "scope_end": period.reporting_window_end,
+        "run_date": period.as_of_date,
+    }
+
+
+def _infer_report_date_from_workbook_path(workbook_path: Path | None) -> str | None:
+    if workbook_path is None:
+        return None
+    path = Path(workbook_path).resolve()
+    for candidate in path.parents:
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", candidate.name):
+            return candidate.name
+    return None
+
+
+def _resolve_runtime_period_context(
+    *,
+    as_of_date: str | None = None,
+    workbook_path: Path | None = None,
+):
+    report_date = str(as_of_date or "").strip()[:10] or _infer_report_date_from_workbook_path(
+        workbook_path
+    )
+    if not report_date:
+        report_date = datetime.now().strftime("%Y-%m-%d")
+    return _quarter_state_from_period(report_date)
+
+
+FQ = _resolve_runtime_period_context()
+
+
+def _historical_trending_contract():
+    return resolve_historical_trending_contract(
+        retrospective_label=str(FQ["prior"]["label"]),
+        retrospective_title=f"{FQ['prior']['label']} {FQ['prior']['year']}",
+        current_label=str(FQ["current"]["label"]),
+        current_title=f"{FQ['current']['label']} {FQ['current']['year']}",
+    )
+
+
+def _runtime_today() -> date:
+    return date.fromisoformat(FQ["run_date"])
+
+
+def _retrospective_quarter_label() -> str:
+    return str(FQ["prior"]["label"])
+
+
+def _retrospective_quarter_title() -> str:
+    return f"{FQ['prior']['label']} {FQ['prior']['year']}"
 
 # ── Constants ──
 DARK = RGBColor(0x1A, 0x1D, 0x31)
@@ -156,6 +205,10 @@ def read_kpis(wb) -> dict[str, str]:
     return kpis
 
 
+def _is_pending_approval_status(status) -> bool:
+    return is_pending_approval_status(status)
+
+
 def read_director_analytics(analytics_path, director_name):
     """Slice the consolidated FY26 Pipeline Review workbook for one director.
 
@@ -163,8 +216,9 @@ def read_director_analytics(analytics_path, director_name):
       risk_deals:  list of dicts from Deal Risk Scoring, filtered to director
       variance:    one row from Forecast Variance (bucket decomposition)
       top_deals:   rows from ARR Concentration where Director matches
-      velocity_q1: {'dates': [...], 'series': [...]} from Pipeline Velocity Q1 block
-      velocity_q2: same for Q2
+      velocity_retrospective: {'dates': [...], 'series': [...]} from the
+        prior-quarter Pipeline Velocity block
+      velocity_current: same for the current-quarter block
 
     Missing tabs or missing director row yield empty values so the deck still
     renders when the analytics workbook is unavailable.
@@ -173,8 +227,8 @@ def read_director_analytics(analytics_path, director_name):
         "risk_deals": [],
         "variance": None,
         "top_deals": [],
-        "velocity_q1": None,
-        "velocity_q2": None,
+        "velocity_retrospective": None,
+        "velocity_current": None,
         "director_total_open_arr": 0.0,
         "slip_owners": [],
     }
@@ -212,10 +266,11 @@ def read_director_analytics(analytics_path, director_name):
 
     # Forecast Variance cells are SUMIFS formulas and have no cached value
     # until Excel/LibreOffice opens the file. Compute directly from the
-    # Q1 Trend Consolidated helper columns instead — same source the
+    # Prior-quarter trend helper columns instead — same source the
     # SUMIFS formulas reference, same answer.
-    if "Q1 Trend Consolidated" in wb.sheetnames:
-        qws = wb["Q1 Trend Consolidated"]
+    contract = _historical_trending_contract()
+    if contract.retrospective_consolidated_sheet in wb.sheetnames:
+        qws = wb[contract.retrospective_consolidated_sheet]
         # Find the director's territory string from the first row for them
         headers = [
             qws.cell(row=2, column=c).value for c in range(1, qws.max_column + 1)
@@ -238,14 +293,14 @@ def read_director_analytics(analytics_path, director_name):
             # Territory Scorecard, which we already read above.
             # Simpler still: accept that read_director_analytics callers pass
             # the director's own territory. Keep Territory-lookup minimal:
-            # scan the Q1 Trend Consolidated rows for this director's
+            # scan the prior-quarter trend rows for this director's
             # Territory by cross-referencing Territory Scorecard (director ->
             # row below). If unresolved, leave variance None.
             terr_for_director = None
             # Need the Territory string. Territory Scorecard is keyed by
             # director name; its Territory is not stored there, so instead
             # we use the Summary tab on the analytics workbook if present,
-            # else infer by checking any row in Q1 Trend whose ownership
+            # else infer by checking any row in the retrospective trend tab whose ownership
             # aligns. Simpler: iterate Forecast Variance again to pull the
             # Territory literal column 2 (string, not formula).
             if "Forecast Variance" in wb.sheetnames:
@@ -365,7 +420,15 @@ def read_director_analytics(analytics_path, director_name):
         while i < len(rows):
             r = rows[i]
             if r and isinstance(r[0], str) and r[0].endswith("ARR by Snapshot (EUR)"):
-                label = "velocity_q1" if "Q1" in r[0] else "velocity_q2"
+                block_title = str(r[0] or "")
+                label = None
+                if block_title.startswith(f"{contract.retrospective_title} "):
+                    label = "velocity_retrospective"
+                elif block_title.startswith(f"{contract.current_title} "):
+                    label = "velocity_current"
+                if label is None:
+                    i += 1
+                    continue
                 dates_row = rows[i + 1] if i + 1 < len(rows) else None
                 dates = [c for c in (dates_row[1:] if dates_row else []) if c]
                 j = i + 2
@@ -695,20 +758,56 @@ def _read_prior_snapshot_from_history(director_name, current_run_date):
     priors = [s for s in snapshots if s.get("run_date", "") < current_run_date]
     if not priors:
         return None
-    # Most recent prior (ledger is already sorted ascending).
-    prior = priors[-1]
-    d = prior.get("directors", {}).get(director_name)
-    if not d:
+
+    retrospective_label = _retrospective_quarter_label()
+    matching_priors = [
+        s
+        for s in priors
+        if (s.get("retrospective_quarter_label") or retrospective_label)
+        == retrospective_label
+    ]
+    for prior in reversed(matching_priors or priors):
+        d = prior.get("directors", {}).get(director_name)
+        if not d:
+            continue
+        return {
+            "period": prior.get("run_date") or prior.get("period") or "",
+            "retrospective_label": str(
+                d.get("retrospective_land_label")
+                or prior.get("retrospective_quarter_label")
+                or retrospective_label
+            ),
+            "retrospective_title": str(
+                d.get("retrospective_land_title")
+                or prior.get("retrospective_quarter_title")
+                or _retrospective_quarter_title()
+            ),
+            "open_deals": d.get("open_land_deals"),
+            "open_unwtd": d.get("open_land_arr_unwtd"),
+            "q1_won_count": d.get(
+                "retrospective_land_won_count",
+                d.get("q1_won_count"),
+            ),
+            "q1_won_arr": d.get(
+                "retrospective_land_won_arr",
+                d.get("q1_won_arr"),
+            ),
+            "approved_2026": d.get("approved_2026"),
+            "missing_approval": d.get("missing_approval"),
+        }
+    return None
+
+
+def _parse_eur_literal(raw):
+    raw = str(raw or "").replace("EUR", "").strip()
+    try:
+        if raw.endswith("M"):
+            return float(raw[:-1]) * 1_000_000
+        if raw.endswith("K"):
+            return float(raw[:-1]) * 1_000
+        return float(raw.replace(",", ""))
+    except ValueError:
         return None
-    return {
-        "period": prior.get("run_date") or prior.get("period") or "",
-        "open_deals": d.get("open_land_deals"),
-        "open_unwtd": d.get("open_land_arr_unwtd"),
-        "q1_won_count": d.get("q1_won_count"),
-        "q1_won_arr": d.get("q1_won_arr"),
-        "approved_2026": d.get("approved_2026"),
-        "missing_approval": d.get("missing_approval"),
-    }
 
 
 def _read_prior_snapshot(director_slug, current_period):
@@ -744,25 +843,29 @@ def _read_prior_snapshot(director_slug, current_period):
             m = re.search(pattern, text)
             if not m:
                 return None
-            raw = m.group(1).strip()
-            raw = raw.replace("EUR", "").strip()
-            try:
-                if raw.endswith("M"):
-                    return float(raw[:-1]) * 1_000_000
-                if raw.endswith("K"):
-                    return float(raw[:-1]) * 1_000
-                return float(raw.replace(",", ""))
-            except ValueError:
-                return None
+            return _parse_eur_literal(m.group(1).strip())
+
+        outcome_match = re.search(
+            r"(?m)^(?:- )?(Q[1-4]) Land outcome: (\d+) wins \((EUR [\d.,KM]+)\), (\d+) losses \((EUR [\d.,KM]+)\)\.?",
+            text,
+        )
 
         return {
             "period": period,
+            "retrospective_label": (
+                outcome_match.group(1) if outcome_match else _retrospective_quarter_label()
+            ),
+            "retrospective_title": _retrospective_quarter_title(),
             "open_deals": _grab_int(r"Open Land pipeline: (\d+) deals"),
             "open_unwtd": _grab_eur(
                 r"Open Land pipeline:.*?(EUR [\d.,KM]+) unweighted"
             ),
-            "q1_won_count": _grab_int(r"Q1 Land outcome: (\d+) wins"),
-            "q1_won_arr": _grab_eur(r"Q1 Land outcome: \d+ wins \((EUR [\d.,KM]+)\)"),
+            "q1_won_count": int(outcome_match.group(2)) if outcome_match else None,
+            "q1_won_arr": (
+                _parse_eur_literal(outcome_match.group(3))
+                if outcome_match
+                else None
+            ),
             "approved_2026": _grab_int(r"(\d+) approved 2026"),
             "missing_approval": _grab_int(r"(\d+) missing Stage 3\+"),
         }
@@ -795,10 +898,12 @@ def slide_month_over_month(
     ]
     cur_q1_won_count = len(cur_q1_won)
     cur_q1_won_arr = sum(_unw(r) for r in cur_q1_won)
-    cur_approved = sum(
-        1 for r in approvals if str(r.get("Status", "")).strip() == "Approved 2026"
+    approval_summary = summarize_approval_rows(approvals)
+    cur_approved = approval_summary["approved_2026"]
+    cur_missing = approval_summary["missing_stage3"]
+    retrospective_label = str(
+        prior.get("retrospective_label") or _retrospective_quarter_label()
     )
-    cur_missing = sum(1 for r in approvals if "Missing" in str(r.get("Status", "")))
 
     def _delta_int(cur, pri):
         if pri is None:
@@ -849,13 +954,13 @@ def slide_month_over_month(
             _delta_arr(cur_open_unwtd, prior["open_unwtd"]),
         ],
         [
-            "Q1 Land wins (count)",
+            f"{retrospective_label} Land wins (count)",
             str(prior["q1_won_count"]) if prior["q1_won_count"] is not None else "-",
             str(cur_q1_won_count),
             _delta_int(cur_q1_won_count, prior["q1_won_count"]),
         ],
         [
-            "Q1 Land wins (ARR)",
+            f"{retrospective_label} Land wins (ARR)",
             _fmt_eur(prior["q1_won_arr"]) if prior["q1_won_arr"] is not None else "-",
             _fmt_eur(cur_q1_won_arr),
             _delta_arr(cur_q1_won_arr, prior["q1_won_arr"]),
@@ -1073,8 +1178,8 @@ def _fetch_quarter_enrichment(
     session,
     instance,
     territory_soql_where,
-    start_date=FQ["current"]["start"],
-    end_date=FQ["current"]["end"],
+    start_date=None,
+    end_date=None,
 ):
     """Pull deal-level enrichment signals from SF for the forward-look slide.
 
@@ -1082,6 +1187,9 @@ def _fetch_quarter_enrichment(
     NextStep age, quote count. These are signals the standard extract doesn't
     capture but that answer "is this deal actually being worked?"
     """
+
+    start_date = start_date or FQ["current"]["start"]
+    end_date = end_date or FQ["current"]["end"]
 
     q2_scope = (
         f"{territory_soql_where} AND IsClosed = false "
@@ -1110,20 +1218,21 @@ def _fetch_quarter_enrichment(
 
         for deal in deals:
             oid = deal.get("Id", "")
-            from datetime import date as _date
 
             close = str(deal.get("CloseDate") or "")[:10]
             last_act = str(deal.get("LastActivityDate") or "")[:10]
             last_mod = str(deal.get("LastModifiedDate") or "")[:10]
             try:
                 days_to_close = (
-                    (_date.fromisoformat(close) - _date.today()).days if close else None
+                    (date.fromisoformat(close) - _runtime_today()).days
+                    if close
+                    else None
                 )
             except ValueError:
                 days_to_close = None
             try:
                 days_since_activity = (
-                    (_date.today() - _date.fromisoformat(last_act)).days
+                    (_runtime_today() - date.fromisoformat(last_act)).days
                     if last_act and last_act != ""
                     else None
                 )
@@ -1191,8 +1300,8 @@ def slide_q2_forward_look(
     territory,
     workbook_path=None,
     q_label="Q2",
-    month_start=FQ["current"]["month_start"],
-    month_end=FQ["current"]["month_end"],
+    month_start=None,
+    month_end=None,
 ):
     """Quarter Forward Look — per-deal readiness grid with enrichment signals.
 
@@ -1201,6 +1310,8 @@ def slide_q2_forward_look(
     Forecast Category History + Stage History from the director workbook
     to surface momentum signals (who upgraded/downgraded commit this month).
     """
+    month_start = month_start or FQ["current"]["month_start"]
+    month_end = month_end or FQ["current"]["month_end"]
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_CONTENT])
 
     q2 = [
@@ -1348,9 +1459,7 @@ def slide_q2_forward_look(
                 "Closed": 4,
             }
             stg_rank = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "8": 8}
-            from datetime import date as _date, timedelta as _td
-
-            cutoff = (_date.today() - _td(days=30)).isoformat()
+            cutoff = (_runtime_today() - timedelta(days=30)).isoformat()
 
             if "Forecast Category History" in _wb.sheetnames:
                 fch = list(_wb["Forecast Category History"].iter_rows(values_only=True))
@@ -1427,11 +1536,14 @@ def slide_quarter_outlook(
     won_lost,
     territory,
     q_label="Q2",
-    month_start=FQ["current"]["month_start"],
-    month_end=FQ["current"]["month_end"],
-    month_range_label=FQ["current"]["range_label"],
+    month_start=None,
+    month_end=None,
+    month_range_label=None,
 ):
     """Quarter Outlook — what's promised, what's delivered so far, what moved."""
+    month_start = month_start or FQ["current"]["month_start"]
+    month_end = month_end or FQ["current"]["month_end"]
+    month_range_label = month_range_label or FQ["current"]["range_label"]
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
 
     qtr = [
@@ -1865,7 +1977,7 @@ def slide_top_deals(prs, pipeline):
             if created:
                 try:
                     age_days = (
-                        datetime.now() - datetime.strptime(created[:10], "%Y-%m-%d")
+                        _runtime_today() - date.fromisoformat(created[:10])
                     ).days
                     age = str(age_days)
                 except ValueError:
@@ -1972,20 +2084,26 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
 
 
 def slide_forecast_variance(prs, variance, territory):
-    """Q1 forecast variance decomposition for this director.
+    """Prior-quarter forecast variance decomposition for this director.
 
-    Explains how the Q1 pipeline moved from initial to final snapshot by
+    Explains how the prior-quarter pipeline moved from initial to final
+    snapshot by
     decomposing the change into Won / Lost / Added / Revised. Should tell
     the director whether pipeline shrinkage is win-driven (good) or
     loss-driven (bad).
     """
+    contract = _historical_trending_contract()
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_CONTENT])
     if not variance:
-        _set_ph(slide, 144, "Q1 Forecast Variance")
+        _set_ph(slide, 144, f"{contract.retrospective_label} Forecast Variance")
         _set_ph(
             slide,
             145,
-            f"No Q1 Historical Trending snapshot available for {territory}.",
+            (
+                "No "
+                f"{contract.retrospective_label} Historical Trending snapshot "
+                f"available for {territory}."
+            ),
         )
         return
 
@@ -1996,26 +2114,26 @@ def slide_forecast_variance(prs, variance, territory):
     _set_ph(
         slide,
         144,
-        f"Q1 Forecast Variance, {_fmt_eur(abs(net))} {direction}",
+        f"{contract.retrospective_label} Forecast Variance, {_fmt_eur(abs(net))} {direction}",
     )
 
     # Decide the narrative: what drove the change?
     won = variance["won"]
     lost = variance["lost"]
     subtitle = (
-        f"Q1 pipeline moved from {_fmt_eur(initial)} to {_fmt_eur(final)} "
+        f"{contract.retrospective_label} pipeline moved from {_fmt_eur(initial)} to {_fmt_eur(final)} "
         f"between the first and last Historical Trending snapshots. "
     )
     closed = won + lost
     if initial > 0 and closed / initial >= 0.8:
         if lost > won:
             subtitle += (
-                f"{closed / initial * 100:.0f}% of Q1 pipeline closed; "
+                f"{closed / initial * 100:.0f}% of {contract.retrospective_label} pipeline closed; "
                 "losses outweighed wins."
             )
         else:
             subtitle += (
-                f"{closed / initial * 100:.0f}% of Q1 pipeline closed; "
+                f"{closed / initial * 100:.0f}% of {contract.retrospective_label} pipeline closed; "
                 "wins outweighed losses."
             )
     elif lost > won * 2 and lost > 0:
@@ -2031,13 +2149,19 @@ def slide_forecast_variance(prs, variance, territory):
 
     rows = [
         ["Bucket", "ARR Impact"],
-        ["Initial Q1 pipeline (open at first snapshot)", _fmt_eur(initial)],
+        [
+            f"Initial {contract.retrospective_label} pipeline (open at first snapshot)",
+            _fmt_eur(initial),
+        ],
         ["Closed Won (ARR removed from pipeline)", "-" + _fmt_eur(won)],
         ["Closed Lost (ARR removed from pipeline)", "-" + _fmt_eur(lost)],
         ["New deals added (after first snapshot)", "+" + _fmt_eur(variance["added"])],
         ["ARR revised up (still-open deals)", "+" + _fmt_eur(variance["up"])],
         ["ARR revised down (still-open deals)", "-" + _fmt_eur(variance["down"])],
-        ["Final Q1 pipeline (still open at last snapshot)", _fmt_eur(final)],
+        [
+            f"Final {contract.retrospective_label} pipeline (still open at last snapshot)",
+            _fmt_eur(final),
+        ],
         ["Net change (Final − Initial)", _fmt_eur(net)],
     ]
     _add_table(
@@ -2397,29 +2521,34 @@ def _compute_director_insights(
     risk_deals,
     variance,
     top_deals,
-    velocity_q1,
+    velocity_retrospective,
     director_total_open_arr=0.0,
 ):
     """Generate 3-5 synthesized findings for this director's deck.
 
     Produces bullets that an exec could read cold and understand the
     territory's pipeline health. Order: velocity, concentration, risk,
-    Q1 outcome, variance driver.
+    prior-quarter outcome, variance driver.
     """
     bullets = []
 
-    if velocity_q1 and velocity_q1.get("series") and len(velocity_q1["series"]) >= 2:
-        series = velocity_q1["series"]
-        dates = velocity_q1.get("dates") or []
+    contract = _historical_trending_contract()
+    if (
+        velocity_retrospective
+        and velocity_retrospective.get("series")
+        and len(velocity_retrospective["series"]) >= 2
+    ):
+        series = velocity_retrospective["series"]
+        dates = velocity_retrospective.get("dates") or []
         v0 = float(series[0] or 0)
         vN = float(series[-1] or 0)
         delta = vN - v0
         if abs(delta) > 100_000 and dates:
             direction = "shrank" if delta < 0 else "grew"
             bullets.append(
-                f"Q1 pipeline {direction} from {_fmt_eur(v0)} on {dates[0]} to "
+                f"{contract.retrospective_label} pipeline {direction} from {_fmt_eur(v0)} on {dates[0]} to "
                 f"{_fmt_eur(vN)} on {dates[-1]} (net {_fmt_eur(delta)}). "
-                "See Q1 Forecast Variance slide."
+                f"See {contract.retrospective_label} Forecast Variance slide."
             )
 
     if top_deals:
@@ -2496,17 +2625,12 @@ def slide_commercial_approvals(prs, approvals, territory):
 
     Slide B (our addition): narrative summary — two columns with headline + body.
     """
-    approved_2026 = [r for r in approvals if r.get("Status") == "Approved 2026"]
+    approved_2026 = [r for r in approvals if is_approved_2026_status(r.get("Status"))]
     approved_prior = [
         r for r in approvals if "prior" in str(r.get("Status", "")).lower()
     ]
-    pending = [
-        r
-        for r in approvals
-        if "Conditionally" in str(r.get("Status", ""))
-        or "Pending" in str(r.get("Status", ""))
-    ]
-    missing = [r for r in approvals if "Missing" in str(r.get("Status", ""))]
+    pending = [r for r in approvals if _is_pending_approval_status(r.get("Status"))]
+    missing = [r for r in approvals if is_missing_stage3_status(r.get("Status"))]
     all_approved = approved_2026 + approved_prior
     candidates = pending + missing
 
@@ -2612,11 +2736,11 @@ def slide_commercial_approvals(prs, approvals, territory):
 
     # ── BOTTOM LEFT: Conditionally Approved Deals ──
     _add_label("Pending Approval", LEFT_X, LABEL_BOTTOM_Y)
-    if approved_2026:
+    if pending:
         # "Approved subject to" column: short phrase (Rebekka: "Receiving RFP",
         # "Go / No go decision"). We pull from Next Step but keep it short.
         cond_rows = [["Opportunity Name", "Deal size (mEUR)", "Approved subject to"]]
-        for r in approved_2026:
+        for r in pending:
             ns = str(r.get("Next Step", "") or "").strip()
             # Keep it short — first clause only, max 40 chars
             short_ns = ns.split(".")[0].split(" - ")[0].split(" – ")[0][:40] or "-"
@@ -2677,13 +2801,8 @@ def slide_commercial_approvals(prs, approvals, territory):
 
 def slide_missing_approval_detail(prs, approvals):
     """Land Stage 3, Missing Commercial Approval detail table. Matches Rebekka slide 8."""
-    missing = [r for r in approvals if "Missing" in str(r.get("Status", ""))]
-    pending = [
-        r
-        for r in approvals
-        if "Conditionally" in str(r.get("Status", ""))
-        or "Pending" in str(r.get("Status", ""))
-    ]
+    missing = [r for r in approvals if is_missing_stage3_status(r.get("Status"))]
+    pending = [r for r in approvals if _is_pending_approval_status(r.get("Status"))]
     action_deals = pending + missing
     if not action_deals:
         return
@@ -2723,8 +2842,8 @@ def slide_missing_approval_detail(prs, approvals):
             ]
         )
     # Highlight Close Date column (index 3): red if overdue, amber if within 30d.
-    today_s = datetime.now().strftime("%Y-%m-%d")
-    soon_s = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+    today_s = _runtime_today().isoformat()
+    soon_s = (_runtime_today() + timedelta(days=30)).isoformat()
 
     def _overdue(v):
         s = str(v)[:10]
@@ -3402,7 +3521,13 @@ def build_deck(
     output_path: Path,
     land_only: bool = False,
     analytics_path: Path | None = None,
+    as_of_date: str | None = None,
 ):
+    global FQ
+    FQ = _resolve_runtime_period_context(
+        as_of_date=as_of_date,
+        workbook_path=workbook_path,
+    )
     wb = load_workbook(str(workbook_path), data_only=True)
 
     director, territory = read_director_info(wb)
@@ -3423,6 +3548,7 @@ def build_deck(
     # that appear in our Land pipeline or Land won/lost sets, so every
     # slide tells the same story.
     if land_only:
+        reporting_scope = make_reporting_scope(FQ["scope_start"], FQ["scope_end"])
 
         def _is_land(r):
             return str(r.get("Type", "")).strip().lower() == "land"
@@ -3431,19 +3557,18 @@ def build_deck(
             return bool(rows) and ("Type" in rows[0])
 
         def _in_scope(r):
-            cd = str(r.get("Close Date", "") or "")[:10]
-            return cd >= FQ["scope_start"] and cd <= FQ["scope_end"]
-
-        def _not_omitted(r):
-            fc = str(r.get("Forecast Category", "")).strip()
-            return fc not in ("Omitted", "")
+            return reporting_scope.contains(r.get("Close Date"))
 
         if _has_type(pipeline):
             pipeline = [r for r in pipeline if _is_land(r)]
         if _has_type(won_lost):
             won_lost = [r for r in won_lost if _is_land(r)]
 
-        pipeline = [r for r in pipeline if _not_omitted(r)]
+        pipeline = [
+            r
+            for r in pipeline
+            if is_active_forecast_category(r.get("Forecast Category"))
+        ]
 
         # Establish the Land universe BEFORE Q1-Q2 scoping so we can still
         # match PI / Q1 movement records that sit in Q3-Q4 by opportunity name.
@@ -3475,10 +3600,7 @@ def build_deck(
             f"renewals={len(renewals)}"
         )
 
-    # Extract snapshot date from Summary A2
-    ws = wb["Summary"]
-    str(ws["A2"].value or "")
-    snapshot_date = datetime.now().strftime("%Y-%m-%d")
+    snapshot_date = FQ["run_date"]
 
     # Build Q1 Promised vs Delivered summary from won/lost data
     won = [r for r in won_lost if "Won" in str(r.get("Stage", ""))]
@@ -3584,7 +3706,7 @@ def build_deck(
         analytics.get("risk_deals", []),
         analytics.get("variance"),
         analytics.get("top_deals", []),
-        analytics.get("velocity_q1"),
+        analytics.get("velocity_retrospective"),
         director_total_open_arr=analytics.get("director_total_open_arr", 0.0),
     )
     n += 1
@@ -3616,7 +3738,9 @@ def build_deck(
     if analytics.get("variance"):
         n += 1
         slide_forecast_variance(prs, analytics["variance"], territory)
-        print(f"  [OK] {n}. Q1 Forecast Variance")
+        print(
+            f"  [OK] {n}. {_historical_trending_contract().retrospective_label} Forecast Variance"
+        )
 
     # 5. Why We Lost
     dashboard_wb = (
@@ -3865,6 +3989,8 @@ def build_deck(
     def _acv_renew(r):
         return float(r.get("ACV Unweighted (EUR)") or r.get("ACV (EUR)") or 0)
 
+    approval_summary = summarize_approval_rows(approvals)
+
     sidecar = {
         "director": director,
         "territory": territory,
@@ -3885,15 +4011,9 @@ def build_deck(
         "q2_renewals_acv": sum(_acv_renew(r) for r in q2_renewals),
         "q3_renewals": len(q3_renewals),
         "q3_renewals_acv": sum(_acv_renew(r) for r in q3_renewals),
-        "approved_2026": sum(
-            1 for r in approvals if str(r.get("Status", "")).strip() == "Approved 2026"
-        ),
-        "conditionally_approved": sum(
-            1 for r in approvals if "Conditionally" in str(r.get("Status", ""))
-        ),
-        "missing_stage3": sum(
-            1 for r in approvals if "Missing" in str(r.get("Status", ""))
-        ),
+        "approved_2026": approval_summary["approved_2026"],
+        "conditionally_approved": approval_summary["conditionally_approved"],
+        "missing_stage3": approval_summary["missing_stage3"],
     }
     sidecar_path = output_path.with_suffix(".json")
     sidecar_path.write_text(_json.dumps(sidecar, indent=2))
@@ -3916,8 +4036,16 @@ def main():
         default=Path("output/sharepoint/FY26 Pipeline Review, All Territories.xlsx"),
         help=(
             "Consolidated analytics workbook. When provided, the deck adds "
-            "Executive Insights, Q1 Forecast Variance, and Deal Risk Scoring "
+            "Executive Insights, prior-quarter Forecast Variance, and Deal Risk Scoring "
             "slides with per-director slices."
+        ),
+    )
+    parser.add_argument(
+        "--date",
+        default=None,
+        help=(
+            "Explicit report date YYYY-MM-DD. Defaults to the workbook folder "
+            "date when present, otherwise today."
         ),
     )
     args = parser.parse_args()
@@ -3941,6 +4069,7 @@ def main():
         output,
         land_only=args.land_only,
         analytics_path=analytics_path,
+        as_of_date=args.date,
     )
 
 

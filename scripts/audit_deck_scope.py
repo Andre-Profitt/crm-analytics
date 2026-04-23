@@ -32,6 +32,7 @@ from pptx import Presentation
 
 ROOT = Path(__file__).resolve().parents[1]
 VAULT = ROOT / "obsidian"
+OUTPUT_ROOT = ROOT / "output" / "deck_scope_audit"
 
 # Keywords that, when present in a slide text, mark it as out-of-deck-scope.
 # These slides discuss global / historical / prior-year data intentionally.
@@ -302,6 +303,43 @@ def write_audit_note(run_date: str, all_results: list[dict]) -> tuple[Path, int]
     return path, total_flags
 
 
+def write_audit_artifacts(run_date: str, all_results: list[dict]) -> tuple[Path, int]:
+    output_dir = OUTPUT_ROOT / run_date[:10]
+    output_dir.mkdir(parents=True, exist_ok=True)
+    total_flags = sum(len(r["flags"]) for r in all_results)
+    payload = {
+        "run_date": run_date[:10],
+        "status": "failed" if total_flags else "ok",
+        "decks_audited": len(all_results),
+        "flag_count": total_flags,
+        "results": all_results,
+    }
+    (output_dir / "deck_scope_audit.json").write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    lines = [
+        f"# Deck Scope Audit — {run_date[:10]}",
+        "",
+        f"- Status: `{payload['status']}`",
+        f"- Decks audited: `{payload['decks_audited']}`",
+        f"- Flags: `{payload['flag_count']}`",
+        "",
+        "## Decks",
+        "",
+    ]
+    if not all_results:
+        lines.append("- none")
+    else:
+        for item in all_results:
+            flag_count = len(item.get("flags") or [])
+            status = "clean" if flag_count == 0 else f"{flag_count} flag(s)"
+            lines.append(f"- `{item['slug']}`: `{status}`")
+    (output_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"  wrote {output_dir.relative_to(ROOT)}")
+    return output_dir, total_flags
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"))
@@ -324,9 +362,18 @@ def main() -> int:
         total_flags += len(flags)
         status = "clean" if not flags else f"{len(flags)} flag(s)"
         print(f"  {director:22s}  {status}")
-        all_results.append({"director": director, "slug": slug, "flags": flags})
+        all_results.append(
+            {
+                "director": director,
+                "slug": slug,
+                "deck_path": str(deck_path.relative_to(ROOT)),
+                "sidecar_path": str(sidecar_path.relative_to(ROOT)),
+                "flags": flags,
+            }
+        )
 
     _path, flag_count = write_audit_note(args.date, all_results)
+    write_audit_artifacts(args.date, all_results)
     print(f"\nTotal scope-drift flags: {flag_count}")
     return 0 if flag_count == 0 else 1
 

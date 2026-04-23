@@ -1,5 +1,5 @@
 """
-Build a consolidated Q1 pipeline review workbook for SharePoint upload.
+Build a consolidated pipeline review workbook for SharePoint upload.
 
 Pulls from the 9 director workbooks and the Salesforce forecast API.
 Output is a single .xlsx formatted for executive review.
@@ -16,6 +16,17 @@ import requests
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+
+try:
+    from monthly_platform.historical_trending import (
+        resolve_historical_trending_contract,
+    )
+    from monthly_platform.period import resolve_period_context
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts.monthly_platform.historical_trending import (
+        resolve_historical_trending_contract,
+    )
+    from scripts.monthly_platform.period import resolve_period_context
 
 DIRECTORS = [
     (
@@ -84,6 +95,111 @@ FTYPE = "0Db7S000000zDaMSAU"  # Opportunity ARR
 # can consult it without threading a parameter through 27 functions.
 SCOPE_LABEL = "All Territories"
 
+
+def _month_span_title(start_date: str, end_date: str) -> str:
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+    return f"{start.strftime('%B')} through {end.strftime('%B %Y')}"
+
+
+def _infer_report_date_from_workbooks_dir(workbooks_dir: Path | None) -> str | None:
+    if workbooks_dir is None:
+        return None
+    path = Path(workbooks_dir).resolve()
+    for candidate in [path, *path.parents]:
+        try:
+            datetime.strptime(candidate.name, "%Y-%m-%d")
+            return candidate.name
+        except ValueError:
+            continue
+    return None
+
+
+def _resolve_runtime_period_context(
+    *,
+    as_of_date: str | None = None,
+    workbooks_dir: Path | None = None,
+) -> dict[str, str | int]:
+    report_date = (
+        str(as_of_date or "").strip()[:10]
+        or _infer_report_date_from_workbooks_dir(workbooks_dir)
+        or datetime.now().strftime("%Y-%m-%d")
+    )
+    period = resolve_period_context(
+        as_of_date=report_date,
+        snapshot_date=report_date,
+        deck_date=report_date,
+    )
+    analysis_year = period.current_quarter.year
+    return {
+        "report_date": report_date,
+        "report_date_display": datetime.fromisoformat(report_date).strftime("%d %B %Y"),
+        "analysis_year": analysis_year,
+        "fy_label": period.fiscal_year,
+        "forecast_year_start": f"{analysis_year}-01-01",
+        "forecast_year_end": f"{analysis_year}-12-31",
+        "q1_label": "Q1",
+        "q1_title": f"Q1 {analysis_year}",
+        "q1_start": f"{analysis_year}-01-01",
+        "q1_end": f"{analysis_year}-03-31",
+        "q2_label": "Q2",
+        "q2_title": f"Q2 {analysis_year}",
+        "prior_quarter_label": period.prior_quarter.label,
+        "prior_quarter_title": period.prior_quarter.title,
+        "prior_quarter_start": period.prior_quarter.start_date,
+        "prior_quarter_end": period.prior_quarter.end_date,
+        "current_quarter_label": period.current_quarter.label,
+        "current_quarter_title": period.current_quarter.title,
+        "current_quarter_fy_title": f"{period.current_quarter.label} {period.fiscal_year}",
+        "current_quarter_start": period.current_quarter.start_date,
+        "current_quarter_end": period.current_quarter.end_date,
+        "current_quarter_month_start": period.current_quarter.month_start,
+        "current_quarter_month_end": period.current_quarter.month_end,
+        "current_quarter_months_title": _month_span_title(
+            period.current_quarter.start_date,
+            period.current_quarter.end_date,
+        ),
+    }
+
+
+RUNTIME_PERIOD = _resolve_runtime_period_context()
+
+
+def _configure_runtime_period(
+    *,
+    as_of_date: str | None = None,
+    workbooks_dir: Path | None = None,
+) -> dict[str, str | int]:
+    global RUNTIME_PERIOD
+    RUNTIME_PERIOD = _resolve_runtime_period_context(
+        as_of_date=as_of_date,
+        workbooks_dir=workbooks_dir,
+    )
+    return RUNTIME_PERIOD
+
+
+def _historical_trending_contract() -> object:
+    return resolve_historical_trending_contract(
+        retrospective_label=str(RUNTIME_PERIOD["prior_quarter_label"]),
+        retrospective_title=str(RUNTIME_PERIOD["prior_quarter_title"]),
+        current_label=str(RUNTIME_PERIOD["current_quarter_label"]),
+        current_title=str(RUNTIME_PERIOD["current_quarter_title"]),
+    )
+
+
+def _is_q1_of_analysis_year(value) -> bool:
+    token = str(value or "")[:10]
+    return bool(token) and RUNTIME_PERIOD["q1_start"] <= token <= RUNTIME_PERIOD["q1_end"]
+
+
+def _is_in_current_quarter(value) -> bool:
+    token = str(value or "")[:10]
+    return bool(token) and (
+        RUNTIME_PERIOD["current_quarter_start"]
+        <= token
+        <= RUNTIME_PERIOD["current_quarter_end"]
+    )
+
 # Canonical territory label used in every output tab. Maps from the raw
 # Salesforce Sales_Region__c / Account_Unit_Group__c value to the short name
 # the directors use.
@@ -148,11 +264,12 @@ def get_sf_auth():
 
 def forecast_page_fy26(session, instance, oid, tid):
     """Return forecast-page buckets for a director territory."""
+    out = {"Commit": 0, "Best Case": 0, "Pipeline": 0, "Closed": 0}
     if not oid or not tid:
-        return {"Commit": 0, "Best Case": 0, "Pipeline": 0, "Closed": 0}
+        return out
     pq = (
-        "SELECT Id FROM Period WHERE StartDate >= 2026-01-01 "
-        "AND StartDate <= 2026-12-31 AND Type='Quarter'"
+        f"SELECT Id FROM Period WHERE StartDate >= {RUNTIME_PERIOD['forecast_year_start']} "
+        f"AND StartDate <= {RUNTIME_PERIOD['forecast_year_end']} AND Type='Quarter'"
     )
     pids = [
         p["Id"]
@@ -160,6 +277,8 @@ def forecast_page_fy26(session, instance, oid, tid):
         .json()
         .get("records", [])
     ]
+    if not pids:
+        return out
     q = (
         "SELECT ForecastCategoryName, SUM(ForecastAmount) s "
         "FROM ForecastingItem "
@@ -178,7 +297,6 @@ def forecast_page_fy26(session, instance, oid, tid):
         f"AND PeriodId IN ('{ids}') "
         "GROUP BY ForecastCategoryName"
     )
-    out = {"Commit": 0, "Best Case": 0, "Pipeline": 0, "Closed": 0}
     r = session.get(f"{instance}/services/data/v66.0/query", params={"q": q}).json()
     for row in r.get("records", []):
         cat = row.get("ForecastCategoryName")
@@ -205,7 +323,7 @@ def _load(path):
 
 def _quarter(s):
     s = str(s or "")
-    if not s.startswith("2026"):
+    if len(s) < 7:
         return None
     try:
         m = int(s[5:7])
@@ -244,9 +362,9 @@ def build_exec_dashboard(wb, data, overdue_rows, kyc_rows):
     """
     ws = wb.create_sheet("Exec Dashboard")
     ws.sheet_view.showGridLines = False
-    ws["A1"] = "FY26 Pipeline Review"
+    ws["A1"] = f"{RUNTIME_PERIOD['fy_label']} Pipeline Review"
     ws["A1"].font = Font(name="Calibri", size=18, bold=True, color=NAVY)
-    ws["A2"] = f"Data as of {datetime.now().strftime('%d %B %Y')}"
+    ws["A2"] = f"Data as of {RUNTIME_PERIOD['report_date_display']}"
     ws["A2"].font = CAPTION_FONT
 
     # Aggregate headline numbers
@@ -396,9 +514,11 @@ def build_exec_dashboard(wb, data, overdue_rows, kyc_rows):
 
 def build_summary_sheet(wb, data):
     ws = wb.create_sheet("Summary")
-    ws["A1"] = f"FY26 Pipeline Review, {SCOPE_LABEL}"
+    ws["A1"] = f"{RUNTIME_PERIOD['fy_label']} Pipeline Review, {SCOPE_LABEL}"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
-    ws["A2"] = f"Data pulled from Salesforce on {datetime.now().strftime('%d %B %Y')}"
+    ws["A2"] = (
+        f"Data pulled from Salesforce on {RUNTIME_PERIOD['report_date_display']}"
+    )
     ws["A2"].font = CAPTION_FONT
     ws["A3"] = (
         "Open pipeline is Land only (matches the forecast page scope). "
@@ -548,10 +668,10 @@ def build_forecast_recon_sheet(wb, data):
 
 def build_q1_slips_sheet(wb, data):
     ws = wb.create_sheet("Q1 Slips, Still Open")
-    ws["A1"] = "Q1 2026 Deals That Slipped and Are Still Open"
+    ws["A1"] = f"{RUNTIME_PERIOD['q1_title']} Deals That Slipped and Are Still Open"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
-        "These deals had a Q1 close date at some point, got pushed, "
+        f"These deals had a {RUNTIME_PERIOD['q1_label']} close date at some point, got pushed, "
         "and are still on the pipeline today. Filter by territory and "
         "by type. Deals already won or lost are excluded so the ARR "
         "reflects current exposure."
@@ -613,10 +733,10 @@ def build_q1_slips_sheet(wb, data):
 
 def build_closed_won_sheet(wb, data):
     ws = wb.create_sheet("Closed Won YTD")
-    ws["A1"] = "Closed Won Deals, FY26 YTD"
+    ws["A1"] = f"Closed Won Deals, {RUNTIME_PERIOD['fy_label']} YTD"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
-        f"Every closed-won opportunity across {SCOPE_LABEL} for FY26. "
+        f"Every closed-won opportunity across {SCOPE_LABEL} for {RUNTIME_PERIOD['fy_label']}. "
         "Renewals are typically zero-ARR by design (like-for-like). "
         "ARR figures are unweighted."
     )
@@ -1104,10 +1224,10 @@ def build_renewals_sheet(wb, data):
     rows.sort(key=lambda x: -(x[-1] or 0))
     _render_list_sheet(
         ws,
-        "Renewals Due This Quarter (Q2 FY26)",
+        f"Renewals Due This Quarter ({RUNTIME_PERIOD['current_quarter_fy_title']})",
         (
-            "Open Type=Renewal opportunities with a close date in April "
-            "through June 2026. Use Probability and Stage to gauge "
+            "Open Type=Renewal opportunities with a close date in "
+            f"{RUNTIME_PERIOD['current_quarter_months_title']}. Use Probability and Stage to gauge "
             "likelihood. ACV is in EUR."
         ),
         [
@@ -1136,7 +1256,7 @@ def build_win_rate_sheet(wb, session, instance):
     ).json()
 
     ws = wb.create_sheet("Win Rate by Stage")
-    ws["A1"] = "Win Rate by Stage, FY26 YTD"
+    ws["A1"] = f"Win Rate by Stage, {RUNTIME_PERIOD['fy_label']} YTD"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
 
     headers = ["Stage", "Deal Count", "Won ARR (EUR)"]
@@ -1278,9 +1398,10 @@ def build_churn_sheet(wb):
 
 
 def build_snapshot_trend_consolidated(wb, period_label, sheet_source, workbooks_dir):
-    """Consolidate Q1 or Q2 Snapshot Trend sheets across all director workbooks.
+    """Consolidate one historical-trending snapshot sheet across all directors.
 
-    `sheet_source` is either 'Q1 Snapshot Trend' or 'Q2 Snapshot Trend'.
+    `sheet_source` is the quarter-specific source tab name, such as
+    `Q2 Snapshot Trend`.
     Writes a single tab with a leading Territory column so managers can
     filter across the whole org.
     """
@@ -1602,12 +1723,12 @@ def build_summary_live(wb, data):
     """Summary tab where every number is a SUMIFS/COUNTIFS formula pointing
     to the detail tabs. Edit the detail row, Summary updates."""
     ws = wb.create_sheet("Summary Live")
-    ws["A1"] = "FY26 Pipeline Review, Live Formulas"
+    ws["A1"] = f"{RUNTIME_PERIOD['fy_label']} Pipeline Review, Live Formulas"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
         f"Every cell below is a SUMIFS/COUNTIFS formula against the "
         f"Land Pipeline Detail and Land WonLost Detail tabs. Updated "
-        f"{datetime.now().strftime('%d %B %Y')}."
+        f"{RUNTIME_PERIOD['report_date_display']}."
     )
     ws["A2"].font = CAPTION_FONT
     ws["A2"].alignment = LEFT
@@ -1653,8 +1774,8 @@ def build_summary_live(wb, data):
                 f"=COUNTIFS(LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
                 f'LandWonLostDetail[Stage],"*Won*",'
-                f'LandWonLostDetail[Close Date],">=2026-01-01",'
-                f'LandWonLostDetail[Close Date],"<=2026-03-31")'
+                f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["q1_start"]}",'
+                f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["q1_end"]}")'
             ),
         ).alignment = CENTER
         ws.cell(
@@ -1665,8 +1786,8 @@ def build_summary_live(wb, data):
                 f"LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
                 f'LandWonLostDetail[Stage],"*Won*",'
-                f'LandWonLostDetail[Close Date],">=2026-01-01",'
-                f'LandWonLostDetail[Close Date],"<=2026-03-31")'
+                f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["q1_start"]}",'
+                f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["q1_end"]}")'
             ),
         )
         ws.cell(
@@ -1676,8 +1797,8 @@ def build_summary_live(wb, data):
                 f"=COUNTIFS(LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
                 f'LandWonLostDetail[Stage],"<>*Won*",'
-                f'LandWonLostDetail[Close Date],">=2026-01-01",'
-                f'LandWonLostDetail[Close Date],"<=2026-03-31")'
+                f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["q1_start"]}",'
+                f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["q1_end"]}")'
             ),
         ).alignment = CENTER
         ws.cell(
@@ -1688,8 +1809,8 @@ def build_summary_live(wb, data):
                 f"LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
                 f'LandWonLostDetail[Stage],"<>*Won*",'
-                f'LandWonLostDetail[Close Date],">=2026-01-01",'
-                f'LandWonLostDetail[Close Date],"<=2026-03-31")'
+                f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["q1_start"]}",'
+                f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["q1_end"]}")'
             ),
         )
         for ci in range(1, len(headers) + 1):
@@ -1950,7 +2071,7 @@ def build_arr_concentration(wb):
 
 
 def build_pipeline_velocity(wb, workbooks_dir):
-    """Time-series of Q1/Q2 ARR at each snapshot date, per director.
+    """Time-series of prior/current quarter ARR at each snapshot date.
 
     Answers: Is pipeline growing or slipping between snapshots? Which territories
     are losing ARR quarter-over-quarter?
@@ -1958,18 +2079,20 @@ def build_pipeline_velocity(wb, workbooks_dir):
     import re
     from openpyxl.chart import LineChart, Reference
 
+    contract = _historical_trending_contract()
     ws = wb.create_sheet("Pipeline Velocity")
     ws["A1"] = "Pipeline Velocity, Historical Trending Snapshots"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
         "Sum of ARR (EUR) at each Historical Trending snapshot date per director. "
         "Rising line = pipeline growing. Falling = slipping or being closed. "
-        "Source: Q1/Q2 Snapshot Trend sheets in per-director workbooks."
+        f"Source: {contract.retrospective_snapshot_sheet} and "
+        f"{contract.current_snapshot_sheet} sheets in per-director workbooks."
     )
     ws["A2"].font = CAPTION_FONT
 
-    per_director_q1 = defaultdict(dict)
-    per_director_q2 = defaultdict(dict)
+    per_director_retrospective = defaultdict(dict)
+    per_director_current = defaultdict(dict)
 
     for director_name, _territory, fname, _oid, _tid in DIRECTORS:
         wb_path = workbooks_dir / fname
@@ -1977,8 +2100,11 @@ def build_pipeline_velocity(wb, workbooks_dir):
             continue
         sub = load_workbook(wb_path, read_only=True, data_only=True)
         for source_sheet, bucket in [
-            ("Q1 Snapshot Trend", per_director_q1),
-            ("Q2 Snapshot Trend", per_director_q2),
+            (
+                contract.retrospective_snapshot_sheet,
+                per_director_retrospective,
+            ),
+            (contract.current_snapshot_sheet, per_director_current),
         ]:
             if source_sheet not in sub.sheetnames:
                 continue
@@ -2004,8 +2130,11 @@ def build_pipeline_velocity(wb, workbooks_dir):
 
     row = 4
     for period, per_director in [
-        ("Q1 2026 (Historical)", per_director_q1),
-        ("Q2 2026 (Current)", per_director_q2),
+        (
+            f"{contract.retrospective_title} (Historical)",
+            per_director_retrospective,
+        ),
+        (f"{contract.current_title} (Current)", per_director_current),
     ]:
         if not per_director:
             continue
@@ -2072,7 +2201,7 @@ def build_pipeline_velocity(wb, workbooks_dir):
     # This gives directors the full-year book at a glance alongside the trend.
     row += 1
     ws.cell(
-        row=row, column=1, value="FY26 Current Open Pipeline, by Quarter"
+        row=row, column=1, value=f"{RUNTIME_PERIOD['fy_label']} Current Open Pipeline, by Quarter"
     ).font = BODY_BOLD
     row += 1
     snap_header_row = row
@@ -2081,7 +2210,7 @@ def build_pipeline_velocity(wb, workbooks_dir):
         "Q2 (Apr-Jun)",
         "Q3 (Jul-Sep)",
         "Q4 (Oct-Dec)",
-        "FY26 Total",
+        f"{RUNTIME_PERIOD['fy_label']} Total",
     ]
     snap_headers = ["Director"] + q_labels
     for ci, h in enumerate(snap_headers, 1):
@@ -2095,7 +2224,7 @@ def build_pipeline_velocity(wb, workbooks_dir):
 
     def _qtr_of(date_str: str) -> int:
         s = str(date_str or "")[:10]
-        if not s.startswith("2026") or len(s) < 7:
+        if len(s) < 7 or not s.startswith(f"{RUNTIME_PERIOD['analysis_year']}"):
             return 0
         try:
             m = int(s[5:7])
@@ -2779,7 +2908,7 @@ def build_deal_risk_scoring(wb, run_date):
 
 
 def build_commit_accuracy(wb):
-    """Q1 commit accuracy per owner, derived from Q1 Trend Consolidated.
+    """Prior-quarter commit accuracy per owner from the trend workbook.
 
     Operational definition (no ForecastingItem history required):
       commit book = deals that sat in Stage 4+ (Shortlisted+) at the first
@@ -2794,7 +2923,8 @@ def build_commit_accuracy(wb):
     """
     from openpyxl.formatting.rule import ColorScaleRule
 
-    src_sheet_name = "Q1 Trend Consolidated"
+    contract = _historical_trending_contract()
+    src_sheet_name = contract.retrospective_consolidated_sheet
     if src_sheet_name not in wb.sheetnames:
         return
 
@@ -2860,11 +2990,12 @@ def build_commit_accuracy(wb):
                 agg["still_open_arr"] += initial_arr
 
     ws = wb.create_sheet("Commit Accuracy")
-    ws["A1"] = "Q1 Commit Accuracy by Owner"
+    ws["A1"] = f"{contract.retrospective_title} Commit Accuracy by Owner"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
         "Owner-level commit integrity. Commit book = deals in Stage 4+ "
-        "(Shortlisted or later) at the first snapshot of Q1. Accuracy = won "
+        f"(Shortlisted or later) at the first snapshot of {contract.retrospective_label}. "
+        "Accuracy = won "
         "ARR / commit book ARR. Low scores signal owners who committed but "
         "didn't deliver. Stage-based proxy until ForecastCategoryName history "
         "is wired into the extract."
@@ -2875,7 +3006,7 @@ def build_commit_accuracy(wb):
     hdrs = [
         "Owner",
         "Territory",
-        "Commit Book (Stage 4+, Q1 Start)",
+        f"Commit Book (Stage 4+, {contract.retrospective_label} Start)",
         "Commit Book ARR",
         "Won ARR",
         "Lost ARR",
@@ -2947,9 +3078,9 @@ def build_commit_accuracy(wb):
 
 
 def build_forecast_variance(wb, workbooks_dir):
-    """Decompose Q1 pipeline change by bucket via SUMIFS formulas.
+    """Decompose prior-quarter pipeline change by bucket via SUMIFS formulas.
 
-    Every numeric cell is a SUMIFS against the Q1 Trend Consolidated tab
+    Every numeric cell is a SUMIFS against the prior-quarter trend tab
     (which carries per-row Initial ARR, Final ARR, Bucket helper columns).
     Click any cell in this tab to see the exact formula and drill into
     the source rows. Totals reconcile to (Final - Initial) because buckets
@@ -2957,11 +3088,13 @@ def build_forecast_variance(wb, workbooks_dir):
     """
     from openpyxl.chart import BarChart, Reference
 
+    contract = _historical_trending_contract()
     ws = wb.create_sheet("Forecast Variance")
-    ws["A1"] = "Forecast Variance, Q1 2026 Decomposition"
+    ws["A1"] = f"Forecast Variance, {contract.retrospective_title} Decomposition"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
-        "Every number below is a SUMIFS against the 'Q1 Trend Consolidated' "
+        f"Every number below is a SUMIFS against the "
+        f"'{contract.retrospective_consolidated_sheet}' "
         "tab. Click a cell to see the formula. The Bucket helper column on "
         "that tab assigns each deal to exactly one of {AlreadyClosed, Won, "
         "Lost, Added, RevisedUp, RevisedDown, Unchanged}, so the buckets are "
@@ -2970,10 +3103,10 @@ def build_forecast_variance(wb, workbooks_dir):
     )
     ws["A2"].font = CAPTION_FONT
 
-    # Find the helper column letters on Q1 Trend Consolidated
-    src_sheet_name = "Q1 Trend Consolidated"
+    # Find the helper column letters on the prior-quarter trend sheet.
+    src_sheet_name = contract.retrospective_consolidated_sheet
     if src_sheet_name not in wb.sheetnames:
-        ws.cell(row=4, column=1, value="Q1 Trend Consolidated missing").font = BODY_BOLD
+        ws.cell(row=4, column=1, value=f"{src_sheet_name} missing").font = BODY_BOLD
         return
     src = wb[src_sheet_name]
     # Header is row 2 on that tab
@@ -2987,7 +3120,7 @@ def build_forecast_variance(wb, workbooks_dir):
             ws.cell(
                 row=4,
                 column=1,
-                value=f"Missing helper column '{needed}' on Q1 Trend Consolidated.",
+                value=f"Missing helper column '{needed}' on {src_sheet_name}.",
             )
             return
     terr_col = col_map["Territory"]
@@ -3029,7 +3162,7 @@ def build_forecast_variance(wb, workbooks_dir):
 
     # DIRECTORS entries are (director_name, territory, fname, oid, tid)
     # where territory in the tuple matches the Territory column value on
-    # Q1 Trend Consolidated (APAC, Central Europe, etc.).
+    # the prior-quarter consolidated trend tab.
     for director_name, territory, _fname, *_ in DIRECTORS:
         terr_literal = territory
         ws.cell(row=row, column=1, value=director_name).alignment = LEFT
@@ -3127,7 +3260,9 @@ def build_forecast_variance(wb, workbooks_dir):
     chart = BarChart()
     chart.type = "col"
     chart.style = 11
-    chart.title = "Q1 Pipeline Variance, Bucket Breakdown"
+    chart.title = (
+        f"{contract.retrospective_label} Pipeline Variance, Bucket Breakdown"
+    )
     chart.y_axis.title = "EUR"
     chart.x_axis.title = "Bucket"
     data_ref = Reference(
@@ -3152,7 +3287,7 @@ def build_forecast_variance(wb, workbooks_dir):
         column=1,
         value=(
             "Audit: click any cell to see the SUMIFS formula. Filter the "
-            "Q1 Trend Consolidated tab by 'Bucket' to see the raw deals that "
+            f"{src_sheet_name} tab by 'Bucket' to see the raw deals that "
             "contribute to a bucket."
         ),
     ).font = CAPTION_FONT
@@ -3216,7 +3351,8 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
     top5_sum / total_open_unwtd if total_open_unwtd else 0
     top20_sum / total_open_unwtd if total_open_unwtd else 0
 
-    # Pipeline velocity: read Q1 totals from the Pipeline Velocity tab already built.
+    # Pipeline velocity: read prior-quarter totals from the already-built tab.
+    contract = _historical_trending_contract()
     q1_initial = q1_final = 0.0
     if "Pipeline Velocity" in wb.sheetnames:
         vws = wb["Pipeline Velocity"]
@@ -3226,7 +3362,7 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
             if (
                 r
                 and isinstance(r[0], str)
-                and r[0].startswith("Q1 2026")
+                and r[0].startswith(contract.retrospective_title)
                 and "ARR by Snapshot" in r[0]
             ):
                 block_header_idx = i
@@ -3423,7 +3559,7 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
     if variance_total_row:
         _write_row(
             num,
-            "Q1 pipeline net change, Final minus Initial (bucket-decomposed, "
+            f"{_historical_trending_contract().retrospective_label} pipeline net change, Final minus Initial (bucket-decomposed, "
             "not just a snapshot delta).",
             f"='Forecast Variance'!E{variance_total_row}",
             "Positive = pipeline grew; negative = shrank. Sum of Won/Lost/"
@@ -3504,7 +3640,7 @@ def build_executive_insights(wb, overdue_rows, kyc_rows, run_date):
             "Count of Q1 deals that slipped out of Q1 and are still open.",
             "=COUNTA('Q1 Slips, Still Open'!A:A)-4",
             "Subtracts the 4 header rows on that tab. Each row is an "
-            "opportunity that had a Q1 2026 close date at some point and "
+            f"opportunity that had a {RUNTIME_PERIOD['q1_title']} close date at some point and "
             "has not yet been Won or Lost.",
             _hyperlink("Q1 Slips, Still Open", "A1", "Q1 Slips, Still Open"),
         )
@@ -4803,8 +4939,8 @@ def build_charts_sheet(wb):
                 f"LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
                 f'LandWonLostDetail[Stage],"*Won*",'
-                f'LandWonLostDetail[Close Date],">=2026-01-01",'
-                f'LandWonLostDetail[Close Date],"<=2026-03-31")'
+                f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["q1_start"]}",'
+                f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["q1_end"]}")'
             ),
         )
         ws.cell(
@@ -4815,8 +4951,8 @@ def build_charts_sheet(wb):
                 f"LandWonLostDetail[Director],A{r},"
                 f'LandWonLostDetail[Type],"Land",'
                 f'LandWonLostDetail[Stage],"<>*Won*",'
-                f'LandWonLostDetail[Close Date],">=2026-01-01",'
-                f'LandWonLostDetail[Close Date],"<=2026-03-31")'
+                f'LandWonLostDetail[Close Date],">={RUNTIME_PERIOD["q1_start"]}",'
+                f'LandWonLostDetail[Close Date],"<={RUNTIME_PERIOD["q1_end"]}")'
             ),
         )
         for ci in (2, 3):
@@ -4868,30 +5004,37 @@ def build_source_map_sheet(wb):
         (
             "Executive Summary",
             "Open pipeline, won/lost, commit, pushed deals",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Summary",
             "Row for the director",
         ),
         (
             "Q1 Promised vs Delivered",
             "Q1 plan vs Q1 closed, top 5 wins and losses",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Closed Won YTD",
             "Filter Territory; use Q1 Slips Still Open for what slipped",
         ),
         (
-            "Q1 Forecast Variance",
-            "Q1 pipeline decomposition: Won / Lost / Added / Revised with net delta",
-            "FY26 Pipeline Review",
+            f"{_historical_trending_contract().retrospective_label} Forecast Variance",
+            (
+                f"{_historical_trending_contract().retrospective_label} pipeline "
+                "decomposition: Won / Lost / Added / Revised with net delta"
+            ),
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Forecast Variance",
-            "SUMIFS against Q1 Trend Consolidated Bucket helper; TOTAL row reconciles",
+            (
+                "SUMIFS against "
+                f"{_historical_trending_contract().retrospective_consolidated_sheet} "
+                "Bucket helper; TOTAL row reconciles"
+            ),
         ),
         (
-            "Q2 Outlook",
-            "Q2 book, commit, best case, closed so far",
+            f"{RUNTIME_PERIOD['current_quarter_label']} Outlook",
+            f"{RUNTIME_PERIOD['current_quarter_label']} book, commit, best case, closed so far",
             "Dashboard and Q1 Analysis",
             "Pipeline Overview by Stage",
-            "Filter Close Date to Q2 2026",
+            f"Filter Close Date to {RUNTIME_PERIOD['current_quarter_title']}",
         ),
         (
             "Pipeline Overview by Stage",
@@ -4908,11 +5051,11 @@ def build_source_map_sheet(wb):
             "Sort ARR Unwtd descending",
         ),
         (
-            "Top Q2 Deals at Risk",
-            "Open Land deals with highest composite risk score, Q2 close",
-            "FY26 Pipeline Review",
+            f"Top {RUNTIME_PERIOD['current_quarter_label']} Deals at Risk",
+            f"Open Land deals with highest composite risk score, {RUNTIME_PERIOD['current_quarter_label']} close",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Deal Risk Scoring",
-            "Filter Director; filter Close Date to Q2 2026; Proof column shows each rule",
+            f"Filter Director; filter Close Date to {RUNTIME_PERIOD['current_quarter_title']}; Proof column shows each rule",
         ),
         (
             "Pushed Deals and PI",
@@ -4924,7 +5067,7 @@ def build_source_map_sheet(wb):
         (
             "Q1 Movement",
             "Q1 slipped deals with old and new close dates",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Q1 Slips, Still Open",
             "Filter Territory; Root Cause column is for director input",
         ),
@@ -4938,42 +5081,42 @@ def build_source_map_sheet(wb):
         (
             "Commercial Approvals",
             "YTD actuals, FY targets, conditionally approved, candidates",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Approvals, 2026 + Approval Candidates",
             "Filter Territory; FY view includes prior year approvals",
         ),
         (
             "Missing Approval (Land Stage 3+)",
             "Land deals in Stage 3+ with no commercial approval",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Land Stage 3+, No Approval",
             "Filter Territory",
         ),
         (
             "Renewals",
-            "Renewals due in Q2 with ACV and probability",
-            "FY26 Pipeline Review",
+            f"Renewals due in {RUNTIME_PERIOD['current_quarter_label']} with ACV and probability",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Renewals This Quarter",
-            "Already scoped to Q2 2026",
+            f"Already scoped to {RUNTIME_PERIOD['current_quarter_title']}",
         ),
         (
             "Churn Risk",
             "Placeholder; awaiting Finance feed from Alex P",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Churn Risk",
             "No data yet; shows the data-ownership note",
         ),
         (
             "Forecast Page Reconciliation",
             "Deck Land book vs SF forecast page numbers",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Forecast Reconciliation",
             "Filter Territory",
         ),
         (
             "Data quality, hygiene",
             "Overdue opps, KYC missing, loss reasons",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Overdue Open Opps + KYC Missing",
             "Both tabs have summary blocks grouped by owner or account",
         ),
@@ -4994,42 +5137,42 @@ def build_source_map_sheet(wb):
         (
             "Win Rate",
             "Win rate by deal count and by ARR, by stage",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Win Rate by Stage",
             "Direct pull from the SD Win Rate by Stage report",
         ),
         (
             "Days in Stage",
             "Average and max days open deals sit in each stage",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Days in Stage",
             "Direct pull from the SD Days in Stage report",
         ),
         (
             "Headline summary",
             "Nine KPI cards plus per-director roll-up",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Exec Dashboard",
             "First tab of the workbook",
         ),
         (
             "Open Land pipeline, raw rows",
             f"Every open Land deal in {SCOPE_LABEL}",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Land Pipeline Detail",
             "Named Excel Table, ready for Insert > PivotTable",
         ),
         (
             "Land won or lost, raw rows",
             f"Every Land closed deal in {SCOPE_LABEL}",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Land WonLost Detail",
             "Named Excel Table, ready for Insert > PivotTable",
         ),
         (
             "Native charts",
             "Open ARR by director plus Q1 Won vs Lost by director",
-            "FY26 Pipeline Review",
+            f"{RUNTIME_PERIOD['fy_label']} Pipeline Review",
             "Charts",
             "Both driven by SUMIFS against the detail tables",
         ),
@@ -5058,7 +5201,7 @@ def build_notes_sheet(wb):
     ws["A1"] = "Methodology"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True, color=NAVY)
     ws["A2"] = (
-        f"Data refreshed {datetime.now().strftime('%d %B %Y')} "
+        f"Data refreshed {RUNTIME_PERIOD['report_date_display']} "
         "from Salesforce. Scope is the nine MD-1 sales director "
         "territories."
     )
@@ -5137,7 +5280,7 @@ def build_notes_sheet(wb):
         (
             "Q1 slips, still open",
             (
-                "Deals that had a Q1 2026 close date at any point in "
+                f"Deals that had a {RUNTIME_PERIOD['q1_title']} close date at any point in "
                 "OpportunityFieldHistory, have since been pushed to a "
                 "later date, and are still open. Deals that closed "
                 "won or lost after slipping are excluded so the ARR "
@@ -5246,7 +5389,9 @@ def build_notes_sheet(wb):
         (
             "Forecast Variance, bucket classification",
             (
-                "On the Q1 Trend Consolidated tab each row is tagged "
+                "On the "
+                f"{_historical_trending_contract().retrospective_consolidated_sheet} "
+                "tab each row is tagged "
                 "with a Bucket (helper column at the end). Rules: "
                 "AlreadyClosed if the initial snapshot stage was Won, "
                 "Lost or No Opportunity. Won if the final stage is Won "
@@ -5354,10 +5499,10 @@ def gather_director_data(wb_path, oid, tid, session, instance):
             all_won_any.append(rec)
             if is_land:
                 all_won_land.append(rec)
-                if _quarter(rec["close_date"]) == "Q1":
+                if _is_q1_of_analysis_year(rec["close_date"]):
                     q1_won_deals.append(rec)
         else:
-            if is_land and _quarter(str(r.get("Close Date", ""))) == "Q1":
+            if is_land and _is_q1_of_analysis_year(str(r.get("Close Date", ""))):
                 q1_lost_deals.append(
                     {
                         "arr_unwtd": float(r.get("ARR Unweighted (EUR)") or 0),
@@ -5421,12 +5566,12 @@ def gather_director_data(wb_path, oid, tid, session, instance):
         _approval_row(r) for r in approvals if "Missing" in str(r.get("Status", ""))
     ]
 
-    # Renewals due this quarter (Q2 FY26: April, May, June 2026)
+    # Renewals due this quarter, pinned to the explicit report-date quarter.
     renewals_all = sheets.get("Renewals FY26", [])
     renewals_q2 = []
     for r in renewals_all:
         cd = str(r.get("Close Date", "") or "")[:10]
-        if not ("2026-04" <= cd[:7] <= "2026-06"):
+        if not _is_in_current_quarter(cd):
             continue
         renewals_q2.append(
             {
@@ -5572,6 +5717,14 @@ def main():
         / datetime.now().strftime("%Y-%m-%d"),
     )
     parser.add_argument(
+        "--date",
+        default=None,
+        help=(
+            "Explicit report date YYYY-MM-DD. Defaults to the workbooks-dir "
+            "folder date when present, otherwise today."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -5586,6 +5739,10 @@ def main():
         ),
     )
     args = parser.parse_args()
+    _configure_runtime_period(
+        as_of_date=args.date,
+        workbooks_dir=args.workbooks_dir,
+    )
 
     # Filter DIRECTORS to the requested territory. In-place so downstream
     # module globals (data_store) only see the scoped set.
@@ -5683,15 +5840,26 @@ def main():
     build_churn_sheet(wb)
     build_land_detail_sheet(wb)
     build_land_won_lost_detail_sheet(wb)
-    build_snapshot_trend_consolidated(wb, "Q1", "Q1 Snapshot Trend", args.workbooks_dir)
-    build_snapshot_trend_consolidated(wb, "Q2", "Q2 Snapshot Trend", args.workbooks_dir)
+    contract = _historical_trending_contract()
+    build_snapshot_trend_consolidated(
+        wb,
+        contract.retrospective_label,
+        contract.retrospective_snapshot_sheet,
+        args.workbooks_dir,
+    )
+    build_snapshot_trend_consolidated(
+        wb,
+        contract.current_label,
+        contract.current_snapshot_sheet,
+        args.workbooks_dir,
+    )
     build_pipeline_pivot(wb)
     build_arr_concentration(wb)
     build_pipeline_velocity(wb, args.workbooks_dir)
     build_slip_risk(wb)
     build_territory_scorecard(wb, overdue_rows, kyc_rows)
     build_parameters_sheet(wb)
-    build_deal_risk_scoring(wb, datetime.now().strftime("%Y-%m-%d"))
+    build_deal_risk_scoring(wb, str(RUNTIME_PERIOD["report_date"]))
     build_forecast_variance(wb, args.workbooks_dir)
     build_commit_accuracy(wb)
     # Advanced analytics tabs (audit-driven additions)
@@ -5706,7 +5874,7 @@ def main():
     build_days_in_stage_by_director(wb)
     build_win_rate_trend(wb)
     build_executive_insights(
-        wb, overdue_rows, kyc_rows, datetime.now().strftime("%Y-%m-%d")
+        wb, overdue_rows, kyc_rows, str(RUNTIME_PERIOD["report_date"])
     )
     build_charts_sheet(wb)
     build_source_map_sheet(wb)
