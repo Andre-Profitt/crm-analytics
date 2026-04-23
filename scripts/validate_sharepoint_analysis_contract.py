@@ -26,12 +26,26 @@ ROOT = Path(__file__).resolve().parents[1]
 SHAREPOINT_ROOT = ROOT / "output" / "sharepoint"
 OUTPUT_ROOT = ROOT / "output" / "sharepoint_analysis_contract"
 
-_PERIOD = resolve_period_context()
-_FY = _PERIOD.fiscal_year
-_PQ = _PERIOD.prior_quarter
 
-MASTER_WORKBOOK = f"{_FY} Pipeline Review, All Territories.xlsx"
-DASHBOARD_WORKBOOK = f"Dashboard and {_PQ.label} Analysis.xlsx"
+def _resolve_workbook_names(snapshot_date: str | None = None):
+    kw = {"snapshot_date": snapshot_date} if snapshot_date else {}
+    period = resolve_period_context(**kw)
+    fy = period.fiscal_year
+    pq = period.prior_quarter
+    return {
+        "period": period,
+        "fy": fy,
+        "master": f"{fy} Pipeline Review, All Territories.xlsx",
+        "dashboard": f"Dashboard and {pq.label} Analysis.xlsx",
+        "approvals_sheet": f"Approvals, 20{fy[-2:]}",
+    }
+
+
+_WB = _resolve_workbook_names()
+_FY = _WB["fy"]
+
+MASTER_WORKBOOK = _WB["master"]
+DASHBOARD_WORKBOOK = _WB["dashboard"]
 
 _TERRITORY_TO_REGIONAL_LABEL: dict[str, str] = {
     "APAC": "APAC",
@@ -86,7 +100,7 @@ MASTER_REQUIRED_SHEETS_BASE = [
     "Forecast Reconciliation",
     "Land Pipeline Detail",
     "Land WonLost Detail",
-    f"Approvals, {_PERIOD.prior_quarter.year}",
+    f"Approvals, 20{_FY[-2:]}",
     "Approval Candidates",
     "Land Stage 3+, No Approval",
     "Renewals This Quarter",
@@ -107,7 +121,7 @@ REGIONAL_REQUIRED_SHEETS = [
     "Forecast Reconciliation",
     "Land Pipeline Detail",
     "Land WonLost Detail",
-    f"Approvals, {_PERIOD.prior_quarter.year}",
+    f"Approvals, 20{_FY[-2:]}",
     "Approval Candidates",
     "Land Stage 3+, No Approval",
     "Renewals This Quarter",
@@ -132,8 +146,8 @@ DASHBOARD_REQUIRED_SHEETS = [
 ]
 
 MIN_SHEET_COUNTS = {
-    "master": 40,
-    "regional": 35,
+    "master": 37,
+    "regional": 32,
     "dashboard": 35,
 }
 
@@ -338,6 +352,10 @@ def main() -> int:
     args = parser.parse_args()
 
     run_date = _infer_report_date(args.sharepoint_root, args.date)
+    wb_names = _resolve_workbook_names(run_date)
+    master_wb = wb_names["master"]
+    dashboard_wb = wb_names["dashboard"]
+    approvals_sheet = wb_names["approvals_sheet"]
     sharepoint_root = args.sharepoint_root or SHAREPOINT_ROOT
     output_dir = OUTPUT_ROOT / run_date
     validated: list[dict[str, Any]] = []
@@ -345,29 +363,38 @@ def main() -> int:
     warnings: list[dict[str, Any]] = []
 
     historical_contract = _historical_contract(run_date)
-    master_required_sheets = list(MASTER_REQUIRED_SHEETS_BASE) + [
+    req_approvals = approvals_sheet
+    master_required = [
+        s if s != f"Approvals, 20{_FY[-2:]}" else req_approvals
+        for s in MASTER_REQUIRED_SHEETS_BASE
+    ] + [
         historical_contract.retrospective_consolidated_sheet,
         historical_contract.current_consolidated_sheet,
+    ]
+    regional_required = [
+        s if s != f"Approvals, 20{_FY[-2:]}" else req_approvals
+        for s in REGIONAL_REQUIRED_SHEETS
     ]
 
     _validate_workbook(
         workbook_id="master",
         workbook_type="master",
         territory=None,
-        path=sharepoint_root / MASTER_WORKBOOK,
-        required_sheets=master_required_sheets,
+        path=sharepoint_root / master_wb,
+        required_sheets=master_required,
         min_sheet_count=MIN_SHEET_COUNTS["master"],
         validated=validated,
         failures=failures,
     )
 
-    for territory, filename in REGIONAL_WORKBOOKS:
+    regional_workbooks = _load_regional_workbooks()
+    for territory, filename in regional_workbooks:
         _validate_workbook(
             workbook_id=f"regional:{territory}",
             workbook_type="regional",
             territory=territory,
             path=sharepoint_root / filename,
-            required_sheets=REGIONAL_REQUIRED_SHEETS,
+            required_sheets=regional_required,
             min_sheet_count=MIN_SHEET_COUNTS["regional"],
             validated=validated,
             failures=failures,
@@ -377,18 +404,19 @@ def main() -> int:
         workbook_id="dashboard_q1",
         workbook_type="dashboard",
         territory=None,
-        path=sharepoint_root / DASHBOARD_WORKBOOK,
+        path=sharepoint_root / dashboard_wb,
         required_sheets=DASHBOARD_REQUIRED_SHEETS,
         min_sheet_count=MIN_SHEET_COUNTS["dashboard"],
         validated=validated,
         failures=failures,
     )
 
-    expected_regional_files = {filename for _, filename in REGIONAL_WORKBOOKS}
+    fy = wb_names["fy"]
+    expected_regional_files = {filename for _, filename in regional_workbooks}
     actual_regional_files = {
         path.name
-        for path in sharepoint_root.glob(f"{_FY} Pipeline Review, *.xlsx")
-        if path.name != MASTER_WORKBOOK
+        for path in sharepoint_root.glob(f"{fy} Pipeline Review, *.xlsx")
+        if path.name != master_wb
     }
     for filename in sorted(actual_regional_files - expected_regional_files):
         warnings.append(

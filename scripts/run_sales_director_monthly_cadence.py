@@ -734,7 +734,7 @@ def run_sharepoint_analysis_chain(
         )
         return proc
 
-    period = resolve_period_context(snapshot_date)
+    period = resolve_period_context(snapshot_date=snapshot_date)
     fy = period.fiscal_year
 
     if sharepoint_root.exists():
