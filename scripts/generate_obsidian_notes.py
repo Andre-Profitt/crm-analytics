@@ -218,8 +218,7 @@ def _director_stats(director, territory, wb_path):
     q1_lost = [
         r
         for r in land_wl
-        if "Won" not in str(r.get("Stage", ""))
-        and _quarter(r.get("Close Date")) == "Q1"
+        if "Lost" in str(r.get("Stage", "")) and _quarter(r.get("Close Date")) == "Q1"
     ]
 
     stats = {

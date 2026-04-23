@@ -1535,7 +1535,7 @@ def build_snapshot_trend_consolidated(wb, period_label, sheet_source, workbooks_
         # SUMIFS totals on Forecast Variance tab reconcile.
         started_terminal = initial_stage in TERMINAL_STAGES
         ended_won = final_stage == "8 - Won"
-        ended_lost = final_stage in ("0 - Lost", "0 - No Opportunity")
+        ended_lost = final_stage == "0 - Lost"
         if started_terminal:
             bucket = "AlreadyClosed"
         elif ended_won:
