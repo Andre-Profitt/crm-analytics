@@ -148,9 +148,7 @@ def _resolve_forward_quarter_pi_source(
     list_view_id = ""
     list_view_label = ""
     if isinstance(source, dict):
-        list_view_id = str(
-            source.get("list_view_id") or source.get("id") or ""
-        ).strip()
+        list_view_id = str(source.get("list_view_id") or source.get("id") or "").strip()
         list_view_label = str(
             source.get("list_view_label") or source.get("label") or ""
         ).strip()
@@ -186,9 +184,7 @@ def _load_forward_quarter_pi_audit_fallback(
     except (OSError, ValueError, json.JSONDecodeError):
         return {}
     candidate = (
-        payload.get("candidate_forward_quarter")
-        or payload.get("candidate_q3")
-        or {}
+        payload.get("candidate_forward_quarter") or payload.get("candidate_q3") or {}
     )
     if str(candidate.get("quarter_label") or "").strip() != str(quarter_label).strip():
         return {}
@@ -196,11 +192,7 @@ def _load_forward_quarter_pi_audit_fallback(
     for item in candidate.get("pi_list_views") or []:
         territory = str(item.get("territory") or "").strip()
         list_view_id = str(item.get("list_view_id") or "").strip()
-        if (
-            territory
-            and list_view_id
-            and str(item.get("status") or "").strip() == "ok"
-        ):
+        if territory and list_view_id and str(item.get("status") or "").strip() == "ok":
             fallback[territory] = {
                 "list_view_id": list_view_id,
                 "list_view_label": str(item.get("list_view_label") or "").strip(),
@@ -268,12 +260,16 @@ def _build_pipeline_inspection_rows(
 
 
 def get_auth() -> tuple[str, str]:
-    result = subprocess.run(
-        ["sf", "org", "display", "--target-org", "apro@simcorp.com", "--json"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    try:
+        result = subprocess.run(
+            ["sf", "org", "display", "--target-org", "apro@simcorp.com", "--json"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr or "(no stderr)"
+        raise SystemExit(f"SF auth failed: {stderr.strip()}") from exc
     data = json.loads(result.stdout)["result"]
     return data["accessToken"], data["instanceUrl"]
 
@@ -299,6 +295,16 @@ def _sf_get_with_retry(session, url, params=None, timeout=120, attempts=3, label
     for attempt in range(1, attempts + 1):
         try:
             resp = session.get(url, params=params, timeout=timeout)
+            if resp.status_code == 401:
+                new_token, _ = get_auth()
+                session.headers.update({"Authorization": f"Bearer {new_token}"})
+                if attempt < attempts:
+                    continue
+            if resp.status_code == 400:
+                body = resp.text[:500]
+                raise requests.HTTPError(
+                    f"400 from SF ({label}): {body}", response=resp
+                )
             if resp.status_code in (429, 500, 502, 503, 504) and attempt < attempts:
                 time.sleep(2 ** (attempt - 1))
                 continue
@@ -506,8 +512,8 @@ def _add_sheet(wb, name, headers, rows, eur_cols=None):
                 showRowStripes=True,
             )
             ws.add_table(table)
-        except Exception:
-            pass  # skip table if name collision
+        except Exception as exc:
+            print(f"  [WARN] table creation skipped: {exc}")
     ws.freeze_panes = "A2"
 
 
@@ -530,11 +536,8 @@ def extract_territory(
     pi_lv = config["pi_list_view_id"]
     period = _runtime_period(snapshot_date)
     configured_forward_pi_source = (
-        (config.get("forward_quarter_pi_list_views") or {}).get(
-            period["forward_quarter_label"]
-        )
-        or {}
-    )
+        config.get("forward_quarter_pi_list_views") or {}
+    ).get(period["forward_quarter_label"]) or {}
     audit_forward_pi_sources = _load_forward_quarter_pi_audit_fallback(
         snapshot_date,
         quarter_label=str(period["forward_quarter_label"]),
@@ -545,11 +548,14 @@ def extract_territory(
         audit_fallback=audit_forward_pi_sources.get(territory),
     )
     forward_pi_source_origin = "unavailable"
-    if isinstance(configured_forward_pi_source, dict) and str(
-        configured_forward_pi_source.get("list_view_id")
-        or configured_forward_pi_source.get("id")
-        or ""
-    ).strip():
+    if (
+        isinstance(configured_forward_pi_source, dict)
+        and str(
+            configured_forward_pi_source.get("list_view_id")
+            or configured_forward_pi_source.get("id")
+            or ""
+        ).strip()
+    ):
         forward_pi_source_origin = "configured"
     elif territory in audit_forward_pi_sources:
         forward_pi_source_origin = "audit_fallback"
@@ -860,9 +866,7 @@ def extract_territory(
             close_start=forward_pi_source["start_date"],
             close_end=forward_pi_source["end_date"],
         )
-        print(
-            f"{len(forward_pi_rows)} open {forward_pi_source['quarter_title']} deals"
-        )
+        print(f"{len(forward_pi_rows)} open {forward_pi_source['quarter_title']} deals")
         _add_sheet(
             wb,
             "Pipeline Inspection Forward",
@@ -917,13 +921,15 @@ def extract_territory(
                 tasks = run_soql(
                     session, instance_url, q_task, label=f"{territory}:tasks_90d"
                 )
-            except requests.HTTPError:
+            except requests.HTTPError as exc:
+                print(f"  [WARN] activity query failed: {exc}")
                 tasks = []
             try:
                 events = run_soql(
                     session, instance_url, q_event, label=f"{territory}:events_90d"
                 )
-            except requests.HTTPError:
+            except requests.HTTPError as exc:
+                print(f"  [WARN] activity query failed: {exc}")
                 events = []
             for rec in tasks:
                 wid = rec.get("WhatId")
@@ -1205,7 +1211,11 @@ def extract_territory(
                 ]
             )
 
-        if change_date >= period["q3_start"] and not is_closed and oid not in seen_q2_push:
+        if (
+            change_date >= period["q3_start"]
+            and not is_closed
+            and oid not in seen_q2_push
+        ):
             seen_q2_push.add(oid)
             post_q2_pushed_rows.append(
                 [
@@ -1511,27 +1521,33 @@ def main():
                 try:
                     processed.append(f.result())
                 except Exception as exc:
+                    import traceback as _tb
+
                     failures.append(
                         {
                             "territory": t,
                             "error_type": exc.__class__.__name__,
                             "message": str(exc),
+                            "traceback": _tb.format_exc(),
                         }
                     )
-                    print(f"  [FAIL] {t}: {exc}")
+                    print(f"  [FAIL] {t}: {exc}\n{_tb.format_exc()}")
     else:
         for t in territories:
             try:
                 processed.append(_run_one(t))
             except Exception as exc:
+                import traceback as _tb
+
                 failures.append(
                     {
                         "territory": t,
                         "error_type": exc.__class__.__name__,
                         "message": str(exc),
+                        "traceback": _tb.format_exc(),
                     }
                 )
-                print(f"  [FAIL] {t}: {exc}")
+                print(f"  [FAIL] {t}: {exc}\n{_tb.format_exc()}")
 
     # Flush query telemetry to a run log so manifest builders can pick it up.
     tele_path = None

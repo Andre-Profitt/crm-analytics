@@ -120,9 +120,9 @@ def _resolve_runtime_period_context(
     as_of_date: str | None = None,
     workbook_path: Path | None = None,
 ):
-    report_date = str(as_of_date or "").strip()[:10] or _infer_report_date_from_workbook_path(
-        workbook_path
-    )
+    report_date = str(as_of_date or "").strip()[
+        :10
+    ] or _infer_report_date_from_workbook_path(workbook_path)
     if not report_date:
         report_date = datetime.now().strftime("%Y-%m-%d")
     return _quarter_state_from_period(report_date)
@@ -150,6 +150,7 @@ def _retrospective_quarter_label() -> str:
 
 def _retrospective_quarter_title() -> str:
     return f"{FQ['prior']['label']} {FQ['prior']['year']}"
+
 
 # ── Constants ──
 DARK = RGBColor(0x1A, 0x1D, 0x31)
@@ -853,7 +854,9 @@ def _read_prior_snapshot(director_slug, current_period):
         return {
             "period": period,
             "retrospective_label": (
-                outcome_match.group(1) if outcome_match else _retrospective_quarter_label()
+                outcome_match.group(1)
+                if outcome_match
+                else _retrospective_quarter_label()
             ),
             "retrospective_title": _retrospective_quarter_title(),
             "open_deals": _grab_int(r"Open Land pipeline: (\d+) deals"),
@@ -862,9 +865,7 @@ def _read_prior_snapshot(director_slug, current_period):
             ),
             "q1_won_count": int(outcome_match.group(2)) if outcome_match else None,
             "q1_won_arr": (
-                _parse_eur_literal(outcome_match.group(3))
-                if outcome_match
-                else None
+                _parse_eur_literal(outcome_match.group(3)) if outcome_match else None
             ),
             "approved_2026": _grab_int(r"(\d+) approved 2026"),
             "missing_approval": _grab_int(r"(\d+) missing Stage 3\+"),
@@ -1420,6 +1421,7 @@ def slide_q2_forward_look(
             "Next Step",
         ]
     ]
+    deals_enriched = deals_enriched[:15]
     for d in deals_enriched:
         rows.append(
             [
@@ -2830,6 +2832,7 @@ def slide_missing_approval_detail(prs, approvals):
             "ARR (mEUR)",
         ]
     ]
+    action_deals = action_deals[:15]
     for r in action_deals:
         rows.append(
             [
@@ -2948,6 +2951,7 @@ def slide_renewals(prs, renewals):
             "Commentary",
         ]
     ]
+    annual = annual[:20]
     for r in annual:
         rows.append(
             [
@@ -3953,9 +3957,6 @@ def build_deck(
     import json as _json
     from datetime import datetime as _dt
 
-    def _q1(land_only_deals, stage_filter=None):
-        pass
-
     land_wl_rows = [
         r for r in won_lost if str(r.get("Type", "")).strip().lower() == "land"
     ]
@@ -4053,6 +4054,9 @@ def main():
     if not args.workbook.exists():
         print(f"ERROR: Workbook not found: {args.workbook}", file=sys.stderr)
         sys.exit(1)
+
+    if not args.template.exists():
+        sys.exit(f"Template not found: {args.template}")
 
     if args.output:
         output = args.output

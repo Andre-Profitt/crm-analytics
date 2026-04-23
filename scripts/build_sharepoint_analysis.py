@@ -260,6 +260,7 @@ def get_sf_auth():
             capture_output=True,
             text=True,
             check=True,
+            timeout=30,
         ).stdout
     )["result"]
     return data["accessToken"], data["instanceUrl"]
@@ -321,6 +322,7 @@ def _load(path):
         for r in ws.iter_rows(min_row=2, values_only=True):
             rows.append({headers[i]: v for i, v in enumerate(r)})
         sheets[sn] = rows
+    wb.close()
     return sheets
 
 
@@ -1430,7 +1432,8 @@ def build_snapshot_trend_consolidated(wb, period_label, sheet_source, workbooks_
             continue
         try:
             dwb = load_workbook(wb_path, data_only=True, read_only=True)
-        except Exception:
+        except Exception as exc:
+            print(f"  [WARN] skipping {wb_path.name}: {exc}")
             continue
         if sheet_source not in dwb.sheetnames:
             continue
@@ -5567,7 +5570,8 @@ def gather_director_data(wb_path, oid, tid, session, instance):
     approved_2026 = [
         _approval_row(r)
         for r in approvals
-        if str(r.get("Status", "")).strip() == "Approved 2026"
+        if str(r.get("Status", "")).strip()
+        == f"Approved {RUNTIME_PERIOD['analysis_year']}"
     ]
     approval_candidates = [
         _approval_row(r)
@@ -5809,7 +5813,11 @@ def main():
             hygiene_future = pool.submit(fetch_overdue_and_kyc, session, instance)
             for fut in as_completed(futures):
                 name = futures[fut]
-                data_store[name] = fut.result()
+                try:
+                    data_store[name] = fut.result()
+                except Exception as exc:
+                    print(f"    [FAIL] {name}: {exc}")
+                    continue
                 print(f"    [ok] {name}")
             overdue_rows, kyc_rows = hygiene_future.result()
     else:
