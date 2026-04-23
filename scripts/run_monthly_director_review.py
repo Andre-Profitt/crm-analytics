@@ -913,12 +913,6 @@ def main():
                 )
                 manifest["steps"].append(step)
 
-            # Rename decks + sharepoint workbooks to professional names
-            rename_result = _rename_deliverables(
-                DECKS_ROOT / date_stamp / "land-only", date_stamp
-            )
-            manifest["steps"].append(rename_result)
-
             font_normalization_step = run_step(
                 "3a_normalize_deck_fonts",
                 [
@@ -1378,6 +1372,12 @@ def main():
                 print("Obsidian notes validation failed.")
                 _write_manifest_with_release_packet(manifest, log_dir)
                 return 1
+
+        if not args.skip_decks:
+            rename_result = _rename_deliverables(
+                DECKS_ROOT / date_stamp / "land-only", date_stamp
+            )
+            manifest["steps"].append(rename_result)
 
         _write_manifest_with_release_packet(manifest, log_dir)
         _print_summary(manifest)
