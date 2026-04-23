@@ -21,14 +21,14 @@ from openpyxl.utils import get_column_letter
 try:
     from monthly_platform.period import resolve_period_context, sheet_names
 except ModuleNotFoundError:  # pragma: no cover
-    from scripts.monthly_platform.period import resolve_period_context, sheet_names
-
-SN = sheet_names()
-PERIOD = resolve_period_context()
+    from scripts.monthly_platform.period import sheet_names
 
 DASHBOARD_ID = "01ZTb00000FSP7hMAH"  # Sales Directors Monthly
 SALES_OPS_DASHBOARD_ID = "01ZTb00000FSP9JMAX"  # Sales Ops Quarterly KPI
-WORKBOOKS_DIR = Path(f"output/director_live_workbooks/{PERIOD.snapshot_date}")
+WORKBOOKS_DIR = Path("output/director_live_workbooks")
+
+SN = sheet_names()
+PERIOD = None
 
 NAVY = "1F3864"
 LIGHT = "F2F2F2"
@@ -1667,11 +1667,24 @@ def main():
         help="Directory containing the extracted director workbooks used for PI consolidation.",
     )
     parser.add_argument(
+        "--date",
+        help="Snapshot date (YYYY-MM-DD). Used to resolve fiscal quarter context.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
-        default=Path("output/sharepoint/Dashboard and Q1 Analysis.xlsx"),
+        default=None,
     )
     args = parser.parse_args()
+
+    global PERIOD
+    kw = {"snapshot_date": args.date} if args.date else {}
+    PERIOD = resolve_period_context(**kw)
+
+    if args.output is None:
+        args.output = Path(
+            f"output/sharepoint/Dashboard and {PERIOD.prior_quarter.label} Analysis.xlsx"
+        )
 
     WORKBOOKS_DIR = args.workbooks_dir
     args.output.parent.mkdir(parents=True, exist_ok=True)

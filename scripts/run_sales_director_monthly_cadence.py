@@ -795,7 +795,9 @@ def run_sharepoint_analysis_chain(
                 "stages": stages,
             }
 
-    dashboard_output = sharepoint_root / "Dashboard and Q1 Analysis.xlsx"
+    dashboard_output = (
+        sharepoint_root / f"Dashboard and {period.prior_quarter.label} Analysis.xlsx"
+    )
     proc = run_step(
         "2b_dashboard_analysis",
         [
@@ -803,6 +805,8 @@ def run_sharepoint_analysis_chain(
             str(SHAREPOINT_DASHBOARD_ANALYSIS_BUILDER),
             "--workbooks-dir",
             str(workbook_dir),
+            "--date",
+            snapshot_date,
             "--output",
             str(dashboard_output),
         ],
