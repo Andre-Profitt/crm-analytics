@@ -35,7 +35,7 @@ try:
         make_reporting_scope,
         summarize_approval_rows,
     )
-    from monthly_platform.period import resolve_period_context
+    from monthly_platform.period import resolve_period_context, sheet_names
 except ModuleNotFoundError:  # pragma: no cover
     from scripts.monthly_platform.policy import (
         filter_active_pipeline_rows,
@@ -171,10 +171,11 @@ def excel_metrics(workbook_path, *, scopes=None):
             for r in ws.iter_rows(min_row=2, values_only=True)
         ]
 
-    pipeline = _rows("Pipeline Open FY26")
-    won_lost = _rows("Won Lost FY26")
+    SN = sheet_names()
+    pipeline = _rows(SN["pipeline_open"])
+    won_lost = _rows(SN["won_lost"])
     approvals = _rows("Commercial Approval")
-    renewals = _rows("Renewals FY26")
+    renewals = _rows(SN["renewals"])
 
     def is_land(r):
         return str(r.get("Type", "")).strip().lower() == "land"

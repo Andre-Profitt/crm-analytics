@@ -40,7 +40,7 @@ try:
         make_reporting_scope,
         summarize_approval_rows,
     )
-    from monthly_platform.period import resolve_period_context
+    from monthly_platform.period import resolve_period_context, sheet_names
 except ModuleNotFoundError:  # pragma: no cover
     from scripts.monthly_platform.historical_trending import (
         resolve_historical_trending_contract,
@@ -2925,7 +2925,8 @@ def slide_renewals(prs, renewals):
             ),
         )
     else:
-        _set_ph(slide, 144, "Renewals FY26: none this cycle")
+        _fy_label = f"FY{FQ['fy'] % 100:02d}" if FQ else "FY26"
+        _set_ph(slide, 144, f"Renewals {_fy_label}: none this cycle")
     if annual:
         _set_ph(
             slide,
@@ -3539,12 +3540,13 @@ def build_deck(
     analytics = read_director_analytics(analytics_path, director)
 
     # Read all sheets
-    pipeline = read_sheet(wb, "Pipeline Open FY26")
-    won_lost = read_sheet(wb, "Won Lost FY26")
-    approvals = read_sheet(wb, "Commercial Approval")
-    renewals = read_sheet(wb, "Renewals FY26")
-    pi_data = read_sheet(wb, "Pipeline Inspection")
-    q1_movement = read_sheet(wb, "Q1 Movement")
+    SN = sheet_names(f"FY{FQ['fy'] % 100:02d}")
+    pipeline = read_sheet(wb, SN["pipeline_open"])
+    won_lost = read_sheet(wb, SN["won_lost"])
+    approvals = read_sheet(wb, SN["commercial_approval"])
+    renewals = read_sheet(wb, SN["renewals"])
+    pi_data = read_sheet(wb, SN["pipeline_inspection"])
+    q1_movement = read_sheet(wb, SN["q1_movement"])
 
     # Monthly review scope: Land type, Q1-Q2 FY26 close dates.
     # Renewals keep their own sheet (Type=Renewal deals due in Q2).
@@ -4036,7 +4038,9 @@ def main():
     parser.add_argument(
         "--analytics-workbook",
         type=Path,
-        default=Path("output/sharepoint/FY26 Pipeline Review, All Territories.xlsx"),
+        default=Path(
+            f"output/sharepoint/FY{datetime.now().year % 100:02d} Pipeline Review, All Territories.xlsx"
+        ),
         help=(
             "Consolidated analytics workbook. When provided, the deck adds "
             "Executive Insights, prior-quarter Forecast Variance, and Deal Risk Scoring "

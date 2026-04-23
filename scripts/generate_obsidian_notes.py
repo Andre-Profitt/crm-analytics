@@ -22,7 +22,7 @@ try:
     from monthly_platform.historical_trending import (
         resolve_historical_trending_contract,
     )
-    from monthly_platform.period import resolve_period_context
+    from monthly_platform.period import resolve_period_context, sheet_names
 except ModuleNotFoundError:  # pragma: no cover
     from scripts.monthly_platform.historical_trending import (
         resolve_historical_trending_contract,
@@ -190,10 +190,11 @@ def _director_stats(director, territory, wb_path):
     def is_land(r):
         return str(r.get("Type", "")).strip().lower() == "land"
 
-    pipeline = sheets.get("Pipeline Open FY26", [])
-    won_lost = sheets.get("Won Lost FY26", [])
+    SN = sheet_names()
+    pipeline = sheets.get(SN["pipeline_open"], [])
+    won_lost = sheets.get(SN["won_lost"], [])
     approvals = sheets.get("Commercial Approval", [])
-    renewals = sheets.get("Renewals FY26", [])
+    renewals = sheets.get(SN["renewals"], [])
     q1_mov = sheets.get("Q1 Movement", [])
 
     def in_q1q2(r):
@@ -615,11 +616,12 @@ def _q1_losses_for_director(wb_path):
     """
     if not wb_path.exists():
         return []
+    SN = sheet_names()
     wb = load_workbook(str(wb_path), read_only=True, data_only=True)
-    if "Won Lost FY26" not in wb.sheetnames:
+    if SN["won_lost"] not in wb.sheetnames:
         wb.close()
         return []
-    ws = wb["Won Lost FY26"]
+    ws = wb[SN["won_lost"]]
     rows = list(ws.iter_rows(values_only=True))
     wb.close()
     if not rows:

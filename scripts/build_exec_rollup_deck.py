@@ -15,8 +15,14 @@ from pathlib import Path
 from openpyxl import load_workbook
 from pptx import Presentation
 
-# Reuse rendering helpers from the per-director builder
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+try:
+    from monthly_platform.period import sheet_names
+except ModuleNotFoundError:  # pragma: no cover
+    pass
+
+# Reuse rendering helpers from the per-director builder
 from build_deck_from_excel import (  # type: ignore
     DEFAULT_TEMPLATE,
     LY_END_SLIDE,
@@ -46,26 +52,30 @@ DIRECTORS = [
 
 
 def _load_director(wb_path):
-    """Return the four relevant sheets as lists of dicts plus summary KPIs."""
+    """Return the relevant sheets as lists of dicts, keyed by semantic name."""
+    SN = sheet_names()
     wb = load_workbook(wb_path, data_only=True)
+    # Map semantic keys to actual sheet names for the sheets we need
+    _keys = [
+        "pipeline_open",
+        "won_lost",
+        "commercial_approval",
+        "renewals",
+        "q1_movement",
+    ]
     out = {}
-    for sheet_name in [
-        "Pipeline Open FY26",
-        "Won Lost FY26",
-        "Commercial Approval",
-        "Renewals FY26",
-        "Q1 Movement",
-    ]:
-        if sheet_name not in wb.sheetnames:
-            out[sheet_name] = []
+    for key in _keys:
+        sn = SN[key]
+        if sn not in wb.sheetnames:
+            out[sn] = []
             continue
-        ws = wb[sheet_name]
+        ws = wb[sn]
         rows = list(ws.iter_rows(values_only=True))
         if len(rows) < 2:
-            out[sheet_name] = []
+            out[sn] = []
             continue
         headers = [str(h or "").strip() for h in rows[0]]
-        out[sheet_name] = [
+        out[sn] = [
             {headers[i]: (v if v is not None else "") for i, v in enumerate(r)}
             for r in rows[1:]
         ]
@@ -94,6 +104,7 @@ def _in_q1q2(r):
 
 def _aggregate(workbooks_dir):
     """Roll every director up into totals + a per-director table."""
+    SN = sheet_names()
     rollup = {
         "open_deals": 0,
         "open_unwtd": 0.0,
@@ -119,10 +130,10 @@ def _aggregate(workbooks_dir):
         sheets = _load_director(wb_path)
         # Land + Q1-Q2 scope for monthly review
         land_open = [
-            r for r in sheets["Pipeline Open FY26"] if _is_land(r) and _in_q1q2(r)
+            r for r in sheets[SN["pipeline_open"]] if _is_land(r) and _in_q1q2(r)
         ]
         won_lost_land = [
-            r for r in sheets["Won Lost FY26"] if _is_land(r) and _in_q1q2(r)
+            r for r in sheets[SN["won_lost"]] if _is_land(r) and _in_q1q2(r)
         ]
         q1_won = [
             r

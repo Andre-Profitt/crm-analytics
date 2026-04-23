@@ -18,6 +18,12 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+try:
+    from monthly_platform.period import sheet_names
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts.monthly_platform.period import sheet_names
+
+SN = sheet_names()
 
 DASHBOARD_ID = "01ZTb00000FSP7hMAH"  # Sales Directors Monthly
 SALES_OPS_DASHBOARD_ID = "01ZTb00000FSP9JMAX"  # Sales Ops Quarterly KPI
@@ -1032,15 +1038,16 @@ def build_methodology(wb):
 
 
 def _load_open_pipeline_all():
-    """Union of Pipeline Open FY26 rows across all director workbooks, tagged with director."""
+    """Union of Pipeline Open rows across all director workbooks, tagged with director."""
+    SN = sheet_names()
     out = []
     for wb_file in sorted(WORKBOOKS_DIR.glob("*.xlsx")):
         name = wb_file.stem.replace("-", " ").title()
         try:
             wb = load_workbook(wb_file, data_only=True)
-            if "Pipeline Open FY26" not in wb.sheetnames:
+            if SN["pipeline_open"] not in wb.sheetnames:
                 continue
-            ws = wb["Pipeline Open FY26"]
+            ws = wb[SN["pipeline_open"]]
             headers = [c.value for c in ws[1]]
             for row in ws.iter_rows(min_row=2, values_only=True):
                 rec = {headers[i]: v for i, v in enumerate(row)}
@@ -1052,14 +1059,15 @@ def _load_open_pipeline_all():
 
 
 def _load_won_lost_all():
+    SN = sheet_names()
     out = []
     for wb_file in sorted(WORKBOOKS_DIR.glob("*.xlsx")):
         name = wb_file.stem.replace("-", " ").title()
         try:
             wb = load_workbook(wb_file, data_only=True)
-            if "Won Lost FY26" not in wb.sheetnames:
+            if SN["won_lost"] not in wb.sheetnames:
                 continue
-            ws = wb["Won Lost FY26"]
+            ws = wb[SN["won_lost"]]
             headers = [c.value for c in ws[1]]
             for row in ws.iter_rows(min_row=2, values_only=True):
                 rec = {headers[i]: v for i, v in enumerate(row)}
