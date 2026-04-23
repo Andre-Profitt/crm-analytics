@@ -97,7 +97,7 @@ output/director_bundles/{date}/
   jesper-tyrer.json
   sarah-pittroff.json
   ...                        (9 bundles)
-  manifest.json              (run manifest, replaces extract audit)
+  manifest.json              (run manifest, additive in Phase 1, replaces extract audit in Phase 2)
 
 output/director_live_workbooks/{date}/
   jesper-tyrer.xlsx           (render artifact from bundle)
@@ -365,7 +365,7 @@ class DirectorBundle:
 class BundleManifestEntry:
     name: str
     territory: str
-    status: str                  # "ok", "partial", "failed"
+    status: str                  # "ok" or "failed" (per-director extraction is atomic)
     bundle_path: str
     workbook_path: str
     row_counts: dict[str, int]
