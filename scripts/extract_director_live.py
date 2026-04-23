@@ -274,6 +274,15 @@ def get_auth() -> tuple[str, str]:
     return data["accessToken"], data["instanceUrl"]
 
 
+def get_corporate_currency(session, instance_url):
+    resp = session.get(
+        f"{instance_url}/services/data/v66.0/query",
+        params={"q": "SELECT IsoCode FROM CurrencyType WHERE IsCorporate=true"},
+    )
+    records = resp.json().get("records", [])
+    return records[0]["IsoCode"] if records else "EUR"
+
+
 # ── SF HTTP: retry + backoff + telemetry ──
 # Telemetry bucket shared across threads. Each query appends
 # {label, rows, duration_ms, attempts, status}.
@@ -523,6 +532,7 @@ def extract_territory(
     output_path: Path,
     session=None,
     instance_url: str | None = None,
+    corp_ccy: str = "EUR",
 ):
     """Extract one territory to a director workbook.
 
@@ -571,15 +581,33 @@ def extract_territory(
     wb = Workbook()
     wb.remove(wb.active)
 
-    # ── 1. Open Pipeline (stages 1-6, reporting year) ──
-    print("  Pipeline...", end=" ", flush=True)
+    # ── 1+2. All FY deals (single query to avoid race condition) ──
+    # A deal that closes between two separate open/closed queries would appear
+    # in neither result set. One combined query eliminates that window.
+    print("  All FY deals...", end=" ", flush=True)
     q = (
-        f"SELECT {PIPELINE_FIELDS} FROM Opportunity WHERE {where} AND IsClosed = false "
-        f"{period['fy_close_filter']} {OPEN_STAGES} {TYPE_FILTER} {ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} "
+        f"SELECT {PIPELINE_FIELDS}, Reason_Won_Lost__c FROM Opportunity WHERE {where} "
+        f"{period['fy_close_filter']} {TYPE_FILTER} {ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} "
         "ORDER BY APTS_Opportunity_ARR__c DESC NULLS LAST"
     )
-    pipeline = run_soql(session, instance_url, q, label=f"{territory}:pipeline_open")
-    print(f"{len(pipeline)} deals")
+    all_deals = run_soql(session, instance_url, q, label=f"{territory}:all_fy_deals")
+
+    # Split in Python: open pipeline (stages 1-6) vs closed (won/lost)
+    _open_stage_names = {
+        "1 - Prospecting",
+        "2 - Discovery",
+        "3 - Engagement",
+        "4 - Shortlisted",
+        "5 - Preferred",
+        "6 - Contracting",
+    }
+    pipeline = [
+        r
+        for r in all_deals
+        if not r.get("IsClosed") and r.get("StageName") in _open_stage_names
+    ]
+    won_lost = [r for r in all_deals if r.get("IsClosed")]
+    print(f"{len(all_deals)} total ({len(pipeline)} open, {len(won_lost)} closed)")
 
     headers = [
         "Account",
@@ -588,8 +616,8 @@ def extract_territory(
         "Stage",
         "Forecast Category",
         "Close Date",
-        "ARR Unweighted (EUR)",
-        "ARR Weighted (EUR)",
+        f"ARR Unweighted ({corp_ccy})",
+        f"ARR Weighted ({corp_ccy})",
         "Probability %",
         "Push Count",
         "Type",
@@ -637,26 +665,14 @@ def extract_territory(
         )
     _add_sheet(wb, "Pipeline Open FY26", headers, rows, eur_cols=[7, 8])
 
-    # ── 2. Won/Lost (reporting year closed) ──
-    print("  Won/Lost...", end=" ", flush=True)
-    # Reason_Won_Lost__c is the only field we need that isn't already in
-    # PIPELINE_FIELDS; Lost_to_Competitor__c is now pulled on both open and
-    # closed deals, so it's already included.
-    q = (
-        f"SELECT {PIPELINE_FIELDS}, Reason_Won_Lost__c FROM Opportunity WHERE {where} "
-        f"AND IsClosed = true {period['fy_close_filter']} {CLOSED_STAGES} {TYPE_FILTER} "
-        f"{ACCOUNT_EXCLUDE} {OWNER_EXCLUDE} ORDER BY CloseDate DESC"
-    )
-    won_lost = run_soql(session, instance_url, q, label=f"{territory}:won_lost")
-    print(f"{len(won_lost)} deals")
-
+    # ── 2. Won/Lost (from combined query, closed deals) ──
     headers = [
         "Account",
         "Opportunity",
         "Owner",
         "Stage",
         "Close Date",
-        "ARR Unweighted (EUR)",
+        f"ARR Unweighted ({corp_ccy})",
         "Type",
         "Reason",
         "Lost To Competitor",
@@ -723,7 +739,7 @@ def extract_territory(
         "Owner",
         "Stage",
         "Close Date",
-        "ARR Unweighted (EUR)",
+        f"ARR Unweighted ({corp_ccy})",
         "Status",
         "Approval Date",
         "Next Step",
@@ -810,7 +826,7 @@ def extract_territory(
         "Opportunity",
         "Owner",
         "Stage",
-        "ACV Unweighted (EUR)",
+        f"ACV Unweighted ({corp_ccy})",
         "Probability %",
         "Comments",
     ]
@@ -838,7 +854,7 @@ def extract_territory(
         "Owner",
         "Stage",
         "Forecast Category",
-        "ARR Weighted (EUR)",
+        f"ARR Weighted ({corp_ccy})",
         "Close Date",
         "Push Count",
         "Score",
@@ -1036,8 +1052,8 @@ def extract_territory(
             "Opportunity",
             "Owner",
             "Forecast Category",
-            "Forecast ARR Wtd (EUR)",
-            "ARR Unwtd (EUR)",
+            f"Forecast ARR Wtd ({corp_ccy})",
+            f"ARR Unwtd ({corp_ccy})",
             "Close Date",
             "Period",
             "Stage",
@@ -1163,7 +1179,7 @@ def extract_territory(
         "Old Close",
         "New Close",
         "Changed On",
-        "ARR Unweighted (EUR)",
+        f"ARR Unweighted ({corp_ccy})",
     ]
     all_movement = q1_slipped_rows + post_q1_pushed_rows
     all_movement.sort(key=lambda x: -(x[8] or 0))
@@ -1260,7 +1276,7 @@ def extract_territory(
         "From Stage",
         "To Stage",
         "Changed On",
-        "ARR Unweighted (EUR)",
+        f"ARR Unweighted ({corp_ccy})",
     ]
     stage_rows = [_history_row(r) for r in stage_history_events]
     stage_rows.sort(key=lambda x: x[6], reverse=True)
@@ -1275,7 +1291,7 @@ def extract_territory(
         "From Category",
         "To Category",
         "Changed On",
-        "ARR Unweighted (EUR)",
+        f"ARR Unweighted ({corp_ccy})",
     ]
     fcat_rows = [_history_row(r) for r in fcat_history_events]
     fcat_rows.sort(key=lambda x: x[6], reverse=True)
@@ -1317,17 +1333,20 @@ def extract_territory(
     ws["B6"].font = HEADER_FONT
     ws["B6"].fill = HEADER_FILL
     kpis = [
-        ("Open Pipeline Unweighted (stages 1-6)", f"EUR {total_pipeline_arr:,.0f}"),
+        (
+            "Open Pipeline Unweighted (stages 1-6)",
+            f"{corp_ccy} {total_pipeline_arr:,.0f}",
+        ),
         ("Open Deal Count", str(len(pipeline))),
-        (f"Won ARR Unweighted {period['fy_label']}", f"EUR {won_arr:,.0f}"),
+        (f"Won ARR Unweighted {period['fy_label']}", f"{corp_ccy} {won_arr:,.0f}"),
         ("Won Deal Count", str(len(won))),
-        (f"Lost ARR Unweighted {period['fy_label']}", f"EUR {lost_arr:,.0f}"),
+        (f"Lost ARR Unweighted {period['fy_label']}", f"{corp_ccy} {lost_arr:,.0f}"),
         ("Lost Deal Count", str(len(lost))),
         (f"Approved {period['analysis_year']} (Land)", str(len(approved_2026))),
         ("Approved Prior Year", str(len(approved_prior))),
         ("Pending Approval", str(len(pending))),
         ("Missing Approval (Stage 3+)", str(len(missing))),
-        ("Open Renewal ACV Unweighted", f"EUR {renewal_acv:,.0f}"),
+        ("Open Renewal ACV Unweighted", f"{corp_ccy} {renewal_acv:,.0f}"),
         ("Open Renewals", str(len(renewals))),
         (f"PI Open Deals ({period['fy_label']})", str(len(pi_rows))),
     ]
@@ -1393,14 +1412,14 @@ def extract_territory(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(str(output_path))
     print(f"\n  Saved: {output_path}")
-    print(f"  Pipeline: {len(pipeline)} deals, EUR {total_pipeline_arr:,.0f}")
+    print(f"  Pipeline: {len(pipeline)} deals, {corp_ccy} {total_pipeline_arr:,.0f}")
     print(
-        f"  Won/Lost: {len(won)} won (EUR {won_arr:,.0f}) / {len(lost)} lost (EUR {lost_arr:,.0f})"
+        f"  Won/Lost: {len(won)} won ({corp_ccy} {won_arr:,.0f}) / {len(lost)} lost ({corp_ccy} {lost_arr:,.0f})"
     )
     print(
         f"  Approvals: {len(approved_2026)} approved {period['analysis_year']} / {len(approved_prior)} prior / {len(pending)} pending / {len(missing)} missing"
     )
-    print(f"  Renewals: {len(renewals)} (EUR {renewal_acv:,.0f} ACV)")
+    print(f"  Renewals: {len(renewals)} ({corp_ccy} {renewal_acv:,.0f} ACV)")
     print(f"  PI: {len(pi_rows)} open {period['fy_label']} deals")
     if forward_pi_source:
         print(
@@ -1491,6 +1510,7 @@ def main():
     # calls and removes N/A token-rotation windows mid-run.
     token, instance_url = get_auth()
     session = build_session(token)
+    corp_ccy = get_corporate_currency(session, instance_url)
 
     def _run_one(territory):
         config = TERRITORIES[territory]
@@ -1502,6 +1522,7 @@ def main():
             output_path,
             session=session,
             instance_url=instance_url,
+            corp_ccy=corp_ccy,
         )
 
     processed: list[dict[str, Any]] = []
