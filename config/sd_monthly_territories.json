@@ -1,9 +1,11 @@
 {
   "_meta": {
     "version": 1,
-    "description": "Sales Director Monthly Review — territory → (director, SOQL filter, PI list view) registry.",
+    "description": "Sales Director Monthly Review — territory → (director, SOQL filter, PI list views, historical report IDs) registry.",
     "consumed_by": [
       "scripts/extract_director_live.py — TERRITORIES dict",
+      "scripts/extract_historical_trending.py — active Q1/Q2 historical report registry",
+      "scripts/audit_sales_director_source_contract.py — active + forward-quarter source contract audit",
       "scripts/build_sharepoint_analysis.py — DIRECTORS (via name + territory)",
       "scripts/generate_obsidian_notes.py — DIRECTORS + TERRITORY_TO_DIRECTOR"
     ],
@@ -14,55 +16,172 @@
       "director": "Jesper Tyrer",
       "soql_where": "Account_Unit_Group__c = 'SC Asia'",
       "pi_list_view_id": "00BTb00000Ksa4bMAB",
-      "pi_list_view_label": "PI ARR Forecast APAC"
+      "pi_list_view_label": "PI ARR Forecast APAC",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEdNBMA1",
+          "list_view_label": "PI ARR Forecast APAC Q3 2026 Land"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008g11VMAQ",
+        "Q2": "00OTb000008gYVJMA2"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jXo1MAE"
+      }
     },
     "Central Europe": {
       "director": "Sarah Pittroff",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Central Europe'",
       "pi_list_view_id": "00BTb00000Kr3YvMAJ",
-      "pi_list_view_label": "PI Central Europe"
+      "pi_list_view_label": "PI Central Europe",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEdmzMAD",
+          "list_view_label": "PI Land Q3 CE"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008gYFBMA2",
+        "Q2": "00OTb000008gYNGMA2"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jXsrMAE"
+      }
     },
     "UK & Ireland": {
       "director": "Dan Peppett",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'United Kingdom & Ireland'",
       "pi_list_view_id": "00BTb00000Kr3yjMAB",
-      "pi_list_view_label": "PI UK & Ireland"
+      "pi_list_view_label": "PI UK & Ireland",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEdobMAD",
+          "list_view_label": "PI Land Q3 UKI"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008gYIPMA2",
+        "Q2": "00OTb000008gYYXMA2"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jY5lMAE"
+      }
     },
     "Southern Europe": {
       "director": "Francois Thaury",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Southwestern Europe'",
       "pi_list_view_id": "00BTb00000Kr3sHMAR",
-      "pi_list_view_label": "PI Southwestern Europe"
+      "pi_list_view_label": "PI Southwestern Europe",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEdqDMAT",
+          "list_view_label": "PI Land Q3 SWE"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008gYGnMAM",
+        "Q2": "00OTb000008gYWvMAM"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jY49MAE"
+      }
     },
     "NL & Nordics": {
       "director": "Christian Ebbesen",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Northern Europe'",
       "pi_list_view_id": "00BTb00000Kr4DFMAZ",
-      "pi_list_view_label": "PI Northern Europe"
+      "pi_list_view_label": "PI Northern Europe",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEdrpMAD",
+          "list_view_label": "PI Land Q3 NE"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008gYK1MAM",
+        "Q2": "00OTb000008gYa9MAE"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jXxhMAE"
+      }
     },
     "Middle East & Africa": {
       "director": "Mourad Essofi",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Middle East & Africa'",
       "pi_list_view_id": "00BTb00000KsTXmMAN",
-      "pi_list_view_label": "PI ARR Forecast MEA"
+      "pi_list_view_label": "PI ARR Forecast MEA",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEdtRMAT",
+          "list_view_label": "PI Land Q3 MEA"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008gYLdMAM",
+        "Q2": "00OTb000008gYblMAE"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jXuTMAU"
+      }
     },
     "Canada": {
       "director": "Megan Miceli",
       "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC Canada'",
       "pi_list_view_id": "00BTb00000Kr4ErMAJ",
-      "pi_list_view_label": "PI Canada"
+      "pi_list_view_label": "PI Canada",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEdgXMAT",
+          "list_view_label": "PI ARR Forecast Canada Q3 2026 Land"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008gYNFMA2",
+        "Q2": "00OTb000008gYdNMAU"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jXrFMAU"
+      }
     },
     "NA Asset Management": {
       "director": "Patrick Gaughan",
       "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC USA' AND Account.Industry IN ('Asset Management','Wealth Management')",
       "pi_list_view_id": "00BTb00000Kr4JhMAJ",
-      "pi_list_view_label": "PI NA Asset Management"
+      "pi_list_view_label": "PI NA Asset Management",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEbwUMAT",
+          "list_view_label": "PI Land Q3 NA_AM"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008gYOrMAM",
+        "Q2": "00OTb000008gYezMAE"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jXw5MAE"
+      }
     },
     "Pension & Insurance": {
       "director": "Adam Steinhaus",
       "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC USA' AND Account.Industry IN ('Pension','Insurance')",
       "pi_list_view_id": "00BTb00000Kr4OXMAZ",
-      "pi_list_view_label": "PI Pension & Insurance"
+      "pi_list_view_label": "PI Pension & Insurance",
+      "forward_quarter_pi_list_views": {
+        "Q3": {
+          "list_view_id": "00BTb00000LEdv3MAD",
+          "list_view_label": "PI Land Q3 P_I"
+        }
+      },
+      "historical_trending_report_ids": {
+        "Q1": "00OTb000008gYQTMA2",
+        "Q2": "00OTb000008gYgbMAE"
+      },
+      "forward_quarter_historical_trending_report_ids": {
+        "Q3": "00OTb000008jY0vMAE"
+      }
     }
   }
 }
