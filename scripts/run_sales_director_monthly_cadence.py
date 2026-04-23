@@ -705,6 +705,13 @@ def run_sharepoint_analysis_chain(
 
     period = resolve_period_context(snapshot_date)
     fy = period.fiscal_year
+
+    if sharepoint_root.exists():
+        for stale in sharepoint_root.glob("*.xlsx"):
+            if not stale.name.startswith("~"):
+                stale.unlink()
+    sharepoint_root.mkdir(parents=True, exist_ok=True)
+
     master_output = sharepoint_root / f"{fy} Pipeline Review, All Territories.xlsx"
     proc = run_step(
         "2a_sharepoint_master",
