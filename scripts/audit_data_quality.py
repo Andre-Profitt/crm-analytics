@@ -28,14 +28,22 @@ from pathlib import Path
 
 import requests
 
+try:
+    from monthly_platform.period import resolve_period_context
+except ImportError:
+    from scripts.monthly_platform.period import resolve_period_context
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_ROOT = ROOT / "output" / "data_quality"
 LEDGER_PATH = OUTPUT_ROOT / "history.json"
 
-FY_START = "2026-01-01"
-FY_END = "2026-12-31"
-Q1_END = "2026-03-31"
+_period = resolve_period_context()
+FY_START = _period.reporting_window_start  # e.g. "2026-01-01"
+_fy_year = int(FY_START[:4])
+FY_END = f"{_fy_year}-12-31"  # e.g. "2026-12-31"
+Q1_END = _period.current_quarter.end_date  # e.g. "2026-03-31"
+_Q_LABEL = _period.current_quarter.title  # e.g. "Q1 2026"
 
 
 # ────────────────────────── Check registry ──────────────────────────────────
@@ -97,7 +105,7 @@ CHECKS: list[HygieneCheck] = [
     ),
     HygieneCheck(
         key="total_q1_closed",
-        label="Total closed Q1 2026 (Land+Expand)",
+        label=f"Total closed {_Q_LABEL} (Land+Expand)",
         grain="closed_deal",
         severity="baseline",
         category="baseline",

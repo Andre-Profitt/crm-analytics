@@ -30,7 +30,7 @@ DEFAULT_EXTERNAL_SOURCE_PACKET_ROOT = (
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "output" / "sales_deck_release_packets"
 DEFAULT_SHAREPOINT_ROOT = REPO_ROOT / "output" / "sharepoint"
 
-_TERRITORY_PUBLISH_LABELS: dict[str, str] = {
+_TERRITORY_TO_PUBLISH_LABEL: dict[str, str] = {
     "APAC": "APAC",
     "Central Europe": "Central Europe",
     "UK & Ireland": "UK & Ireland",
@@ -41,6 +41,26 @@ _TERRITORY_PUBLISH_LABELS: dict[str, str] = {
     "NA Asset Management": "NA Asset Management",
     "Pension & Insurance": "NA Pension & Insurance",
 }
+
+_TERRITORY_PUBLISH_LABELS_FALLBACK: dict[str, str] = dict(_TERRITORY_TO_PUBLISH_LABEL)
+
+
+def _load_territory_publish_labels() -> dict[str, str]:
+    cfg_path = (
+        Path(__file__).resolve().parents[1] / "config" / "sd_monthly_territories.json"
+    )
+    if not cfg_path.exists():
+        return _TERRITORY_PUBLISH_LABELS_FALLBACK
+    try:
+        territories = json.loads(cfg_path.read_text(encoding="utf-8")).get(
+            "territories", {}
+        )
+        return {key: _TERRITORY_TO_PUBLISH_LABEL.get(key, key) for key in territories}
+    except Exception:
+        return _TERRITORY_PUBLISH_LABELS_FALLBACK
+
+
+_TERRITORY_PUBLISH_LABELS: dict[str, str] = _load_territory_publish_labels()
 
 
 def _expected_director_count() -> int:

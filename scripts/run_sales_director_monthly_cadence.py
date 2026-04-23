@@ -60,7 +60,20 @@ DEFAULT_OUTPUT_ROOT = REPO_ROOT / "output" / "sales_director_monthly_cadence"
 DEFAULT_WORKBOOK_ROOT = REPO_ROOT / "output" / "director_live_workbooks"
 DEFAULT_SHAREPOINT_ROOT = REPO_ROOT / "output" / "sharepoint"
 MONTHLY_REGION_NAMES = ("APAC", "EMEA", "North America")
-SHAREPOINT_TERRITORY_LABELS = (
+
+_TERRITORY_TO_SHAREPOINT_LABEL: dict[str, str] = {
+    "APAC": "APAC",
+    "Central Europe": "EMEA Central",
+    "UK & Ireland": "EMEA UK & Ireland",
+    "Southern Europe": "EMEA South West",
+    "NL & Nordics": "EMEA NE",
+    "Middle East & Africa": "EMEA MEA",
+    "Canada": "NA Canada",
+    "NA Asset Management": "NA Asset Mgmt",
+    "Pension & Insurance": "NA Insurance",
+}
+
+_SHAREPOINT_TERRITORY_LABELS_FALLBACK = (
     "APAC",
     "EMEA Central",
     "EMEA UK & Ireland",
@@ -71,6 +84,24 @@ SHAREPOINT_TERRITORY_LABELS = (
     "NA Canada",
     "NA Insurance",
 )
+
+
+def _load_sharepoint_territory_labels() -> tuple[str, ...]:
+    cfg_path = REPO_ROOT / "config" / "sd_monthly_territories.json"
+    if not cfg_path.exists():
+        return _SHAREPOINT_TERRITORY_LABELS_FALLBACK
+    try:
+        territories = json.loads(cfg_path.read_text(encoding="utf-8")).get(
+            "territories", {}
+        )
+        return tuple(
+            _TERRITORY_TO_SHAREPOINT_LABEL.get(key, key) for key in territories
+        )
+    except Exception:
+        return _SHAREPOINT_TERRITORY_LABELS_FALLBACK
+
+
+SHAREPOINT_TERRITORY_LABELS = _load_sharepoint_territory_labels()
 DECK_SOURCE_CHOICES = (
     "canonical-shell",
     "shell",

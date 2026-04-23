@@ -32,7 +32,20 @@ _PQ = _PERIOD.prior_quarter
 
 MASTER_WORKBOOK = f"{_FY} Pipeline Review, All Territories.xlsx"
 DASHBOARD_WORKBOOK = f"Dashboard and {_PQ.label} Analysis.xlsx"
-REGIONAL_WORKBOOKS = [
+
+_TERRITORY_TO_REGIONAL_LABEL: dict[str, str] = {
+    "APAC": "APAC",
+    "Central Europe": "EMEA Central",
+    "UK & Ireland": "EMEA UK & Ireland",
+    "Southern Europe": "EMEA South West",
+    "NL & Nordics": "EMEA NE",
+    "Middle East & Africa": "EMEA MEA",
+    "Canada": "NA Canada",
+    "NA Asset Management": "NA Asset Mgmt",
+    "Pension & Insurance": "NA Insurance",
+}
+
+_REGIONAL_WORKBOOKS_FALLBACK = [
     ("APAC", f"{_FY} Pipeline Review, APAC.xlsx"),
     ("EMEA Central", f"{_FY} Pipeline Review, EMEA Central.xlsx"),
     ("EMEA UK & Ireland", f"{_FY} Pipeline Review, EMEA UK & Ireland.xlsx"),
@@ -43,6 +56,28 @@ REGIONAL_WORKBOOKS = [
     ("NA Canada", f"{_FY} Pipeline Review, NA Canada.xlsx"),
     ("NA Insurance", f"{_FY} Pipeline Review, NA Insurance.xlsx"),
 ]
+
+
+def _load_regional_workbooks() -> list[tuple[str, str]]:
+    cfg_path = ROOT / "config" / "sd_monthly_territories.json"
+    if not cfg_path.exists():
+        return _REGIONAL_WORKBOOKS_FALLBACK
+    try:
+        territories = json.loads(cfg_path.read_text(encoding="utf-8")).get(
+            "territories", {}
+        )
+        return [
+            (
+                _TERRITORY_TO_REGIONAL_LABEL.get(key, key),
+                f"{_FY} Pipeline Review, {_TERRITORY_TO_REGIONAL_LABEL.get(key, key)}.xlsx",
+            )
+            for key in territories
+        ]
+    except Exception:
+        return _REGIONAL_WORKBOOKS_FALLBACK
+
+
+REGIONAL_WORKBOOKS = _load_regional_workbooks()
 
 MASTER_REQUIRED_SHEETS_BASE = [
     "Executive Insights",
