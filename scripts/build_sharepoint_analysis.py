@@ -28,65 +28,55 @@ except ModuleNotFoundError:  # pragma: no cover
     )
     from scripts.monthly_platform.period import resolve_period_context
 
-DIRECTORS = [
-    (
-        "Jesper Tyrer",
-        "APAC",
-        "jesper-tyrer.xlsx",
-        "005Tb00000PY6SpIAL",
-        "0MI7S0000008XKyWAM",
-    ),
-    (
-        "Patrick Gaughan",
-        "NA Asset Mgmt",
-        "patrick-gaughan.xlsx",
-        "005Tb00000XYMJI",
-        "0MITb0000000JM1",
-    ),
-    (
-        "Megan Miceli",
-        "NA Canada",
-        "megan-miceli.xlsx",
-        "005Tb00000MlZXC",
-        "0MIQA00000004wT",
-    ),
-    (
-        "Adam Steinhaus",
-        "NA Insurance",
-        "adam-steinhaus.xlsx",
-        "005QA000006WqOD",
-        "0MITb0000000dvp",
-    ),
-    (
-        "Christian Ebbesen",
-        "EMEA NE",
-        "christian-ebbesen.xlsx",
-        "0052o00000BeANW",
-        "0MIQA00000005ZB",
-    ),
-    (
-        "Dan Peppett",
-        "EMEA UK & Ireland",
-        "dan-peppett.xlsx",
-        "00557000006VpU9",
-        "0MIQA00000005fd",
-    ),
-    (
-        "Sarah Pittroff",
-        "EMEA Central",
-        "sarah-pittroff.xlsx",
-        "005Tb00000WVuoK",
-        "0MIQA00000005Vx",
-    ),
-    (
-        "Francois Thaury",
-        "EMEA South West",
-        "francois-thaury.xlsx",
-        "005D000000272No",
-        "0MIQA00000005cP",
-    ),
-    ("Mourad Essofi", "EMEA MEA", "mourad-essofi.xlsx", None, None),
-]
+# JSON territory key -> workbook regional label used in tabs and CLI --territory
+_TERRITORY_KEY_TO_LABEL: dict[str, str] = {
+    "APAC": "APAC",
+    "Central Europe": "EMEA Central",
+    "UK & Ireland": "EMEA UK & Ireland",
+    "Southern Europe": "EMEA South West",
+    "NL & Nordics": "EMEA NE",
+    "Middle East & Africa": "EMEA MEA",
+    "Canada": "NA Canada",
+    "NA Asset Management": "NA Asset Mgmt",
+    "Pension & Insurance": "NA Insurance",
+}
+
+# SF OwnerId + Territory2Id per director (not in the territory config JSON).
+_DIRECTOR_SF_IDS: dict[str, tuple[str | None, str | None]] = {
+    "Jesper Tyrer": ("005Tb00000PY6SpIAL", "0MI7S0000008XKyWAM"),
+    "Patrick Gaughan": ("005Tb00000XYMJI", "0MITb0000000JM1"),
+    "Megan Miceli": ("005Tb00000MlZXC", "0MIQA00000004wT"),
+    "Adam Steinhaus": ("005QA000006WqOD", "0MITb0000000dvp"),
+    "Christian Ebbesen": ("0052o00000BeANW", "0MIQA00000005ZB"),
+    "Dan Peppett": ("00557000006VpU9", "0MIQA00000005fd"),
+    "Sarah Pittroff": ("005Tb00000WVuoK", "0MIQA00000005Vx"),
+    "Francois Thaury": ("005D000000272No", "0MIQA00000005cP"),
+    "Mourad Essofi": (None, None),
+}
+
+
+def _load_directors() -> list[tuple[str, str, str, str | None, str | None]]:
+    """Build DIRECTORS list from config/sd_monthly_territories.json.
+
+    Returns list of (name, territory_label, filename, owner_id, territory2_id).
+    """
+    cfg_path = (
+        Path(__file__).resolve().parents[1] / "config" / "sd_monthly_territories.json"
+    )
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+
+    directors: list[tuple[str, str, str, str | None, str | None]] = []
+    for territory_key, entry in cfg["territories"].items():
+        name: str = entry["director"]
+        label = _TERRITORY_KEY_TO_LABEL.get(territory_key, territory_key)
+        filename = f"{name.lower().replace(' ', '-')}.xlsx"
+        owner_id, territory2_id = _DIRECTOR_SF_IDS.get(name, (None, None))
+        directors.append((name, label, filename, owner_id, territory2_id))
+    return directors
+
+
+DIRECTORS = _load_directors()
 
 FTYPE = "0Db7S000000zDaMSAU"  # Opportunity ARR
 
