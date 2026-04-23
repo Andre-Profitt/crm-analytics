@@ -134,16 +134,21 @@ REGIONAL_REQUIRED_SHEETS = [
     "Methodology",
 ]
 
-DASHBOARD_REQUIRED_SHEETS = [
-    "Dashboard Overview",
-    "Pipeline Overview by Stage",
-    "Business At Risk",
-    "Stage Transition Matrix",
-    "Q1 History Raw",
-    "Pipeline Inspection Raw",
-    "PI Summary",
-    "Methodology",
-]
+
+def _dashboard_required_sheets(prior_q_label: str = "Q1") -> list[str]:
+    return [
+        "Dashboard Overview",
+        "Pipeline Overview by Stage",
+        "Business At Risk",
+        "Stage Transition Matrix",
+        f"{prior_q_label} History Raw",
+        "Pipeline Inspection Raw",
+        "PI Summary",
+        "Methodology",
+    ]
+
+
+DASHBOARD_REQUIRED_SHEETS = _dashboard_required_sheets()
 
 MIN_SHEET_COUNTS = {
     "master": 37,
@@ -405,7 +410,9 @@ def main() -> int:
         workbook_type="dashboard",
         territory=None,
         path=sharepoint_root / dashboard_wb,
-        required_sheets=DASHBOARD_REQUIRED_SHEETS,
+        required_sheets=_dashboard_required_sheets(
+            wb_names["period"].prior_quarter.label
+        ),
         min_sheet_count=MIN_SHEET_COUNTS["dashboard"],
         validated=validated,
         failures=failures,
