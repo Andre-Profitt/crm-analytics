@@ -103,6 +103,8 @@ def _rename_deliverables(decks_dir: Path, date_stamp: str) -> dict:
         for pptx in sorted(decks_dir.glob("*.pptx")):
             if pptx.name.startswith("~"):
                 continue
+            if pptx.name.startswith("Sales Director Monthly"):
+                continue
             old_name = pptx.name
 
             # Exec Rollup
