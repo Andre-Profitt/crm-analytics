@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Extract live Salesforce data into a director Excel workbook.
+"""Extract live Salesforce data into typed DirectorBundle models.
 
-Uses Alex P's methodology: Opportunity ARR (unweighted), reporting year only,
-stages 1-6 for open pipeline, account/owner exclusions.
-
-The Excel workbook is the single editable source of truth.
-The SimCorp deck renderer reads from this Excel.
+Produces a JSON bundle (the contract) and an Excel workbook (render artifact)
+per director territory. Uses Alex P's methodology: Opportunity ARR (unweighted),
+reporting year only, stages 1-6 for open pipeline, account/owner exclusions.
 
 Usage:
     python3 scripts/extract_director_live.py --territory APAC
@@ -105,6 +103,13 @@ OWNER_EXCLUDE = (
 TYPE_FILTER = "AND Type IN ('Land', 'Expand', 'Renewal')"
 OPEN_STAGES = "AND StageName IN ('1 - Prospecting', '2 - Discovery', '3 - Engagement', '4 - Shortlisted', '5 - Preferred', '6 - Contracting')"
 CLOSED_STAGES = "AND IsClosed = true"
+
+
+def _utc_now_iso() -> str:
+    import datetime as _dtmod
+
+    return _dtmod.datetime.now(tz=_dtmod.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 # ── Shared columns (matches Alex's report) ──
 # ARR fields wrapped in convertCurrency() so multi-currency books (APAC USD,
@@ -524,7 +529,9 @@ def _write_run_manifest(
     ]
     failed = [
         BundleManifestEntry(
-            name=item.get("territory", ""),
+            name=TERRITORIES.get(item.get("territory", ""), {}).get(
+                "director", item.get("territory", "")
+            ),
             territory=item.get("territory", ""),
             status="failed",
             bundle_path="",
@@ -1211,7 +1218,7 @@ def extract_territory(
         sf_org="simcorp.my.salesforce.com",
         api_version=SF_API_VERSION,
         territory_soql_where=where,
-        extract_timestamp=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        extract_timestamp=_utc_now_iso(),
         sources={
             "pipeline_open": DatasetSource(
                 "soql", None, f"{territory}:all_fy_deals", len(pipeline_models), 0
@@ -1403,7 +1410,7 @@ def main():
 
     # Auth once; reuse across every territory. Saves ~1s × N sf-CLI subprocess
     # calls and removes N/A token-rotation windows mid-run.
-    _run_started_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    _run_started_at = _utc_now_iso()
     token, instance_url = get_auth()
     session = build_session(token)
     corp_ccy = get_corporate_currency(session, instance_url)
@@ -1538,7 +1545,7 @@ def main():
         durations=_territory_durations,
         snapshot_date=args.snapshot_date,
         started_at=_run_started_at,
-        finished_at=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        finished_at=_utc_now_iso(),
         query_telemetry_totals=query_totals,
     )
     print(

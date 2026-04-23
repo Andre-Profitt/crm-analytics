@@ -560,15 +560,15 @@ def _build_summary(wb, bundle, fy, ccy, analysis_year):
         (
             f"Pipeline Open {fy}",
             len(ds.pipeline_open),
-            f"SOQL -- open, stages 1-6, {fy}",
+            f"SOQL — open, stages 1-6, {fy}",
         ),
-        (f"Won Lost {fy}", len(ds.won_lost), f"SOQL -- closed, stages 0/7/8, {fy}"),
-        ("Commercial Approval", len(ds.approvals), f"SOQL -- open Land, {fy}"),
-        (f"Renewals {fy}", len(ds.renewals), f"SOQL -- open Renewal, {fy}"),
+        (f"Won Lost {fy}", len(ds.won_lost), f"SOQL — closed, stages 0/7/8, {fy}"),
+        ("Commercial Approval", len(ds.approvals), f"SOQL — open Land, {fy}"),
+        (f"Renewals {fy}", len(ds.renewals), f"SOQL — open Renewal, {fy}"),
         (
             "Pipeline Inspection",
             len(ds.pi_current),
-            f"PI list view -- broad coaching population, {fy}",
+            f"PI list view — broad coaching population, {fy}",
         ),
     ]
     if ds.pi_forward:
@@ -576,7 +576,7 @@ def _build_summary(wb, bundle, fy, ccy, analysis_year):
             (
                 "Pipeline Inspection Forward",
                 len(ds.pi_forward),
-                "PI list view -- forward quarter",
+                "PI list view — forward quarter",
             )
         )
 

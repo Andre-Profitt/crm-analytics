@@ -231,6 +231,7 @@ def test_build_pipeline_inspection_rows_can_filter_to_forward_quarter() -> None:
             "5 - Preferred",
             "Commit",
             250000,
+            "EUR",
             "2026-07-18",
             2,
             71,
@@ -333,6 +334,9 @@ def test_extract_territory_tracks_actionable_commercial_approval_rows(
         lambda *args, **kwargs: {},
     )
     monkeypatch.setattr(extract_live, "fetch_pi", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        extract_live, "BUNDLE_OUTPUT_ROOT", tmp_path / "director_bundles"
+    )
 
     pipeline = [
         _make_opportunity(
@@ -399,15 +403,13 @@ def test_extract_territory_tracks_actionable_commercial_approval_rows(
     ]
 
     def fake_run_soql(session, instance_url, query, label):
-        if label == "APAC:pipeline_open":
+        if label == "APAC:all_fy_deals":
             return pipeline
-        if label == "APAC:won_lost":
-            return []
         if label == "APAC:renewals":
             return renewals
         if label in {"APAC:tasks_90d", "APAC:events_90d", "APAC:field_history"}:
             return []
-        raise AssertionError(label)
+        return []
 
     monkeypatch.setattr(extract_live, "run_soql", fake_run_soql)
 
