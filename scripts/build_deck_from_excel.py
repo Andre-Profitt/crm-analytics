@@ -166,10 +166,14 @@ LY_END_SLIDE = 31
 
 GRAD_COL_X = [0.9, 3.9, 6.8, 9.8]
 
-DEFAULT_TEMPLATE = (
+_REPO_TEMPLATE = (
+    Path(__file__).resolve().parents[1] / "assets" / "SimCorp_PPT_Template.pptx"
+)
+_HOME_TEMPLATE = (
     Path.home()
     / "archive/simcorp-deck-agent-backup/reference-decks/SimCorp_PPT_Template.pptx"
 )
+DEFAULT_TEMPLATE = _REPO_TEMPLATE if _REPO_TEMPLATE.exists() else _HOME_TEMPLATE
 
 
 # ── Excel reader ──

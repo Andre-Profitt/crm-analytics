@@ -19,6 +19,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 try:
+    from monthly_platform import SF_API_VERSION
     from monthly_platform.period import resolve_period_context, sheet_names
 except ModuleNotFoundError:  # pragma: no cover
     from scripts.monthly_platform.period import sheet_names
@@ -64,7 +65,7 @@ def run_report(session, instance, rid):
     to leading columns so every detail row shows the grouping it belonged to.
     """
     r = session.post(
-        f"{instance}/services/data/v66.0/analytics/reports/{rid}?includeDetails=true",
+        f"{instance}/services/data/{SF_API_VERSION}/analytics/reports/{rid}?includeDetails=true",
         headers={"Content-Type": "application/json"},
     ).json()
     md = r.get("reportMetadata", {})
