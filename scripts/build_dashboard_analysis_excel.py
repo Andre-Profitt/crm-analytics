@@ -1634,7 +1634,14 @@ def build_stage_transition_matrix(wb, history_rows):
 
 
 def main():
+    global WORKBOOKS_DIR
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--workbooks-dir",
+        type=Path,
+        default=WORKBOOKS_DIR,
+        help="Directory containing the extracted director workbooks used for PI consolidation.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -1642,6 +1649,7 @@ def main():
     )
     args = parser.parse_args()
 
+    WORKBOOKS_DIR = args.workbooks_dir
     args.output.parent.mkdir(parents=True, exist_ok=True)
     token, instance = get_auth()
     session = requests.Session()

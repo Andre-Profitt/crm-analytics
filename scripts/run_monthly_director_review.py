@@ -1,4 +1,10 @@
 """
+DEPRECATED: legacy Sales Director monthly ETL runner.
+
+Use `python3 scripts/run_sales_director_monthly_cadence.py monthly-run ...`
+for the canonical operator path. This script remains as a legacy fallback
+while the final cutover is being completed.
+
 Monthly Sales Directors Review, end-to-end ETL.
 
 Steps, in sequence:
@@ -334,6 +340,11 @@ def main():
     parser.add_argument("--skip-decks", action="store_true")
     parser.add_argument("--skip-analysis", action="store_true")
     args = parser.parse_args()
+    print(
+        "DEPRECATION: run_monthly_director_review.py is legacy. "
+        "Use run_sales_director_monthly_cadence.py monthly-run for the canonical path.",
+        file=sys.stderr,
+    )
 
     date_stamp = args.date
     log_dir = LOGS_ROOT / date_stamp

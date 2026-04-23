@@ -4,9 +4,9 @@
 
 There are 161 Python scripts in `scripts/`. Most of them are not part of the production pipeline. Here is what matters and what to ignore.
 
-### What runs in production today (11 scripts)
+### Legacy lane (demoted)
 
-These are the **legacy production lane**. This is the pipeline that currently produces decks for monthly reviews. It has CI (GitHub Actions on the 1st of each month). When someone says "run the monthly pipeline," they mean this.
+These are the **legacy lane**. It still has CI and remains useful for fallback/reference, but it is no longer the canonical operator path.
 
 | Script                              | What it does                                             |
 | ----------------------------------- | -------------------------------------------------------- |
@@ -22,9 +22,9 @@ These are the **legacy production lane**. This is the pipeline that currently pr
 | `audit_deck_scope.py`               | Validates slide-level numeric claims against sidecar     |
 | `generate_obsidian_notes.py`        | Updates Obsidian vault + MoM snapshot ledger             |
 
-### Cadence lane — now production-viable (37 scripts)
+### Cadence lane — canonical operator path
 
-These are the **cadence lane**, orchestrated by `run_sales_director_monthly_cadence.py`. As of 2026-04-22, this lane owns the full extraction chain and has been verified with a live unattended run (9/9 directors, 0 failures, release packet publish_ready=True).
+These are the **cadence lane**, orchestrated by `run_sales_director_monthly_cadence.py`. This lane now owns the end-to-end operator flow: source audit, extraction, workbook validation, native SimCorp rendering, publish gate, canonical promotion, region/global rollups, release packet, and SharePoint upload.
 
 **The canonical operator command is:**
 
@@ -41,7 +41,8 @@ python3 scripts/run_sales_director_monthly_cadence.py monthly-run --snapshot-dat
 5. Native SimCorp deck rendering (default) or legacy JS renderer (explicit opt-in)
 6. Publish gate + canonical promotion
 7. Regional/global rollups
-8. Release packet generation
+8. Release packet generation + professional publish assets
+9. SharePoint upload
 
 | Key scripts                                    | What they do                                                               |
 | ---------------------------------------------- | -------------------------------------------------------------------------- |
@@ -52,7 +53,7 @@ python3 scripts/run_sales_director_monthly_cadence.py monthly-run --snapshot-dat
 | `run_sales_region_monthly_builder.py`          | Regional rollup (chained by cadence).                                      |
 | + 32 more                                      | Snapshot extractors, briefs, validators, contract linters, author prompts. |
 
-**Relationship to legacy lane:** The cadence lane wraps the same extraction scripts (`extract_director_live.py`, `extract_historical_trending.py`) but owns failure semantics and operator reporting. The legacy `run_monthly_director_review.py` still works but should be treated as a fallback, not the primary path.
+**Relationship to legacy lane:** The cadence lane wraps the same hardened extraction/build scripts (`extract_director_live.py`, `extract_historical_trending.py`, `build_deck_from_excel.py`, `build_sharepoint_analysis.py`) but owns failure semantics, operator reporting, release packaging, and SharePoint distribution. `run_monthly_director_review.py` is legacy fallback only.
 
 ### What is a different workstream entirely (22 scripts)
 
@@ -133,7 +134,7 @@ The repo contains two orchestrators for the SD Monthly pipeline:
 | **Deck rendering** | `build_deck_from_excel.py` directly.                                        | Can delegate to the legacy builder or to a Claude-assisted renderer.                                      |
 | **Scheduling**     | `.github/workflows/monthly-review.yml` (midnight 1st of month).             | None committed. Scheduling is an open item.                                                               |
 
-If you are operating the pipeline today, use the legacy lane. The modular lane is the intended future-state architecture but is not yet production-ready.
+If you are operating the pipeline today, use `run_sales_director_monthly_cadence.py monthly-run`. Treat `run_monthly_director_review.py` as deprecated fallback.
 
 ## Scripts
 
@@ -198,7 +199,7 @@ If you are operating the pipeline today, use the legacy lane. The modular lane i
 | `config/sales_director_md1_presets.json`          | 9 preset filter combos for deck generation                 |
 | `config/sales_deck_execution_plan.json`           | Deck slide sequence and feature flags                      |
 | `config/sales_deck_external_source_contract.json` | Source-of-truth contract (which field comes from where)    |
-| `config/q3_2026_reporting_ids.json`               | Q3 PI list view + Historical Trending report IDs           |
+| `config/sd_monthly_territories.json`              | Canonical territory registry, including inline forward-quarter PI + Historical Trending IDs |
 
 ## Output structure
 
@@ -235,7 +236,7 @@ output/
 
 1. Checkout + install Python 3.13 + sf CLI
 2. Authenticate to SF via `SFDX_AUTH_URL` secret
-3. Run full pipeline (`run_monthly_director_review.py`)
+3. Run full pipeline (`run_sales_director_monthly_cadence.py monthly-run`)
 4. Run data quality + scope audits
 5. Verify tie-out clean
 6. Upload decks + workbooks as GitHub artifacts (90-day retention)
@@ -243,18 +244,17 @@ output/
 
 Manual trigger via `workflow_dispatch` with optional date override.
 
-**SharePoint upload** is currently a manual post-pipeline step using Microsoft Graph API (`az account get-access-token --resource https://graph.microsoft.com`). Target folder: `Sales Excellence > General > Book of Business > Sales Director Reporting > Q1 2026`.
+**SharePoint upload** is now wired through the cadence lane via Microsoft Graph. The upload target is `General/Book of Business/Sales Director Reporting/{quarter}` using professional publish-asset naming from the release packet.
 
 ## How to run
 
 ```bash
-# Full pipeline (extract + analyze + decks + validate + obsidian)
-python3 scripts/run_monthly_director_review.py --date 2026-05-01
+# Canonical monthly operator run
+python3 scripts/run_sales_director_monthly_cadence.py monthly-run --snapshot-date 2026-05-01 --unattended
 
-# Skip stages
-python3 scripts/run_monthly_director_review.py --date 2026-05-01 --skip-extract
-python3 scripts/run_monthly_director_review.py --date 2026-05-01 --skip-analysis
-python3 scripts/run_monthly_director_review.py --date 2026-05-01 --skip-decks
+# Skip release / upload legs if needed
+python3 scripts/run_sales_director_monthly_cadence.py monthly-run --snapshot-date 2026-05-01 --skip-release-packet
+python3 scripts/run_sales_director_monthly_cadence.py monthly-run --snapshot-date 2026-05-01 --skip-sharepoint-upload
 
 # Individual scripts
 python3 scripts/audit_data_quality.py --date 2026-05-01
