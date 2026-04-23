@@ -737,12 +737,6 @@ def run_sharepoint_analysis_chain(
     period = resolve_period_context(snapshot_date=snapshot_date)
     fy = period.fiscal_year
 
-    if sharepoint_root.exists():
-        for stale in sharepoint_root.glob("*.xlsx"):
-            if not stale.name.startswith("~"):
-                stale.unlink()
-    sharepoint_root.mkdir(parents=True, exist_ok=True)
-
     master_output = sharepoint_root / f"{fy} Pipeline Review, All Territories.xlsx"
     proc = run_step(
         "2a_sharepoint_master",
@@ -1374,7 +1368,9 @@ def command_monthly_run(args: argparse.Namespace) -> dict[str, Any]:
         return maybe_write_monthly_run_status(args, result)
 
     sharepoint_upload_enabled = bool(getattr(args, "sharepoint_upload", False))
-    sharepoint_root = Path(getattr(args, "sharepoint_root", DEFAULT_SHAREPOINT_ROOT))
+    sharepoint_base = Path(getattr(args, "sharepoint_root", DEFAULT_SHAREPOINT_ROOT))
+    sharepoint_root = sharepoint_base / period["snapshot_date"] / timestamp_slug()
+    sharepoint_root.mkdir(parents=True, exist_ok=True)
 
     if sharepoint_upload_enabled:
         workbook_dir_value = extraction.get("workbook_dir")
