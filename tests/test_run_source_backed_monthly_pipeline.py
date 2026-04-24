@@ -24,6 +24,7 @@ EXPECTED_STAGE_SCRIPTS = [
     "audit_pi_list_view_filters.py",
     "build_monthly_source_contract.py",
     "lint_monthly_source_contract.py",
+    "build_source_fingerprint_preflight.py",
     "extract_salesforce_sources.py",
     "build_source_bundles_from_extracts.py",
     "build_director_bundles_from_sources.py",
@@ -169,6 +170,10 @@ def test_plan_only_assembles_all_source_backed_stage_commands(
     assert "--require-bundles" in source_contract_commands[1]
     assert "--bundle-dir" in source_contract_commands[1]
     assert "--json" in _command_for(commands, "lint_monthly_source_contract.py")
+    assert "--fail-fast" in _command_for(
+        commands,
+        "build_source_fingerprint_preflight.py",
+    )
     assert "--json" in _command_for(commands, "extract_salesforce_sources.py")
     assert "--require-complete" in _command_for(
         commands,
@@ -252,6 +257,7 @@ def test_required_stage_failure_stops_before_downstream_commands(
         "audit_pi_list_view_filters.py",
         "build_monthly_source_contract.py",
         "lint_monthly_source_contract.py",
+        "build_source_fingerprint_preflight.py",
         "extract_salesforce_sources.py",
     ]
     assert "build_source_bundles_from_extracts.py" not in called_scripts
@@ -382,6 +388,23 @@ def test_summarize_manifest_surfaces_operator_metrics() -> None:
                 },
             },
             {
+                "name": "source_fingerprint_preflight",
+                "status": "ok",
+                "payload": {
+                    "status": "ok",
+                    "summary": {
+                        "selected_source_count": 55,
+                        "fingerprinted_source_count": 55,
+                        "probed_source_count": 55,
+                        "failed_source_count": 0,
+                        "fallback_probe_count": 0,
+                        "finding_count": 0,
+                        "high_finding_count": 0,
+                        "medium_finding_count": 0,
+                    },
+                },
+            },
+            {
                 "name": "extract_salesforce_sources",
                 "status": "ok",
                 "payload": {
@@ -506,12 +529,14 @@ def test_summarize_manifest_surfaces_operator_metrics() -> None:
 
     summary = pipeline.summarize_manifest(manifest)
 
-    assert summary["stage_count"] == 10
-    assert summary["ok_stage_count"] == 10
+    assert summary["stage_count"] == 11
+    assert summary["ok_stage_count"] == 11
     assert summary["source_contract_authoring_target_count"] == 3
     assert summary["source_contract_authoring_drift_count"] == 0
     assert summary["list_view_audit_view_count"] == 27
     assert summary["source_extract_count"] == 55
+    assert summary["source_fingerprint_fingerprinted_source_count"] == 55
+    assert summary["source_fingerprint_high_finding_count"] == 0
     assert summary["forward_fallback_count"] == 4
     assert summary["visual_slide_count"] == 6
     assert summary["visual_finding_count"] == 0
@@ -608,6 +633,10 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
             "source_contract_preflight_missing_report_id_count": 0,
             "source_contract_lint_finding_count": 0,
             "source_contract_lint_high_finding_count": 0,
+            "source_fingerprint_selected_source_count": 55,
+            "source_fingerprint_fingerprinted_source_count": 55,
+            "source_fingerprint_failed_source_count": 0,
+            "source_fingerprint_high_finding_count": 0,
             "source_contract_final_high_finding_count": 0,
             "source_contract_final_warning_finding_count": 0,
             "source_contract_final_missing_report_id_count": 0,
@@ -696,6 +725,7 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
             "release_bundle_zip": str(tmp_path / "bundle.zip"),
             "sharepoint_upload_plan": str(tmp_path / "sharepoint_upload_plan.json"),
             "list_view_audit": str(tmp_path / "list_view.json"),
+            "source_fingerprint_preflight": str(tmp_path / "source_fingerprint.json"),
         },
         "stages": [{"name": "gate", "status": "ok", "payload_status": "ok"}],
     }
@@ -713,6 +743,9 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
     assert packet["artifacts"]["release_bundle_zip"] == str(tmp_path / "bundle.zip")
     assert packet["artifacts"]["sharepoint_upload_plan"] == str(
         tmp_path / "sharepoint_upload_plan.json"
+    )
+    assert packet["artifacts"]["source_fingerprint_preflight"] == str(
+        tmp_path / "source_fingerprint.json"
     )
     assert all(check["status"] == "pass" for check in packet["release_checks"])
 
@@ -742,6 +775,10 @@ def test_release_packet_blocks_weak_source_or_visual_evidence(tmp_path: Path) ->
             "source_contract_preflight_missing_report_id_count": 0,
             "source_contract_lint_finding_count": 0,
             "source_contract_lint_high_finding_count": 0,
+            "source_fingerprint_selected_source_count": 55,
+            "source_fingerprint_fingerprinted_source_count": 55,
+            "source_fingerprint_failed_source_count": 0,
+            "source_fingerprint_high_finding_count": 0,
             "source_contract_final_high_finding_count": 0,
             "source_contract_final_warning_finding_count": 0,
             "source_contract_final_missing_report_id_count": 0,
@@ -859,6 +896,12 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
             "source_contract_preflight_missing_report_id_count": 0,
             "source_contract_lint_finding_count": 0,
             "source_contract_lint_high_finding_count": 0,
+            "source_fingerprint_selected_source_count": 55,
+            "source_fingerprint_fingerprinted_source_count": 55,
+            "source_fingerprint_failed_source_count": 0,
+            "source_fingerprint_high_finding_count": 0,
+            "source_fingerprint_medium_finding_count": 0,
+            "source_fingerprint_fallback_probe_count": 0,
             "source_contract_final_high_finding_count": 0,
             "source_contract_final_warning_finding_count": 0,
             "source_contract_final_missing_report_id_count": 0,
@@ -947,6 +990,7 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
             "release_bundle_zip": str(tmp_path / "bundle.zip"),
             "sharepoint_upload_plan": str(tmp_path / "sharepoint_upload_plan.json"),
             "list_view_audit": str(tmp_path / "list_view.json"),
+            "source_fingerprint_preflight": str(tmp_path / "source_fingerprint.json"),
         },
         "stages": [{"name": "gate", "status": "ok", "payload_status": "ok"}],
     }
@@ -970,6 +1014,8 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
     assert latest["publish_recommendation"] == "publish"
     assert latest["run_id"] == RUN_ID
     assert latest["summary"]["rendered_slide_count"] == 6
+    assert latest["summary"]["source_fingerprint_fingerprinted_source_count"] == 55
+    assert latest["summary"]["source_fingerprint_high_finding_count"] == 0
     assert latest["summary"]["table_contract_table_count"] == 5
     assert latest["summary"]["semantic_human_style_score"] == 100
     assert latest["summary"]["quarter_policy_name"] == "calendar_quarter"
@@ -1001,6 +1047,15 @@ def _fake_stage_payload(script_name: str, output_root: Path) -> dict[str, Any]:
         },
         "build_monthly_source_contract.py": {
             "manifest_path": str(run_dir / "monthly_source_contract.json"),
+        },
+        "build_source_fingerprint_preflight.py": {
+            "output_path": str(run_dir / "source_fingerprint_manifest.json"),
+            "summary": {
+                "selected_source_count": 55,
+                "fingerprinted_source_count": 55,
+                "failed_source_count": 0,
+                "high_finding_count": 0,
+            },
         },
         "extract_salesforce_sources.py": {
             "output_dir": str(run_dir / "salesforce_sources"),
@@ -1076,6 +1131,14 @@ def _write_fake_output_path(command: list[str]) -> None:
         output_root = Path(command_parts[command_parts.index("--output-root") + 1])
         snapshot_date = command_parts[command_parts.index("--snapshot-date") + 1]
         output_path = output_root / snapshot_date / "monthly_source_contract.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text('{"status":"ok"}\n', encoding="utf-8")
+        return
+    if "scripts/build_source_fingerprint_preflight.py" in command_parts:
+        output_root = Path(command_parts[command_parts.index("--output-root") + 1])
+        snapshot_date = command_parts[command_parts.index("--snapshot-date") + 1]
+        run_id = command_parts[command_parts.index("--run-id") + 1]
+        output_path = output_root / snapshot_date / run_id / "source_fingerprint_manifest.json"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text('{"status":"ok"}\n', encoding="utf-8")
         return

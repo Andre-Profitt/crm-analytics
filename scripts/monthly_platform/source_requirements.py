@@ -67,6 +67,7 @@ class SourceRequirement(ContractModel):
     owner: str = "sales_director_monthly"
     source_system: Literal["salesforce"] = "salesforce"
     source_type: SourceType
+    salesforce_object: str = "Opportunity"
     dataset: str
     output_grain: str
     scope: RequirementScope = "territory"
@@ -109,6 +110,7 @@ class SourcePlanItem(ContractModel):
     requirement_id: str
     source_system: str
     source_type: SourceType
+    salesforce_object: str = "Opportunity"
     dataset: str
     output_grain: str
     scope: RequirementScope
@@ -289,6 +291,7 @@ def _build_item(
         requirement_id=requirement.requirement_id,
         source_system=requirement.source_system,
         source_type=requirement.source_type,
+        salesforce_object=requirement.salesforce_object,
         dataset=requirement.dataset,
         output_grain=requirement.output_grain,
         scope=requirement.scope,

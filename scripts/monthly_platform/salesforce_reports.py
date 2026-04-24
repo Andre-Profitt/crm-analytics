@@ -66,6 +66,31 @@ class SalesforceSourceClient:
             metadata=report_metadata_summary(payload),
         )
 
+    def describe_report(
+        self,
+        *,
+        report_id: str,
+        source_label: str,
+    ) -> SalesforceSourceResult:
+        started = time.monotonic()
+        url = (
+            f"{self.auth.instance_url}/services/data/{self.auth.api_version}"
+            f"/analytics/reports/{report_id}/describe"
+        )
+        response = self.session.get(url, timeout=min(self.timeout_seconds, 60))
+        payload = _json_response(response)
+        response.raise_for_status()
+        return SalesforceSourceResult(
+            source_type="salesforce_report",
+            source_id=report_id,
+            source_label=source_label,
+            rows=[],
+            raw_payload=payload,
+            duration_ms=int((time.monotonic() - started) * 1000),
+            status_code=response.status_code,
+            metadata=report_metadata_summary(payload),
+        )
+
     def run_list_view(
         self,
         *,
@@ -113,6 +138,32 @@ class SalesforceSourceClient:
                 "record_count": len(rows),
                 "max_records": max_records,
             },
+        )
+
+    def describe_list_view(
+        self,
+        *,
+        list_view_id: str,
+        source_label: str,
+        sobject_type: str = "Opportunity",
+    ) -> SalesforceSourceResult:
+        started = time.monotonic()
+        url = (
+            f"{self.auth.instance_url}/services/data/{self.auth.api_version}"
+            f"/sobjects/{sobject_type}/listviews/{list_view_id}/describe"
+        )
+        response = self.session.get(url, timeout=min(self.timeout_seconds, 60))
+        payload = _json_response(response)
+        response.raise_for_status()
+        return SalesforceSourceResult(
+            source_type="salesforce_list_view",
+            source_id=list_view_id,
+            source_label=source_label,
+            rows=[],
+            raw_payload=payload,
+            duration_ms=int((time.monotonic() - started) * 1000),
+            status_code=response.status_code,
+            metadata=list_view_metadata_summary(payload),
         )
 
 
@@ -163,14 +214,59 @@ def report_metadata_summary(payload: dict[str, Any]) -> dict[str, Any]:
     metadata = payload.get("reportMetadata") or {}
     extended = payload.get("reportExtendedMetadata") or {}
     return {
+        "id": metadata.get("id") or payload.get("id"),
         "name": metadata.get("name"),
+        "developer_name": metadata.get("developerName"),
         "report_type": (metadata.get("reportType") or {}).get("type"),
         "report_format": metadata.get("reportFormat"),
         "detail_columns": metadata.get("detailColumns") or [],
         "historical_snapshot_dates": metadata.get("historicalSnapshotDates") or [],
+        "report_filters": metadata.get("reportFilters") or [],
+        "standard_date_filter": metadata.get("standardDateFilter"),
+        "cross_filters": metadata.get("crossFilters") or [],
+        "scope": metadata.get("scope"),
         "detail_column_info_keys": sorted(
             ((extended.get("detailColumnInfo") or {}).keys())
         ),
+    }
+
+
+def list_view_metadata_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    columns = []
+    for column in payload.get("columns") or []:
+        if not isinstance(column, dict):
+            continue
+        columns.append(
+            {
+                key: column.get(key)
+                for key in (
+                    "fieldName",
+                    "name",
+                    "label",
+                    "type",
+                    "sortable",
+                    "selectListItem",
+                )
+                if column.get(key) is not None
+            }
+        )
+    query = (
+        payload.get("query")
+        or payload.get("soql")
+        or payload.get("listViewMetadata", {}).get("query")
+        or payload.get("listViewMetadata", {}).get("soql")
+    )
+    return {
+        "id": payload.get("id"),
+        "label": payload.get("label") or payload.get("name"),
+        "developer_name": payload.get("developerName"),
+        "sobject_type": payload.get("sobjectType"),
+        "columns": columns,
+        "column_count": len(columns),
+        "query": query,
+        "scope": payload.get("scope"),
+        "where_condition": payload.get("whereCondition"),
+        "order_by": payload.get("orderBy"),
     }
 
 

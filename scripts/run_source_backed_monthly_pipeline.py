@@ -43,6 +43,7 @@ class PipelinePaths:
     list_view_audit: Path
     source_contract_root: Path
     source_contract_lint: Path
+    source_fingerprint_preflight: Path
     source_run_dir: Path
     source_bundle_dir: Path
     source_bundle_manifest: Path
@@ -132,6 +133,14 @@ def build_paths(snapshot_date: str, run_id: str) -> PipelinePaths:
             / snapshot_date
             / run_id
             / "source_contract_lint.json"
+        ),
+        source_fingerprint_preflight=(
+            ROOT
+            / "output"
+            / "source_fingerprint_preflight"
+            / snapshot_date
+            / run_id
+            / "source_fingerprint_manifest.json"
         ),
         source_run_dir=source_run_dir,
         source_bundle_dir=source_bundle_dir,
@@ -314,6 +323,28 @@ def build_stage_plan(
                 str(bundle_contract_path),
                 "--output-path",
                 str(paths.source_contract_lint),
+                "--json",
+            ],
+        ),
+        PipelineStage(
+            name="source_fingerprint_preflight",
+            output_path=paths.source_fingerprint_preflight,
+            command=[
+                python,
+                "scripts/build_source_fingerprint_preflight.py",
+                "--snapshot-date",
+                snapshot_date,
+                "--requirements",
+                str(requirements_path),
+                "--territory-config",
+                str(territory_config_path),
+                "--output-root",
+                str(paths.source_fingerprint_preflight.parents[2]),
+                "--run-id",
+                run_id,
+                "--target-org",
+                target_org,
+                "--fail-fast",
                 "--json",
             ],
         ),
@@ -627,6 +658,8 @@ def build_stage_plan(
                 "--artifact",
                 f"source_contract_lint=evidence={paths.source_contract_lint}",
                 "--artifact",
+                f"source_fingerprint_preflight=evidence={paths.source_fingerprint_preflight}",
+                "--artifact",
                 f"list_view_audit=evidence={paths.list_view_audit}",
                 "--artifact",
                 f"salesforce_run_manifest=source={paths.source_run_dir / 'run_manifest.json'}",
@@ -935,6 +968,24 @@ def _fold_stage_summary(
             "publish_required_source_backed_dataset_count",
             "publish_required_source_backed_dataset_count",
         )
+    elif stage_name == "source_fingerprint_preflight":
+        fingerprint_summary = payload.get("summary") or {}
+        for key in (
+            "selected_source_count",
+            "fingerprinted_source_count",
+            "probed_source_count",
+            "failed_source_count",
+            "fallback_probe_count",
+            "finding_count",
+            "high_finding_count",
+            "medium_finding_count",
+        ):
+            _copy_metric(
+                fingerprint_summary,
+                summary,
+                key,
+                f"source_fingerprint_{key}",
+            )
     elif stage_name == "extract_salesforce_sources":
         for key in (
             "selected_source_count",
@@ -1392,6 +1443,7 @@ def release_packet_from_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
             "sharepoint_upload_plan": paths.get("sharepoint_upload_plan"),
             "sharepoint_upload_result": paths.get("sharepoint_upload_result"),
             "list_view_audit": paths.get("list_view_audit"),
+            "source_fingerprint_preflight": paths.get("source_fingerprint_preflight"),
         },
         "release_checks": release_checks,
         "blocking_reasons": [
@@ -1422,6 +1474,14 @@ def release_checks_from_manifest(manifest: dict[str, Any]) -> list[dict[str, str
     selected_sources = _summary_int(summary, "selected_source_count")
     executed_sources = _summary_int(summary, "executed_source_count")
     extracted_sources = _summary_int(summary, "source_extract_count")
+    fingerprint_selected_sources = _summary_int(
+        summary,
+        "source_fingerprint_selected_source_count",
+    )
+    fingerprinted_sources = _summary_int(
+        summary,
+        "source_fingerprint_fingerprinted_source_count",
+    )
     territory_count = _summary_int(summary, "territory_count")
     source_bundle_count = _summary_int(summary, "bundle_count")
     director_bundle_count = _summary_int(summary, "director_bundle_count")
@@ -1474,6 +1534,23 @@ def release_checks_from_manifest(manifest: dict[str, Any]) -> list[dict[str, str
                 f"{summary.get('source_contract_lint_finding_count')}; "
                 "source_contract_lint_high_finding_count="
                 f"{summary.get('source_contract_lint_high_finding_count')}"
+            ),
+        ),
+        _release_check(
+            "source_fingerprint_preflight_clean",
+            fingerprint_selected_sources > 0
+            and fingerprinted_sources == fingerprint_selected_sources
+            and _summary_int(summary, "source_fingerprint_high_finding_count") == 0
+            and _summary_int(summary, "source_fingerprint_failed_source_count") == 0,
+            (
+                "source_fingerprint_selected_source_count="
+                f"{summary.get('source_fingerprint_selected_source_count')}; "
+                "source_fingerprint_fingerprinted_source_count="
+                f"{summary.get('source_fingerprint_fingerprinted_source_count')}; "
+                "source_fingerprint_high_finding_count="
+                f"{summary.get('source_fingerprint_high_finding_count')}; "
+                "source_fingerprint_failed_source_count="
+                f"{summary.get('source_fingerprint_failed_source_count')}"
             ),
         ),
         _release_check(
@@ -1809,6 +1886,12 @@ def latest_release_index_from_manifest(
                 "source_contract_authoring_target_count",
                 "source_contract_authoring_drift_count",
                 "source_contract_authoring_missing_count",
+                "source_fingerprint_selected_source_count",
+                "source_fingerprint_fingerprinted_source_count",
+                "source_fingerprint_failed_source_count",
+                "source_fingerprint_high_finding_count",
+                "source_fingerprint_medium_finding_count",
+                "source_fingerprint_fallback_probe_count",
                 "selected_source_count",
                 "executed_source_count",
                 "source_extract_count",
@@ -1887,6 +1970,11 @@ def latest_release_markdown(index: dict[str, Any]) -> str:
         (
             f"- Sources: `{summary.get('executed_source_count')}` / "
             f"`{summary.get('selected_source_count')}`"
+        ),
+        (
+            f"- Source fingerprints: `{summary.get('source_fingerprint_fingerprinted_source_count')}` / "
+            f"`{summary.get('source_fingerprint_selected_source_count')}`, "
+            f"high findings `{summary.get('source_fingerprint_high_finding_count')}`"
         ),
         f"- Bundles: `{summary.get('bundle_count')}` source / `{summary.get('director_bundle_count')}` director",
         (

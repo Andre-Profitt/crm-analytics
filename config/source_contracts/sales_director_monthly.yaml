@@ -234,8 +234,8 @@ compiled_targets:
           semantic_name: forecast_category
           required: true
           data_type: string
-        - name: APTS_Opportunity_ARR__c
-          semantic_name: arr_unweighted
+        - name: APTS_Forecast_ARR__c
+          semantic_name: arr_weighted
           required: true
           data_type: currency
         row_count_policy:
