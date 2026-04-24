@@ -664,6 +664,8 @@ def build_stage_plan(
                 "--artifact",
                 f"salesforce_run_manifest=source={paths.source_run_dir / 'run_manifest.json'}",
                 "--artifact",
+                f"source_extract_quality_audit=evidence={paths.source_run_dir / 'audits' / 'source_extract_quality_audit.json'}",
+                "--artifact",
                 f"source_bundle_manifest=source={paths.source_bundle_manifest}",
                 "--artifact",
                 f"director_bundle_manifest=source={paths.director_bundle_manifest}",
@@ -995,6 +997,16 @@ def _fold_stage_summary(
             "finding_count",
         ):
             _copy_metric(payload, summary, key, key)
+        for key in (
+            "quality_source_count",
+            "quality_ok_source_count",
+            "quality_warning_source_count",
+            "quality_blocked_source_count",
+            "quality_finding_count",
+            "quality_high_finding_count",
+            "quality_medium_finding_count",
+        ):
+            _copy_metric(payload, summary, key, f"extract_{key}")
     elif stage_name == "build_source_bundles":
         for key in (
             "bundle_count",
@@ -1444,6 +1456,11 @@ def release_packet_from_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
             "sharepoint_upload_result": paths.get("sharepoint_upload_result"),
             "list_view_audit": paths.get("list_view_audit"),
             "source_fingerprint_preflight": paths.get("source_fingerprint_preflight"),
+            "source_extract_quality_audit": str(
+                Path(paths["source_run_dir"]) / "audits" / "source_extract_quality_audit.json"
+            )
+            if paths.get("source_run_dir")
+            else None,
         },
         "release_checks": release_checks,
         "blocking_reasons": [
@@ -1628,6 +1645,20 @@ def release_checks_from_manifest(manifest: dict[str, Any]) -> list[dict[str, str
                 f"executed_source_count={executed_sources}; "
                 f"source_extract_count={extracted_sources}; "
                 f"failed_source_count={summary.get('failed_source_count')}"
+            ),
+        ),
+        _release_check(
+            "source_extract_quality_clean",
+            _summary_int(summary, "extract_quality_source_count") == selected_sources
+            and _summary_int(summary, "extract_quality_high_finding_count") == 0
+            and _summary_int(summary, "extract_quality_blocked_source_count") == 0,
+            (
+                "extract_quality_source_count="
+                f"{summary.get('extract_quality_source_count')}; "
+                "extract_quality_high_finding_count="
+                f"{summary.get('extract_quality_high_finding_count')}; "
+                "extract_quality_blocked_source_count="
+                f"{summary.get('extract_quality_blocked_source_count')}"
             ),
         ),
         _release_check(
@@ -1870,6 +1901,7 @@ def latest_release_index_from_manifest(
         "release_bundle_zip": artifacts.get("release_bundle_zip"),
         "sharepoint_upload_plan": artifacts.get("sharepoint_upload_plan"),
         "sharepoint_upload_result": artifacts.get("sharepoint_upload_result"),
+        "source_extract_quality_audit": artifacts.get("source_extract_quality_audit"),
         "visual_audit": artifacts.get("visual_audit"),
         "publish_gate": artifacts.get("publish_gate"),
         "release_check_count": len(release_packet.get("release_checks") or []),
@@ -1895,6 +1927,10 @@ def latest_release_index_from_manifest(
                 "selected_source_count",
                 "executed_source_count",
                 "source_extract_count",
+                "extract_quality_source_count",
+                "extract_quality_high_finding_count",
+                "extract_quality_medium_finding_count",
+                "extract_quality_blocked_source_count",
                 "bundle_count",
                 "director_bundle_count",
                 "quarter_policy_name",
@@ -1958,6 +1994,7 @@ def latest_release_markdown(index: dict[str, Any]) -> str:
         f"- Release bundle: `{index.get('release_bundle_zip')}`",
         f"- SharePoint upload plan: `{index.get('sharepoint_upload_plan')}`",
         f"- SharePoint upload result: `{index.get('sharepoint_upload_result')}`",
+        f"- Extract quality audit: `{index.get('source_extract_quality_audit')}`",
         "",
         "## Gate Summary",
         "",
@@ -1970,6 +2007,10 @@ def latest_release_markdown(index: dict[str, Any]) -> str:
         (
             f"- Sources: `{summary.get('executed_source_count')}` / "
             f"`{summary.get('selected_source_count')}`"
+        ),
+        (
+            f"- Extract quality: `{summary.get('extract_quality_source_count')}` audited, "
+            f"high findings `{summary.get('extract_quality_high_finding_count')}`"
         ),
         (
             f"- Source fingerprints: `{summary.get('source_fingerprint_fingerprinted_source_count')}` / "

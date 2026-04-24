@@ -1,7 +1,7 @@
 # GPT-5.5 Feedback Implementation Plan — Source-Backed Monthly Platform
 
 Date: 2026-04-24
-Baseline reviewed: `live-all-sources-pipeline-open-v19`
+Baseline reviewed: `live-all-sources-pipeline-open-v20c`
 Intent: turn the external architecture critique into executable repo work without derailing the green source-backed lane.
 
 ## Verdict
@@ -27,7 +27,7 @@ The source-backed lane is directionally right: Salesforce sources, explicit peri
 
 ### Track 1 — Quarter Policy Split
 
-Status: phase 1 implemented in `live-all-sources-pipeline-open-v19`; release packets now block publish unless the business/source/display quarter mapping is present and approved.
+Status: phase 1 implemented in `live-all-sources-pipeline-open-v20c`; release packets now block publish unless the business/source/display quarter mapping is present and approved.
 
 Add separate business and source-registry quarter labels:
 
@@ -45,7 +45,7 @@ Publish should fail if the mapping is missing or unapproved. Do not silently fli
 
 ### Track 2 — Source Governance
 
-Status: phase 1 implemented in `live-all-sources-pipeline-open-v19`; the runner now describes and fingerprints `55`/`55` Salesforce sources before extraction, hashes source columns plus filters/query, and blocks release on high fingerprint findings or failed describes.
+Status: phase 1 implemented in `live-all-sources-pipeline-open-v20c`; the runner now describes and fingerprints `55`/`55` Salesforce sources before extraction, hashes source columns plus filters/query, and blocks release on high fingerprint findings or failed describes.
 
 Add a pre-extraction source fingerprint stage:
 
@@ -57,7 +57,20 @@ Add a pre-extraction source fingerprint stage:
 - Compare to expected config.
 - Emit `source_fingerprint_manifest.json`.
 
-### Track 3 — Config Authoring
+### Track 3 — Extraction Quality Enforcement
+
+Status: phase 1 implemented in `live-all-sources-pipeline-open-v20c`; extraction now audits `55`/`55` selected Salesforce sources for required fields, row-count policies, max-record caps, and fallback warnings before SourceBundles are built. The v20c proof has `0` high findings, `0` blocked sources, and `1` explicit medium fallback warning.
+
+Add extraction-time source quality checks:
+
+- Required field presence across Salesforce report/list-view display labels.
+- Row-count zero/min/max policy enforcement.
+- Required-field null thresholds when configured.
+- Max-record cap warnings for truncated list-view pulls.
+- `source_extract_quality_audit.json` as a release-bundle evidence artifact.
+- Release check that blocks publish on high findings, blocked sources, or audited-source mismatch.
+
+### Track 4 — Config Authoring
 
 Keep YAML authoring and deterministic JSON runtime, but split the YAML:
 
@@ -87,7 +100,7 @@ config/runtime_compiled/
   source_registry_fingerprints.json
 ```
 
-### Track 4 — Runner Evolution
+### Track 5 — Runner Evolution
 
 Keep local Python, but refactor stage definitions into a lightweight internal DAG:
 
@@ -100,7 +113,7 @@ Keep local Python, but refactor stage definitions into a lightweight internal DA
 - Resume from failed stage.
 - `--only`, `--from`, `--until`, `--resume`, `--use-cached-extracts`, `--no-upload`, `--dry-run`, `--explain-plan`.
 
-### Track 5 — Canonical Metric Store
+### Track 6 — Canonical Metric Store
 
 Add a local metric layer between DirectorBundles and every output:
 
@@ -108,7 +121,7 @@ Add a local metric layer between DirectorBundles and every output:
 - Workbooks, think-cell, truth packet, and deck become projections.
 - Every deck claim maps to metric ID and source fingerprint.
 
-### Track 6 — Presentation Contract
+### Track 7 — Presentation Contract
 
 Add a deck/table/component contract:
 
@@ -121,7 +134,7 @@ Add a deck/table/component contract:
 - Numeric formats.
 - Render and visual regression expectations.
 
-### Track 7 — Release Catalog
+### Track 8 — Release Catalog
 
 Add a local run catalog:
 
@@ -140,8 +153,8 @@ Publish a `release_summary.md` or simple SharePoint index with the operator-faci
 ## 1–2 Day Work Queue
 
 1. Implement quarter label split in period context and release packet. Done for phase 1: `FY26 Q1` business period maps to `Q2 2026` source/display period with approval metadata and a `quarter_mapping_approved` release check.
-2. Add a source fingerprint preflight scaffold with metadata capture for reports/list views. Done for phase 1: `source_fingerprint_manifest.json` captures `55`/`55` sources with `0` findings in v19.
-3. Add row-count policy fields to source config, initially warn-only.
+2. Add a source fingerprint preflight scaffold with metadata capture for reports/list views. Done for phase 1: `source_fingerprint_manifest.json` captures `55`/`55` sources with `0` findings in v20c.
+3. Add row-count policy fields to source config, initially warn-only. Done for phase 1: `source_extract_quality_audit.json` captures `55`/`55` sources with `0` high findings, `0` blocked sources, and `1` explicit allowed fallback warning in v20c.
 4. Emit `release_summary.md` into release bundles and SharePoint uploads.
 5. Add a manual human review checklist gate.
 6. Add `--no-upload`, `--resume`, and `--from-stage` aliases if missing.
@@ -173,7 +186,7 @@ Publish the source-backed monthly platform slice so external review tools can in
 
 The initial branch should include:
 
-- v19 source-backed runner and configs.
+- v20c source-backed runner and configs.
 - YAML authoring compiler and tests.
 - Period/quarter policy changes.
 - Source-backed extraction, bundle, workbook, think-cell, deck, release, and upload scripts.

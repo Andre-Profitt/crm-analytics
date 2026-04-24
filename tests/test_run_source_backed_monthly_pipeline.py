@@ -307,6 +307,40 @@ def test_source_backed_publish_gate_command_uses_list_view_audit_artifact(
     assert RUN_ID in str(audit_path)
 
 
+def test_release_bundle_command_includes_extract_quality_audit(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(pipeline, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        pipeline.subprocess,
+        "run",
+        lambda *args, **kwargs: pytest.fail("plan-only mode must not execute stages"),
+    )
+
+    _, payload = _run_main(
+        [
+            "--snapshot-date",
+            SNAPSHOT_DATE,
+            "--run-id",
+            RUN_ID,
+            "--plan-only",
+            "--output-path",
+            str(tmp_path / "pipeline_run_manifest.json"),
+        ],
+        monkeypatch,
+        capsys,
+    )
+
+    command = _command_for(
+        _stage_commands(payload),
+        "build_source_backed_release_bundle.py",
+    )
+    assert "source_extract_quality_audit=evidence=" in command
+    assert "source_extract_quality_audit.json" in command
+
+
 def test_sharepoint_upload_flag_adds_actual_upload_stage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -414,6 +448,13 @@ def test_summarize_manifest_surfaces_operator_metrics() -> None:
                     "source_extract_count": 55,
                     "failed_source_count": 0,
                     "finding_count": 0,
+                    "quality_source_count": 55,
+                    "quality_ok_source_count": 55,
+                    "quality_warning_source_count": 0,
+                    "quality_blocked_source_count": 0,
+                    "quality_finding_count": 0,
+                    "quality_high_finding_count": 0,
+                    "quality_medium_finding_count": 0,
                 },
             },
             {
@@ -535,6 +576,8 @@ def test_summarize_manifest_surfaces_operator_metrics() -> None:
     assert summary["source_contract_authoring_drift_count"] == 0
     assert summary["list_view_audit_view_count"] == 27
     assert summary["source_extract_count"] == 55
+    assert summary["extract_quality_source_count"] == 55
+    assert summary["extract_quality_high_finding_count"] == 0
     assert summary["source_fingerprint_fingerprinted_source_count"] == 55
     assert summary["source_fingerprint_high_finding_count"] == 0
     assert summary["forward_fallback_count"] == 4
@@ -663,6 +706,13 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
             "executed_source_count": 55,
             "source_extract_count": 55,
             "failed_source_count": 0,
+            "extract_quality_source_count": 55,
+            "extract_quality_ok_source_count": 54,
+            "extract_quality_warning_source_count": 1,
+            "extract_quality_blocked_source_count": 0,
+            "extract_quality_finding_count": 1,
+            "extract_quality_high_finding_count": 0,
+            "extract_quality_medium_finding_count": 1,
             "bundle_count": 9,
             "territory_count": 9,
             "missing_selected_source_count": 0,
@@ -696,9 +746,9 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
             "render_deck_slide_count": 6,
             "rendered_slide_count": 6,
             "rendered_png_checked": True,
-            "release_bundle_artifact_count": 21,
-            "release_bundle_copied_artifact_count": 21,
-            "release_bundle_required_artifact_count": 21,
+            "release_bundle_artifact_count": 23,
+            "release_bundle_copied_artifact_count": 23,
+            "release_bundle_required_artifact_count": 23,
             "release_bundle_missing_required_artifact_count": 0,
             "release_bundle_zip_size_bytes": 1000,
             "release_bundle_upload_ready": True,
@@ -726,6 +776,7 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
             "sharepoint_upload_plan": str(tmp_path / "sharepoint_upload_plan.json"),
             "list_view_audit": str(tmp_path / "list_view.json"),
             "source_fingerprint_preflight": str(tmp_path / "source_fingerprint.json"),
+            "source_run_dir": str(tmp_path / "source_run"),
         },
         "stages": [{"name": "gate", "status": "ok", "payload_status": "ok"}],
     }
@@ -746,6 +797,9 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
     )
     assert packet["artifacts"]["source_fingerprint_preflight"] == str(
         tmp_path / "source_fingerprint.json"
+    )
+    assert packet["artifacts"]["source_extract_quality_audit"] == str(
+        tmp_path / "source_run/audits/source_extract_quality_audit.json"
     )
     assert all(check["status"] == "pass" for check in packet["release_checks"])
 
@@ -805,6 +859,9 @@ def test_release_packet_blocks_weak_source_or_visual_evidence(tmp_path: Path) ->
             "executed_source_count": 54,
             "source_extract_count": 54,
             "failed_source_count": 0,
+            "extract_quality_source_count": 54,
+            "extract_quality_high_finding_count": 0,
+            "extract_quality_blocked_source_count": 0,
             "bundle_count": 9,
             "territory_count": 9,
             "missing_selected_source_count": 0,
@@ -838,9 +895,9 @@ def test_release_packet_blocks_weak_source_or_visual_evidence(tmp_path: Path) ->
             "render_deck_slide_count": 6,
             "rendered_slide_count": 5,
             "rendered_png_checked": True,
-            "release_bundle_artifact_count": 21,
-            "release_bundle_copied_artifact_count": 20,
-            "release_bundle_required_artifact_count": 21,
+            "release_bundle_artifact_count": 23,
+            "release_bundle_copied_artifact_count": 22,
+            "release_bundle_required_artifact_count": 23,
             "release_bundle_missing_required_artifact_count": 1,
             "release_bundle_zip_size_bytes": 0,
             "release_bundle_upload_ready": False,
@@ -865,6 +922,7 @@ def test_release_packet_blocks_weak_source_or_visual_evidence(tmp_path: Path) ->
     assert packet["publish_recommendation"] == "do_not_publish"
     assert "list_view_audit_clean" in failed_checks
     assert "salesforce_extracts_complete" in failed_checks
+    assert "source_extract_quality_clean" in failed_checks
     assert "deck_visuals_clean" in failed_checks
     assert "deck_polish_clean" in failed_checks
     assert "deck_table_contract_clean" in failed_checks
@@ -928,6 +986,13 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
             "executed_source_count": 55,
             "source_extract_count": 55,
             "failed_source_count": 0,
+            "extract_quality_source_count": 55,
+            "extract_quality_ok_source_count": 54,
+            "extract_quality_warning_source_count": 1,
+            "extract_quality_blocked_source_count": 0,
+            "extract_quality_finding_count": 1,
+            "extract_quality_high_finding_count": 0,
+            "extract_quality_medium_finding_count": 1,
             "bundle_count": 9,
             "territory_count": 9,
             "missing_selected_source_count": 0,
@@ -963,9 +1028,9 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
             "render_deck_slide_count": 6,
             "rendered_slide_count": 6,
             "rendered_png_checked": True,
-            "release_bundle_artifact_count": 21,
-            "release_bundle_copied_artifact_count": 21,
-            "release_bundle_required_artifact_count": 21,
+            "release_bundle_artifact_count": 23,
+            "release_bundle_copied_artifact_count": 23,
+            "release_bundle_required_artifact_count": 23,
             "release_bundle_missing_required_artifact_count": 0,
             "release_bundle_zip_size_bytes": 1000,
             "release_bundle_upload_ready": True,
@@ -991,6 +1056,7 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
             "sharepoint_upload_plan": str(tmp_path / "sharepoint_upload_plan.json"),
             "list_view_audit": str(tmp_path / "list_view.json"),
             "source_fingerprint_preflight": str(tmp_path / "source_fingerprint.json"),
+            "source_run_dir": str(tmp_path / "source_run"),
         },
         "stages": [{"name": "gate", "status": "ok", "payload_status": "ok"}],
     }
@@ -1014,6 +1080,8 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
     assert latest["publish_recommendation"] == "publish"
     assert latest["run_id"] == RUN_ID
     assert latest["summary"]["rendered_slide_count"] == 6
+    assert latest["summary"]["extract_quality_source_count"] == 55
+    assert latest["summary"]["extract_quality_high_finding_count"] == 0
     assert latest["summary"]["source_fingerprint_fingerprinted_source_count"] == 55
     assert latest["summary"]["source_fingerprint_high_finding_count"] == 0
     assert latest["summary"]["table_contract_table_count"] == 5
@@ -1022,7 +1090,10 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
     assert latest["summary"]["quarter_mapping_approved"] is True
     assert latest["summary"]["business_current_quarter_label"] == "FY26 Q1"
     assert latest["summary"]["current_quarter_title"] == "Q2 2026"
-    assert latest["summary"]["release_bundle_artifact_count"] == 21
+    assert latest["summary"]["release_bundle_artifact_count"] == 23
+    assert latest["source_extract_quality_audit"] == str(
+        tmp_path / "source_run/audits/source_extract_quality_audit.json"
+    )
     assert latest["summary"]["release_bundle_upload_ready"] is True
     assert latest["summary"]["sharepoint_upload_plan_status"] == "planned"
     assert latest["summary"]["sharepoint_upload_planned_count"] == 5
@@ -1059,6 +1130,13 @@ def _fake_stage_payload(script_name: str, output_root: Path) -> dict[str, Any]:
         },
         "extract_salesforce_sources.py": {
             "output_dir": str(run_dir / "salesforce_sources"),
+            "quality_source_count": 55,
+            "quality_ok_source_count": 55,
+            "quality_warning_source_count": 0,
+            "quality_blocked_source_count": 0,
+            "quality_finding_count": 0,
+            "quality_high_finding_count": 0,
+            "quality_medium_finding_count": 0,
         },
         "build_source_bundles_from_extracts.py": {
             "output_dir": str(run_dir / "source_bundles"),

@@ -43,6 +43,9 @@ class SourcePathRule(ContractModel):
 class RowCountPolicy(ContractModel):
     allow_zero: bool = True
     min_rows: int = 0
+    max_rows: int | None = None
+    max_required_field_null_pct: float | None = None
+    required_field_null_action: Literal["ok", "warning", "blocked"] = "warning"
     zero_row_action: Literal["ok", "warning", "fallback", "blocked"] = "ok"
 
     @field_validator("min_rows")
@@ -50,6 +53,20 @@ class RowCountPolicy(ContractModel):
     def non_negative_min_rows(cls, value: int) -> int:
         if value < 0:
             raise ValueError("min_rows must be non-negative")
+        return value
+
+    @field_validator("max_rows")
+    @classmethod
+    def positive_max_rows(cls, value: int | None) -> int | None:
+        if value is not None and value < 1:
+            raise ValueError("max_rows must be positive when supplied")
+        return value
+
+    @field_validator("max_required_field_null_pct")
+    @classmethod
+    def valid_null_pct(cls, value: float | None) -> float | None:
+        if value is not None and not 0 <= value <= 1:
+            raise ValueError("max_required_field_null_pct must be between 0 and 1")
         return value
 
 
