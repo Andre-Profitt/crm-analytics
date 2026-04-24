@@ -1214,6 +1214,12 @@ def extract_territory(
     print(f"  Forecast category history: {len(fcat_models)} events")
 
     # ── Assemble DirectorBundle ──
+    def _tele_ms(label_substring: str) -> int:
+        for entry in reversed(QUERY_TELEMETRY):
+            if label_substring in entry.get("label", ""):
+                return int(entry.get("duration_ms", 0))
+        return 0
+
     source_contract = SourceContract(
         sf_org="simcorp.my.salesforce.com",
         api_version=SF_API_VERSION,
@@ -1221,35 +1227,61 @@ def extract_territory(
         extract_timestamp=_utc_now_iso(),
         sources={
             "pipeline_open": DatasetSource(
-                "soql", None, f"{territory}:all_fy_deals", len(pipeline_models), 0
+                "soql",
+                None,
+                f"{territory}:all_fy_deals",
+                len(pipeline_models),
+                _tele_ms(f"{territory}:all_fy_deals"),
             ),
             "won_lost": DatasetSource(
-                "soql", None, f"{territory}:all_fy_deals", len(won_lost_models), 0
+                "soql",
+                None,
+                f"{territory}:all_fy_deals",
+                len(won_lost_models),
+                _tele_ms(f"{territory}:all_fy_deals"),
             ),
             "renewals": DatasetSource(
-                "soql", None, f"{territory}:renewals", len(renewal_models), 0
+                "soql",
+                None,
+                f"{territory}:renewals",
+                len(renewal_models),
+                _tele_ms(f"{territory}:renewals"),
             ),
             "pi_current": DatasetSource(
-                "list_view", str(pi_lv), f"{territory}:pi", len(pi_models), 0
+                "list_view",
+                str(pi_lv),
+                f"{territory}:pi",
+                len(pi_models),
+                _tele_ms(f"{territory}:pi"),
             ),
             "pi_forward": DatasetSource(
                 "list_view",
                 str((forward_pi_source or {}).get("list_view_id", "")) or None,
                 f"{territory}:pi_forward",
                 len(forward_pi_models),
-                0,
+                _tele_ms(f"{territory}:pi_forward"),
             )
             if forward_pi_source
-            else DatasetSource("list_view", None, f"{territory}:pi_forward", 0, 0),
+            else DatasetSource(
+                "list_view",
+                None,
+                f"{territory}:pi_forward",
+                0,
+                0,
+            ),
             "activity": DatasetSource(
-                "soql", None, f"{territory}:activity", len(activity_models), 0
+                "soql",
+                None,
+                f"{territory}:activity",
+                len(activity_models),
+                sum(_tele_ms(f"{territory}:{k}") for k in ("tasks_90d", "events_90d")),
             ),
             "stage_events": DatasetSource(
                 "field_history",
                 None,
                 f"{territory}:field_history",
                 len(stage_models),
-                0,
+                _tele_ms(f"{territory}:field_history"),
             ),
         },
     )
