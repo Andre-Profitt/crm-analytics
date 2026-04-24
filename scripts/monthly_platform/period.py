@@ -3,7 +3,19 @@ from __future__ import annotations
 from calendar import monthrange
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
+
+
+QuarterPolicyName = Literal["calendar_quarter", "fiscal_quarter"]
+
+
+@dataclass(frozen=True)
+class QuarterPolicy:
+    name: str
+    rule: str
+    source: str
+    fiscal_year_start_month: int
+    note: str
 
 
 @dataclass(frozen=True)
@@ -27,6 +39,7 @@ class PeriodContext:
     deck_date: str
     month_title: str
     fiscal_year: str
+    quarter_policy: QuarterPolicy
     current_quarter: QuarterWindow
     prior_quarter: QuarterWindow
     forward_quarter: QuarterWindow
@@ -83,26 +96,67 @@ def _last_day_of_previous_month(as_of: date) -> date:
     return first_of_month - timedelta(days=1)
 
 
-def _quarter_window(target: date) -> QuarterWindow:
-    quarter = ((target.month - 1) // 3) + 1
-    start_month = ((quarter - 1) * 3) + 1
-    end_month = start_month + 2
-    start = date(target.year, start_month, 1)
-    end = date(target.year, end_month, monthrange(target.year, end_month)[1])
+def _quarter_policy(
+    name: QuarterPolicyName,
+    fiscal_year_start_month: int,
+) -> QuarterPolicy:
+    if not 1 <= fiscal_year_start_month <= 12:
+        raise ValueError("fiscal_year_start_month must be between 1 and 12")
+    if name == "calendar_quarter":
+        return QuarterPolicy(
+            name=name,
+            rule="Q1 Jan-Mar, Q2 Apr-Jun, Q3 Jul-Sep, Q4 Oct-Dec.",
+            source="scripts/monthly_platform/period.py",
+            fiscal_year_start_month=1,
+            note=(
+                "Current source-backed monthly report registry uses calendar quarter "
+                "labels. This is explicit to prevent silent drift between Salesforce "
+                "report labels, workbook sheets, and deck fallback behavior."
+            ),
+        )
+    return QuarterPolicy(
+        name=name,
+        rule=(
+            f"Q1 starts in month {fiscal_year_start_month}; each quarter spans "
+            "three months from that fiscal-year anchor."
+        ),
+        source="scripts/monthly_platform/period.py",
+        fiscal_year_start_month=fiscal_year_start_month,
+        note=(
+            "Use this only when the Salesforce source registry and deck labels are "
+            "migrated to fiscal-quarter source IDs."
+        ),
+    )
+
+
+def _add_months(year: int, month: int, delta: int) -> tuple[int, int]:
+    absolute_month = year * 12 + (month - 1) + delta
+    return absolute_month // 12, (absolute_month % 12) + 1
+
+
+def _quarter_window(target: date, policy: QuarterPolicy) -> QuarterWindow:
+    anchor_month = int(policy.fiscal_year_start_month)
+    month_offset = (target.month - anchor_month) % 12
+    quarter = (month_offset // 3) + 1
+    policy_year = target.year if target.month >= anchor_month else target.year - 1
+    start_year, start_month = _add_months(policy_year, anchor_month, (quarter - 1) * 3)
+    end_year, end_month = _add_months(start_year, start_month, 2)
+    start = date(start_year, start_month, 1)
+    end = date(end_year, end_month, monthrange(end_year, end_month)[1])
     return QuarterWindow(
         label=f"Q{quarter}",
-        title=f"Q{quarter} {target.year}",
-        year=target.year,
+        title=f"Q{quarter} {policy_year}",
+        year=policy_year,
         quarter=quarter,
         start_date=start.isoformat(),
         end_date=end.isoformat(),
-        month_start=f"{target.year}-{start_month:02d}",
-        month_end=f"{target.year}-{end_month:02d}",
+        month_start=f"{start_year}-{start_month:02d}",
+        month_end=f"{end_year}-{end_month:02d}",
         range_label=f"{_MONTH_LABELS[start_month]}-{_MONTH_LABELS[end_month]}",
     )
 
 
-def _shift_quarter(window: QuarterWindow, delta: int) -> QuarterWindow:
+def _shift_quarter(window: QuarterWindow, delta: int, policy: QuarterPolicy) -> QuarterWindow:
     quarter = window.quarter + delta
     year = window.year
     while quarter < 1:
@@ -111,8 +165,12 @@ def _shift_quarter(window: QuarterWindow, delta: int) -> QuarterWindow:
     while quarter > 4:
         quarter -= 4
         year += 1
-    start_month = ((quarter - 1) * 3) + 1
-    return _quarter_window(date(year, start_month, 1))
+    start_year, start_month = _add_months(
+        year,
+        int(policy.fiscal_year_start_month),
+        (quarter - 1) * 3,
+    )
+    return _quarter_window(date(start_year, start_month, 1), policy)
 
 
 def resolve_period_context(
@@ -120,6 +178,8 @@ def resolve_period_context(
     as_of_date: str | date | datetime | None = None,
     snapshot_date: str | date | datetime | None = None,
     deck_date: str | date | datetime | None = None,
+    quarter_policy_name: QuarterPolicyName = "calendar_quarter",
+    fiscal_year_start_month: int = 2,
 ) -> PeriodContext:
     as_of = _coerce_date(as_of_date)
     snapshot = (
@@ -129,9 +189,15 @@ def resolve_period_context(
     )
     deck = _coerce_date(deck_date) if deck_date is not None else snapshot
 
-    current = _quarter_window(snapshot)
-    prior = _shift_quarter(current, -1)
-    forward = _shift_quarter(current, 1)
+    policy = _quarter_policy(quarter_policy_name, fiscal_year_start_month)
+    current = _quarter_window(snapshot, policy)
+    prior = _shift_quarter(current, -1, policy)
+    forward = _shift_quarter(current, 1, policy)
+    reporting_start_year, reporting_start_month = _add_months(
+        current.year,
+        int(policy.fiscal_year_start_month),
+        0,
+    )
 
     return PeriodContext(
         as_of_date=as_of.isoformat(),
@@ -139,11 +205,12 @@ def resolve_period_context(
         snapshot_date=snapshot.isoformat(),
         deck_date=deck.isoformat(),
         month_title=f"{_MONTH_TITLES[snapshot.month]} {snapshot.year}",
-        fiscal_year=f"FY{snapshot.year % 100:02d}",
+        fiscal_year=f"FY{current.year % 100:02d}",
+        quarter_policy=policy,
         current_quarter=current,
         prior_quarter=prior,
         forward_quarter=forward,
-        reporting_window_start=date(snapshot.year, 1, 1).isoformat(),
+        reporting_window_start=date(reporting_start_year, reporting_start_month, 1).isoformat(),
         reporting_window_end=forward.end_date,
     )
 

@@ -1,0 +1,12 @@
+{
+  "schema_version": "monthly_platform.salesforce_field_guardrails.v1",
+  "description": "Salesforce fields that must not appear in monthly deck list-view/report filters after field removals or API incompatibilities.",
+  "dead_or_invalid_filter_fields_by_object": {
+    "Opportunity": [
+      "Sales_Director_Book__c",
+      "Account.Industry",
+      "INDUSTRY",
+      "Industry"
+    ]
+  }
+}

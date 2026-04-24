@@ -1,0 +1,340 @@
+{
+  "schema_version": "monthly_source_requirements.v1",
+  "description": "Declarative source requirements for the Sales Director monthly deck pipeline. Add/remove Salesforce source needs here before changing extraction code.",
+  "requirements": [
+    {
+      "requirement_id": "sd_pipeline_open",
+      "enabled": true,
+      "description": "Current fiscal-year open Land pipeline detail for source-backed DirectorBundle pipeline_open across all monthly territories.",
+      "owner": "sales_director_monthly_source_contract",
+      "source_system": "salesforce",
+      "source_type": "salesforce_list_view",
+      "dataset": "pipeline_open",
+      "output_grain": "opportunity",
+      "scope": "territory",
+      "period_roles": [
+        "current_quarter"
+      ],
+      "source_path_rules": [
+        {
+          "period_role": "current_quarter",
+          "source_id_path": "pipeline_open_list_view_id",
+          "source_label_path": "pipeline_open_list_view_label",
+          "source_label_template": "{territory} Pipeline Open FY"
+        }
+      ],
+      "required_fields": [
+        {
+          "name": "Name",
+          "semantic_name": "opportunity",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "Account.Name",
+          "semantic_name": "account",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "Owner.Name",
+          "semantic_name": "owner",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "StageName",
+          "semantic_name": "stage",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "ForecastCategoryName",
+          "semantic_name": "forecast_category",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "CloseDate",
+          "semantic_name": "close_date",
+          "required": true,
+          "data_type": "date"
+        },
+        {
+          "name": "APTS_Opportunity_ARR__c",
+          "semantic_name": "arr_unweighted",
+          "required": true,
+          "data_type": "currency"
+        },
+        {
+          "name": "APTS_Forecast_ARR__c",
+          "semantic_name": "arr_weighted",
+          "required": true,
+          "data_type": "currency"
+        },
+        {
+          "name": "Probability",
+          "semantic_name": "probability",
+          "required": true,
+          "data_type": "number"
+        },
+        {
+          "name": "Type",
+          "semantic_name": "deal_type",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "CreatedDate",
+          "semantic_name": "created_date",
+          "required": true,
+          "data_type": "date"
+        }
+      ],
+      "row_count_policy": {
+        "allow_zero": true,
+        "min_rows": 0,
+        "zero_row_action": "warning"
+      },
+      "consumers": [
+        "director_bundle",
+        "analyst_workbook",
+        "gold_metrics",
+        "deck_truth_packet"
+      ],
+      "tags": [
+        "monthly",
+        "source_backed",
+        "pipeline_open",
+        "all_territories"
+      ]
+    },
+    {
+      "requirement_id": "sd_pipeline_open_reference",
+      "enabled": true,
+      "description": "Global FY26 Pipeline Open report used to enrich list-view pipeline rows with Industry/Sales Region for deterministic NA vertical splits.",
+      "owner": "sales_director_monthly_source_contract",
+      "source_system": "salesforce",
+      "source_type": "salesforce_report",
+      "dataset": "pipeline_open_reference",
+      "output_grain": "opportunity_reference",
+      "scope": "global",
+      "period_roles": [
+        "current_quarter"
+      ],
+      "source_path_rules": [
+        {
+          "period_role": "current_quarter",
+          "source_id": "00OTb000008fzirMAA",
+          "source_label": "SD Pipeline Open FY26"
+        }
+      ],
+      "required_fields": [
+        {
+          "name": "Opportunity Name",
+          "semantic_name": "opportunity_id",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "Industry",
+          "semantic_name": "industry",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "Account Unit Group",
+          "semantic_name": "account_unit_group",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "Sales Region",
+          "semantic_name": "sales_region",
+          "required": true,
+          "data_type": "string"
+        }
+      ],
+      "row_count_policy": {
+        "allow_zero": false,
+        "min_rows": 1,
+        "zero_row_action": "blocked"
+      },
+      "consumers": [
+        "source_bundle",
+        "director_bundle"
+      ],
+      "tags": [
+        "monthly",
+        "source_backed",
+        "pipeline_open",
+        "reference",
+        "na_split"
+      ]
+    },
+    {
+      "requirement_id": "sd_historical_trending",
+      "enabled": true,
+      "description": "Historical Trending Salesforce reports for prior/current/forward quarter snapshot movement.",
+      "owner": "sales_director_monthly_source_contract",
+      "source_system": "salesforce",
+      "source_type": "salesforce_report",
+      "dataset": "historical_trending",
+      "output_grain": "opportunity_snapshot",
+      "scope": "territory",
+      "period_roles": [
+        "prior_quarter",
+        "current_quarter",
+        "forward_quarter"
+      ],
+      "source_path_rules": [
+        {
+          "period_role": "prior_quarter",
+          "source_id_path": "historical_trending_report_ids.{quarter_label}",
+          "source_label_template": "{territory} Historical Trending {quarter_title}"
+        },
+        {
+          "period_role": "current_quarter",
+          "source_id_path": "historical_trending_report_ids.{quarter_label}",
+          "source_label_template": "{territory} Historical Trending {quarter_title}"
+        },
+        {
+          "period_role": "forward_quarter",
+          "source_id_path": "forward_quarter_historical_trending_report_ids.{quarter_label}",
+          "source_label_template": "{territory} Historical Trending {quarter_title}"
+        }
+      ],
+      "required_fields": [
+        {
+          "name": "Opportunity Name",
+          "semantic_name": "opportunity",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "Account Name",
+          "semantic_name": "account",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "Close Date",
+          "semantic_name": "close_date",
+          "required": true,
+          "data_type": "date"
+        },
+        {
+          "name": "ARR",
+          "semantic_name": "arr",
+          "required": true,
+          "data_type": "currency"
+        },
+        {
+          "name": "Stage",
+          "semantic_name": "stage",
+          "required": true,
+          "data_type": "string"
+        }
+      ],
+      "row_count_policy": {
+        "allow_zero": true,
+        "min_rows": 0,
+        "zero_row_action": "ok"
+      },
+      "consumers": [
+        "director_bundle",
+        "analyst_workbook",
+        "gold_metrics",
+        "deck_truth_packet"
+      ],
+      "tags": [
+        "monthly",
+        "report_first",
+        "movement"
+      ]
+    },
+    {
+      "requirement_id": "sd_pipeline_inspection",
+      "enabled": true,
+      "description": "Pipeline Inspection list views for current-quarter and forward-quarter pipeline display/fallback.",
+      "owner": "sales_director_monthly_source_contract",
+      "source_system": "salesforce",
+      "source_type": "salesforce_list_view",
+      "dataset": "pipeline_inspection",
+      "output_grain": "opportunity",
+      "scope": "territory",
+      "period_roles": [
+        "current_quarter",
+        "forward_quarter"
+      ],
+      "source_path_rules": [
+        {
+          "period_role": "current_quarter",
+          "source_id_path": "pi_list_view_id",
+          "source_label_path": "pi_list_view_label",
+          "source_label_template": "{territory} Pipeline Inspection {quarter_title}"
+        },
+        {
+          "period_role": "forward_quarter",
+          "source_id_path": "forward_quarter_pi_list_views.{quarter_label}.list_view_id",
+          "source_label_path": "forward_quarter_pi_list_views.{quarter_label}.list_view_label",
+          "source_label_template": "{territory} Pipeline Inspection {quarter_title}"
+        }
+      ],
+      "required_fields": [
+        {
+          "name": "Name",
+          "semantic_name": "opportunity",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "StageName",
+          "semantic_name": "stage",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "CloseDate",
+          "semantic_name": "close_date",
+          "required": true,
+          "data_type": "date"
+        },
+        {
+          "name": "ForecastCategoryName",
+          "semantic_name": "forecast_category",
+          "required": true,
+          "data_type": "string"
+        },
+        {
+          "name": "APTS_Opportunity_ARR__c",
+          "semantic_name": "arr_unweighted",
+          "required": true,
+          "data_type": "currency"
+        }
+      ],
+      "row_count_policy": {
+        "allow_zero": true,
+        "min_rows": 0,
+        "zero_row_action": "fallback"
+      },
+      "fallback_policy": {
+        "trigger": "zero_current_quarter_active_land_pipeline",
+        "from_period_role": "current_quarter",
+        "to_period_role": "forward_quarter",
+        "description": "If current-quarter active non-omitted Land pipeline is empty for a territory, pull/display forward-quarter pipeline."
+      },
+      "consumers": [
+        "director_bundle",
+        "analyst_workbook",
+        "gold_metrics",
+        "quarterly_pipeline_slide"
+      ],
+      "tags": [
+        "monthly",
+        "fallback",
+        "pipeline"
+      ]
+    }
+  ]
+}

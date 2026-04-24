@@ -1,13 +1,13 @@
 {
   "_meta": {
     "version": 1,
-    "description": "Sales Director Monthly Review — territory → (director, SOQL filter, PI list views, historical report IDs) registry.",
+    "description": "Sales Director Monthly Review \u2014 territory \u2192 (director, SOQL filter, PI list views, historical report IDs) registry.",
     "consumed_by": [
-      "scripts/extract_director_live.py — TERRITORIES dict",
-      "scripts/extract_historical_trending.py — active Q1/Q2 historical report registry",
-      "scripts/audit_sales_director_source_contract.py — active + forward-quarter source contract audit",
-      "scripts/build_sharepoint_analysis.py — DIRECTORS (via name + territory)",
-      "scripts/generate_obsidian_notes.py — DIRECTORS + TERRITORY_TO_DIRECTOR"
+      "scripts/extract_director_live.py \u2014 TERRITORIES dict",
+      "scripts/extract_historical_trending.py \u2014 active Q1/Q2 historical report registry",
+      "scripts/audit_sales_director_source_contract.py \u2014 active + forward-quarter source contract audit",
+      "scripts/build_sharepoint_analysis.py \u2014 DIRECTORS (via name + territory)",
+      "scripts/generate_obsidian_notes.py \u2014 DIRECTORS + TERRITORY_TO_DIRECTOR"
     ],
     "editing_note": "Adding a director? Append an entry below. No code change needed for the extract stage. Downstream builders keep a DIRECTORS list that must be updated to match name/territory labels."
   },
@@ -15,12 +15,14 @@
     "APAC": {
       "director": "Jesper Tyrer",
       "soql_where": "Account_Unit_Group__c = 'SC Asia'",
-      "pi_list_view_id": "00BTb00000Ksa4bMAB",
-      "pi_list_view_label": "PI ARR Forecast APAC",
+      "pipeline_open_list_view_id": "00BTb00000LJNODMA5",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open APAC FY26",
+      "pi_list_view_id": "00BTb00000LJQHFMA5",
+      "pi_list_view_label": "PI APAC SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEdNBMA1",
-          "list_view_label": "PI ARR Forecast APAC Q3 2026 Land"
+          "list_view_id": "00BTb00000LJQSXMA5",
+          "list_view_label": "PI APAC Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -34,12 +36,12 @@
     "Central Europe": {
       "director": "Sarah Pittroff",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Central Europe'",
-      "pi_list_view_id": "00BTb00000Kr3YvMAJ",
-      "pi_list_view_label": "PI Central Europe",
+      "pi_list_view_id": "00BTb00000LJQIrMAP",
+      "pi_list_view_label": "PI CE SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEdmzMAD",
-          "list_view_label": "PI Land Q3 CE"
+          "list_view_id": "00BTb00000LJQU9MAP",
+          "list_view_label": "PI CE Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -48,17 +50,19 @@
       },
       "forward_quarter_historical_trending_report_ids": {
         "Q3": "00OTb000008jXsrMAE"
-      }
+      },
+      "pipeline_open_list_view_id": "00BTb00000LJ5PiMAL",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open CE FY26"
     },
     "UK & Ireland": {
       "director": "Dan Peppett",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'United Kingdom & Ireland'",
-      "pi_list_view_id": "00BTb00000Kr3yjMAB",
-      "pi_list_view_label": "PI UK & Ireland",
+      "pi_list_view_id": "00BTb00000LJQM5MAP",
+      "pi_list_view_label": "PI UKI SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEdobMAD",
-          "list_view_label": "PI Land Q3 UKI"
+          "list_view_id": "00BTb00000LJQXNMA5",
+          "list_view_label": "PI UKI Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -67,17 +71,19 @@
       },
       "forward_quarter_historical_trending_report_ids": {
         "Q3": "00OTb000008jY5lMAE"
-      }
+      },
+      "pipeline_open_list_view_id": "00BTb00000LJRA5MAP",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open UKI FY26"
     },
     "Southern Europe": {
       "director": "Francois Thaury",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Southwestern Europe'",
-      "pi_list_view_id": "00BTb00000Kr3sHMAR",
-      "pi_list_view_label": "PI Southwestern Europe",
+      "pi_list_view_id": "00BTb00000LJQKTMA5",
+      "pi_list_view_label": "PI SWE SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEdqDMAT",
-          "list_view_label": "PI Land Q3 SWE"
+          "list_view_id": "00BTb00000LJQVlMAP",
+          "list_view_label": "PI SWE Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -86,17 +92,19 @@
       },
       "forward_quarter_historical_trending_report_ids": {
         "Q3": "00OTb000008jY49MAE"
-      }
+      },
+      "pipeline_open_list_view_id": "00BTb00000LJRBhMAP",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open SWE FY26"
     },
     "NL & Nordics": {
       "director": "Christian Ebbesen",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Northern Europe'",
-      "pi_list_view_id": "00BTb00000Kr4DFMAZ",
-      "pi_list_view_label": "PI Northern Europe",
+      "pi_list_view_id": "00BTb00000LJQNhMAP",
+      "pi_list_view_label": "PI NE SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEdrpMAD",
-          "list_view_label": "PI Land Q3 NE"
+          "list_view_id": "00BTb00000LJQabMAH",
+          "list_view_label": "PI NE Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -105,17 +113,19 @@
       },
       "forward_quarter_historical_trending_report_ids": {
         "Q3": "00OTb000008jXxhMAE"
-      }
+      },
+      "pipeline_open_list_view_id": "00BTb00000LJNZZMA5",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open NE FY26"
     },
     "Middle East & Africa": {
       "director": "Mourad Essofi",
       "soql_where": "Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Middle East & Africa'",
-      "pi_list_view_id": "00BTb00000KsTXmMAN",
-      "pi_list_view_label": "PI ARR Forecast MEA",
+      "pi_list_view_id": "00BTb00000LJErDMAX",
+      "pi_list_view_label": "PI MEA SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEdtRMAT",
-          "list_view_label": "PI Land Q3 MEA"
+          "list_view_id": "00BTb00000LJQdpMAH",
+          "list_view_label": "PI MEA Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -124,17 +134,19 @@
       },
       "forward_quarter_historical_trending_report_ids": {
         "Q3": "00OTb000008jXuTMAU"
-      }
+      },
+      "pipeline_open_list_view_id": "00BTb00000LJRDJMA5",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open MEA FY26"
     },
     "Canada": {
       "director": "Megan Miceli",
       "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC Canada'",
-      "pi_list_view_id": "00BTb00000Kr4ErMAJ",
-      "pi_list_view_label": "PI Canada",
+      "pi_list_view_id": "00BTb00000LJNuUMAX",
+      "pi_list_view_label": "PI Canada SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEdgXMAT",
-          "list_view_label": "PI ARR Forecast Canada Q3 2026 Land"
+          "list_view_id": "00BTb00000LJJJ1MAP",
+          "list_view_label": "PI Canada Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -143,17 +155,19 @@
       },
       "forward_quarter_historical_trending_report_ids": {
         "Q3": "00OTb000008jXrFMAU"
-      }
+      },
+      "pipeline_open_list_view_id": "00BTb00000LJNpeMAH",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open Canada FY26"
     },
     "NA Asset Management": {
       "director": "Patrick Gaughan",
       "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC USA' AND Account.Industry IN ('Asset Management','Wealth Management')",
-      "pi_list_view_id": "00BTb00000Kr4JhMAJ",
-      "pi_list_view_label": "PI NA Asset Management",
+      "pi_list_view_id": "00BTb00000LJQPJMA5",
+      "pi_list_view_label": "PI NA AM SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEbwUMAT",
-          "list_view_label": "PI Land Q3 NA_AM"
+          "list_view_id": "00BTb00000LJQfRMAX",
+          "list_view_label": "PI NA AM Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -162,17 +176,19 @@
       },
       "forward_quarter_historical_trending_report_ids": {
         "Q3": "00OTb000008jXw5MAE"
-      }
+      },
+      "pipeline_open_list_view_id": "00BTb00000LJ3B0MAL",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open NA AM FY26"
     },
     "Pension & Insurance": {
       "director": "Adam Steinhaus",
       "soql_where": "Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC USA' AND Account.Industry IN ('Pension','Insurance')",
-      "pi_list_view_id": "00BTb00000Kr4OXMAZ",
-      "pi_list_view_label": "PI Pension & Insurance",
+      "pi_list_view_id": "00BTb00000LJQQvMAP",
+      "pi_list_view_label": "PI NA PI SR Scope",
       "forward_quarter_pi_list_views": {
         "Q3": {
-          "list_view_id": "00BTb00000LEdv3MAD",
-          "list_view_label": "PI Land Q3 P_I"
+          "list_view_id": "00BTb00000LJQh3MAH",
+          "list_view_label": "PI NA PI Q3 SR Land"
         }
       },
       "historical_trending_report_ids": {
@@ -181,7 +197,9 @@
       },
       "forward_quarter_historical_trending_report_ids": {
         "Q3": "00OTb000008jY0vMAE"
-      }
+      },
+      "pipeline_open_list_view_id": "00BTb00000LJREvMAP",
+      "pipeline_open_list_view_label": "SD Monthly Pipeline Open P&I FY26"
     }
   }
 }
