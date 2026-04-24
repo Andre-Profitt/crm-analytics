@@ -1,7 +1,7 @@
 # GPT-5.5 Feedback Implementation Plan — Source-Backed Monthly Platform
 
 Date: 2026-04-24
-Baseline reviewed: `live-all-sources-pipeline-open-v17`
+Baseline reviewed: `live-all-sources-pipeline-open-v18`
 Intent: turn the external architecture critique into executable repo work without derailing the green source-backed lane.
 
 ## Verdict
@@ -26,6 +26,8 @@ The source-backed lane is directionally right: Salesforce sources, explicit peri
 ## Implementation Tracks
 
 ### Track 1 — Quarter Policy Split
+
+Status: phase 1 implemented in `live-all-sources-pipeline-open-v18`; release packets now block publish unless the business/source/display quarter mapping is present and approved.
 
 Add separate business and source-registry quarter labels:
 
@@ -135,7 +137,7 @@ Publish a `release_summary.md` or simple SharePoint index with the operator-faci
 
 ## 1–2 Day Work Queue
 
-1. Implement quarter label split in period context and release packet.
+1. Implement quarter label split in period context and release packet. Done for phase 1: `FY26 Q1` business period maps to `Q2 2026` source/display period with approval metadata and a `quarter_mapping_approved` release check.
 2. Add a source fingerprint preflight scaffold with metadata capture for reports/list views.
 3. Add row-count policy fields to source config, initially warn-only.
 4. Emit `release_summary.md` into release bundles and SharePoint uploads.
@@ -169,7 +171,7 @@ Publish the source-backed monthly platform slice so external review tools can in
 
 The initial branch should include:
 
-- v17 source-backed runner and configs.
+- v18 source-backed runner and configs.
 - YAML authoring compiler and tests.
 - Period/quarter policy changes.
 - Source-backed extraction, bundle, workbook, think-cell, deck, release, and upload scripts.

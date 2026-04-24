@@ -28,6 +28,13 @@ def test_resolve_period_context_uses_previous_month_end_for_first_of_month() -> 
     assert period.month_title == "April 2026"
     assert period.quarter_policy.name == "calendar_quarter"
     assert period.quarter_policy.fiscal_year_start_month == 1
+    assert period.business_period.calendar == "fiscal"
+    assert period.business_period.current_quarter_label == "FY26 Q1"
+    assert period.source_registry_period.current_quarter_label == "Q2 2026"
+    assert period.display_period.current_quarter_label == "Q2 2026"
+    assert period.quarter_mapping.approved is True
+    assert period.quarter_mapping.business_current_quarter_label == "FY26 Q1"
+    assert period.quarter_mapping.source_current_quarter_label == "Q2 2026"
     assert period.current_quarter.title == "Q2 2026"
     assert period.prior_quarter.title == "Q1 2026"
     assert period.forward_quarter.title == "Q3 2026"
@@ -58,6 +65,9 @@ def test_resolve_period_context_can_use_fiscal_quarters_explicitly() -> None:
     assert period.quarter_policy.name == "fiscal_quarter"
     assert period.quarter_policy.fiscal_year_start_month == 2
     assert period.fiscal_year == "FY26"
+    assert period.business_period.current_quarter_label == "FY26 Q1"
+    assert period.source_registry_period.current_quarter_label == "Q1 2026"
+    assert period.display_period.current_quarter_label == "Q1 2026"
     assert period.current_quarter.title == "Q1 2026"
     assert period.current_quarter.start_date == "2026-02-01"
     assert period.current_quarter.end_date == "2026-04-30"

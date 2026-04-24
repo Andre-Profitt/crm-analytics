@@ -127,6 +127,13 @@ def test_monthly_source_contract_resolves_sources_and_forward_fallback(
     assert manifest["period"]["quarter_policy"]["name"] == "calendar_quarter"
     assert manifest["quarter_policy"]["name"] == "calendar_quarter"
     assert manifest["quarter_policy"] == manifest["period"]["quarter_policy"]
+    assert manifest["quarter_mapping"]["approved"] is True
+    assert manifest["quarter_mapping"]["business_current_quarter_label"] == "FY26 Q1"
+    assert manifest["quarter_mapping"]["source_current_quarter_label"] == "Q2 2026"
+    assert manifest["quarter_mapping"]["display_current_quarter_label"] == "Q2 2026"
+    assert manifest["business_period"]["current_quarter_label"] == "FY26 Q1"
+    assert manifest["source_registry_period"]["current_quarter_label"] == "Q2 2026"
+    assert manifest["display_period"]["current_quarter_label"] == "Q2 2026"
     assert manifest["summary"]["historical_report_count"] == 6
     assert manifest["summary"]["forward_fallback_count"] == 1
 

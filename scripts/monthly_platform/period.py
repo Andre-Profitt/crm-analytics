@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 
 QuarterPolicyName = Literal["calendar_quarter", "fiscal_quarter"]
+BusinessCalendarName = Literal["calendar", "fiscal"]
+FiscalYearNamingPolicy = Literal["start_year", "end_year"]
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,54 @@ class QuarterWindow:
 
 
 @dataclass(frozen=True)
+class BusinessPeriod:
+    calendar: BusinessCalendarName
+    fiscal_year_start_month: int
+    fiscal_year_naming_policy: FiscalYearNamingPolicy
+    current_quarter: QuarterWindow
+    prior_quarter: QuarterWindow
+    forward_quarter: QuarterWindow
+    current_quarter_label: str
+    prior_quarter_label: str
+    forward_quarter_label: str
+
+
+@dataclass(frozen=True)
+class SourceRegistryPeriod:
+    calendar: str
+    quarter_policy_name: str
+    quarter_label_style: str
+    fiscal_year_start_month: int
+    current_quarter: QuarterWindow
+    prior_quarter: QuarterWindow
+    forward_quarter: QuarterWindow
+    current_quarter_label: str
+    prior_quarter_label: str
+    forward_quarter_label: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class DisplayPeriod:
+    label_source: str
+    current_quarter_label: str
+    prior_quarter_label: str
+    forward_quarter_label: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class QuarterMappingApproval:
+    approved: bool
+    approved_by: str
+    approved_at: str
+    reason: str
+    business_current_quarter_label: str
+    source_current_quarter_label: str
+    display_current_quarter_label: str
+
+
+@dataclass(frozen=True)
 class PeriodContext:
     as_of_date: str
     reporting_month: str
@@ -40,6 +90,10 @@ class PeriodContext:
     month_title: str
     fiscal_year: str
     quarter_policy: QuarterPolicy
+    business_period: BusinessPeriod
+    source_registry_period: SourceRegistryPeriod
+    display_period: DisplayPeriod
+    quarter_mapping: QuarterMappingApproval
     current_quarter: QuarterWindow
     prior_quarter: QuarterWindow
     forward_quarter: QuarterWindow
@@ -173,6 +227,21 @@ def _shift_quarter(window: QuarterWindow, delta: int, policy: QuarterPolicy) -> 
     return _quarter_window(date(start_year, start_month, 1), policy)
 
 
+def _fiscal_year_number(window: QuarterWindow, naming_policy: FiscalYearNamingPolicy) -> int:
+    if naming_policy == "end_year":
+        return window.year + 1
+    return window.year
+
+
+def _business_quarter_label(
+    window: QuarterWindow,
+    *,
+    naming_policy: FiscalYearNamingPolicy,
+) -> str:
+    fiscal_year = _fiscal_year_number(window, naming_policy)
+    return f"FY{fiscal_year % 100:02d} Q{window.quarter}"
+
+
 def resolve_period_context(
     *,
     as_of_date: str | date | datetime | None = None,
@@ -180,6 +249,16 @@ def resolve_period_context(
     deck_date: str | date | datetime | None = None,
     quarter_policy_name: QuarterPolicyName = "calendar_quarter",
     fiscal_year_start_month: int = 2,
+    business_calendar: BusinessCalendarName = "fiscal",
+    business_fiscal_year_start_month: int = 2,
+    fiscal_year_naming_policy: FiscalYearNamingPolicy = "start_year",
+    quarter_mapping_approved: bool = True,
+    quarter_mapping_approved_by: str = "repo_config",
+    quarter_mapping_approved_at: str = "2026-04-24T00:00:00Z",
+    quarter_mapping_reason: str = (
+        "Salesforce source registry remains calendar-quarter labelled while "
+        "business reporting uses an explicitly mapped fiscal period."
+    ),
 ) -> PeriodContext:
     as_of = _coerce_date(as_of_date)
     snapshot = (
@@ -193,6 +272,72 @@ def resolve_period_context(
     current = _quarter_window(snapshot, policy)
     prior = _shift_quarter(current, -1, policy)
     forward = _shift_quarter(current, 1, policy)
+    business_policy_name: QuarterPolicyName = (
+        "fiscal_quarter" if business_calendar == "fiscal" else "calendar_quarter"
+    )
+    business_policy = _quarter_policy(
+        business_policy_name,
+        business_fiscal_year_start_month if business_calendar == "fiscal" else 1,
+    )
+    business_current = _quarter_window(snapshot, business_policy)
+    business_prior = _shift_quarter(business_current, -1, business_policy)
+    business_forward = _shift_quarter(business_current, 1, business_policy)
+    business_period = BusinessPeriod(
+        calendar=business_calendar,
+        fiscal_year_start_month=business_policy.fiscal_year_start_month,
+        fiscal_year_naming_policy=fiscal_year_naming_policy,
+        current_quarter=business_current,
+        prior_quarter=business_prior,
+        forward_quarter=business_forward,
+        current_quarter_label=_business_quarter_label(
+            business_current,
+            naming_policy=fiscal_year_naming_policy,
+        ),
+        prior_quarter_label=_business_quarter_label(
+            business_prior,
+            naming_policy=fiscal_year_naming_policy,
+        ),
+        forward_quarter_label=_business_quarter_label(
+            business_forward,
+            naming_policy=fiscal_year_naming_policy,
+        ),
+    )
+    source_registry_period = SourceRegistryPeriod(
+        calendar="calendar" if policy.name == "calendar_quarter" else "fiscal",
+        quarter_policy_name=policy.name,
+        quarter_label_style=(
+            "salesforce_calendar_label"
+            if policy.name == "calendar_quarter"
+            else "salesforce_fiscal_label"
+        ),
+        fiscal_year_start_month=policy.fiscal_year_start_month,
+        current_quarter=current,
+        prior_quarter=prior,
+        forward_quarter=forward,
+        current_quarter_label=current.title,
+        prior_quarter_label=prior.title,
+        forward_quarter_label=forward.title,
+        reason=policy.note,
+    )
+    display_period = DisplayPeriod(
+        label_source="source_registry_period",
+        current_quarter_label=source_registry_period.current_quarter_label,
+        prior_quarter_label=source_registry_period.prior_quarter_label,
+        forward_quarter_label=source_registry_period.forward_quarter_label,
+        reason=(
+            "Display remains aligned to the Salesforce source registry until "
+            "business-facing fiscal labels are approved for deck publishing."
+        ),
+    )
+    quarter_mapping = QuarterMappingApproval(
+        approved=quarter_mapping_approved,
+        approved_by=quarter_mapping_approved_by,
+        approved_at=quarter_mapping_approved_at,
+        reason=quarter_mapping_reason,
+        business_current_quarter_label=business_period.current_quarter_label,
+        source_current_quarter_label=source_registry_period.current_quarter_label,
+        display_current_quarter_label=display_period.current_quarter_label,
+    )
     reporting_start_year, reporting_start_month = _add_months(
         current.year,
         int(policy.fiscal_year_start_month),
@@ -207,6 +352,10 @@ def resolve_period_context(
         month_title=f"{_MONTH_TITLES[snapshot.month]} {snapshot.year}",
         fiscal_year=f"FY{current.year % 100:02d}",
         quarter_policy=policy,
+        business_period=business_period,
+        source_registry_period=source_registry_period,
+        display_period=display_period,
+        quarter_mapping=quarter_mapping,
         current_quarter=current,
         prior_quarter=prior,
         forward_quarter=forward,

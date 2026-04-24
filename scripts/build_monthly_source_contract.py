@@ -559,6 +559,10 @@ def build_manifest(
         "status": status,
         "period": period.as_dict(),
         "quarter_policy": period.as_dict()["quarter_policy"],
+        "business_period": period.as_dict()["business_period"],
+        "source_registry_period": period.as_dict()["source_registry_period"],
+        "display_period": period.as_dict()["display_period"],
+        "quarter_mapping": period.as_dict()["quarter_mapping"],
         "inputs": {
             "territory_config": display_path(territory_config_path),
             "bundle_dir": display_path(resolved_bundle_dir),
@@ -587,6 +591,13 @@ def markdown_summary(manifest: dict[str, Any]) -> str:
         "",
         f"- Status: `{manifest['status']}`",
         f"- Quarter policy: `{manifest['quarter_policy']['name']}`",
+        (
+            "- Quarter mapping: "
+            f"business `{manifest['quarter_mapping']['business_current_quarter_label']}` "
+            f"→ source `{manifest['quarter_mapping']['source_current_quarter_label']}` "
+            f"→ display `{manifest['quarter_mapping']['display_current_quarter_label']}` "
+            f"(approved `{manifest['quarter_mapping']['approved']}`)"
+        ),
         f"- Current quarter: `{manifest['period']['current_quarter']['title']}`",
         f"- Forward quarter: `{manifest['period']['forward_quarter']['title']}`",
         f"- Territories: `{summary['territory_count']}`",

@@ -412,6 +412,22 @@ def test_summarize_manifest_surfaces_operator_metrics() -> None:
                         "name": "calendar_quarter",
                         "fiscal_year_start_month": 1,
                     },
+                    "quarter_mapping": {
+                        "approved": True,
+                        "business_current_quarter_label": "FY26 Q1",
+                        "source_current_quarter_label": "Q2 2026",
+                        "display_current_quarter_label": "Q2 2026",
+                        "reason": "Approved calendar-source/fiscal-business mapping",
+                    },
+                    "business_period": {
+                        "fiscal_year_naming_policy": "start_year",
+                    },
+                    "source_registry_period": {
+                        "quarter_label_style": "salesforce_calendar_label",
+                    },
+                    "display_period": {
+                        "label_source": "source_registry_period",
+                    },
                     "period": {
                         "current_quarter": {"title": "Q2 2026"},
                         "forward_quarter": {"title": "Q3 2026"},
@@ -503,6 +519,10 @@ def test_summarize_manifest_surfaces_operator_metrics() -> None:
     assert summary["table_contract_table_count"] == 5
     assert summary["semantic_human_style_score"] == 100
     assert summary["quarter_policy_name"] == "calendar_quarter"
+    assert summary["quarter_mapping_approved"] is True
+    assert summary["business_current_quarter_label"] == "FY26 Q1"
+    assert summary["source_current_quarter_label"] == "Q2 2026"
+    assert summary["display_current_quarter_label"] == "Q2 2026"
     assert summary["current_quarter_title"] == "Q2 2026"
     assert summary["forward_quarter_title"] == "Q3 2026"
     assert summary["sharepoint_upload_plan_status"] == "planned"
@@ -520,6 +540,22 @@ def test_summarize_manifest_reads_source_contract_artifact_for_quarter_policy(
                 "quarter_policy": {
                     "name": "calendar_quarter",
                     "fiscal_year_start_month": 1,
+                },
+                "quarter_mapping": {
+                    "approved": True,
+                    "business_current_quarter_label": "FY26 Q1",
+                    "source_current_quarter_label": "Q2 2026",
+                    "display_current_quarter_label": "Q2 2026",
+                    "reason": "Approved calendar-source/fiscal-business mapping",
+                },
+                "business_period": {
+                    "fiscal_year_naming_policy": "start_year",
+                },
+                "source_registry_period": {
+                    "quarter_label_style": "salesforce_calendar_label",
+                },
+                "display_period": {
+                    "label_source": "source_registry_period",
                 },
                 "period": {
                     "current_quarter": {"title": "Q2 2026"},
@@ -547,6 +583,10 @@ def test_summarize_manifest_reads_source_contract_artifact_for_quarter_policy(
 
     assert summary["quarter_policy_name"] == "calendar_quarter"
     assert summary["quarter_policy_fiscal_year_start_month"] == 1
+    assert summary["quarter_mapping_approved"] is True
+    assert summary["business_current_quarter_label"] == "FY26 Q1"
+    assert summary["source_current_quarter_label"] == "Q2 2026"
+    assert summary["display_current_quarter_label"] == "Q2 2026"
     assert summary["current_quarter_title"] == "Q2 2026"
     assert summary["forward_quarter_title"] == "Q3 2026"
     assert summary["reporting_window_start"] == "2026-01-01"
@@ -575,6 +615,14 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
             "source_contract_final_territory_count": 9,
             "quarter_policy_name": "calendar_quarter",
             "quarter_policy_fiscal_year_start_month": 1,
+            "quarter_mapping_approved": True,
+            "business_current_quarter_label": "FY26 Q1",
+            "source_current_quarter_label": "Q2 2026",
+            "display_current_quarter_label": "Q2 2026",
+            "quarter_mapping_reason": "Approved calendar-source/fiscal-business mapping",
+            "business_fiscal_year_naming_policy": "start_year",
+            "source_quarter_label_style": "salesforce_calendar_label",
+            "display_label_source": "source_registry_period",
             "current_quarter_title": "Q2 2026",
             "forward_quarter_title": "Q3 2026",
             "reporting_window_start": "2026-01-01",
@@ -668,6 +716,16 @@ def test_release_packet_recommends_publish_for_clean_manifest(tmp_path: Path) ->
     )
     assert all(check["status"] == "pass" for check in packet["release_checks"])
 
+    manifest["summary"]["quarter_mapping_approved"] = False
+    blocked_packet = pipeline.release_packet_from_manifest(manifest)
+    failed_checks = {
+        check["name"]
+        for check in blocked_packet["release_checks"]
+        if check["status"] == "fail"
+    }
+    assert blocked_packet["status"] == "blocked"
+    assert "quarter_mapping_approved" in failed_checks
+
 
 def test_release_packet_blocks_weak_source_or_visual_evidence(tmp_path: Path) -> None:
     manifest = {
@@ -691,6 +749,14 @@ def test_release_packet_blocks_weak_source_or_visual_evidence(tmp_path: Path) ->
             "source_contract_final_territory_count": 9,
             "quarter_policy_name": "calendar_quarter",
             "quarter_policy_fiscal_year_start_month": 1,
+            "quarter_mapping_approved": True,
+            "business_current_quarter_label": "FY26 Q1",
+            "source_current_quarter_label": "Q2 2026",
+            "display_current_quarter_label": "Q2 2026",
+            "quarter_mapping_reason": "Approved calendar-source/fiscal-business mapping",
+            "business_fiscal_year_naming_policy": "start_year",
+            "source_quarter_label_style": "salesforce_calendar_label",
+            "display_label_source": "source_registry_period",
             "current_quarter_title": "Q2 2026",
             "forward_quarter_title": "Q3 2026",
             "reporting_window_start": "2026-01-01",
@@ -800,6 +866,14 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
             "source_contract_final_territory_count": 9,
             "quarter_policy_name": "calendar_quarter",
             "quarter_policy_fiscal_year_start_month": 1,
+            "quarter_mapping_approved": True,
+            "business_current_quarter_label": "FY26 Q1",
+            "source_current_quarter_label": "Q2 2026",
+            "display_current_quarter_label": "Q2 2026",
+            "quarter_mapping_reason": "Approved calendar-source/fiscal-business mapping",
+            "business_fiscal_year_naming_policy": "start_year",
+            "source_quarter_label_style": "salesforce_calendar_label",
+            "display_label_source": "source_registry_period",
             "current_quarter_title": "Q2 2026",
             "forward_quarter_title": "Q3 2026",
             "reporting_window_start": "2026-01-01",
@@ -899,6 +973,8 @@ def test_write_manifest_and_release_packet_updates_latest_aliases(
     assert latest["summary"]["table_contract_table_count"] == 5
     assert latest["summary"]["semantic_human_style_score"] == 100
     assert latest["summary"]["quarter_policy_name"] == "calendar_quarter"
+    assert latest["summary"]["quarter_mapping_approved"] is True
+    assert latest["summary"]["business_current_quarter_label"] == "FY26 Q1"
     assert latest["summary"]["current_quarter_title"] == "Q2 2026"
     assert latest["summary"]["release_bundle_artifact_count"] == 21
     assert latest["summary"]["release_bundle_upload_ready"] is True

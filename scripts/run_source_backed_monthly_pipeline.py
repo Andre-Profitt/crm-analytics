@@ -1175,6 +1175,12 @@ def _fold_period_policy_summary(
     for candidate in (payload, artifact_payload or {}):
         period = candidate.get("period") or {}
         quarter_policy = candidate.get("quarter_policy") or period.get("quarter_policy") or {}
+        quarter_mapping = candidate.get("quarter_mapping") or period.get("quarter_mapping") or {}
+        business_period = candidate.get("business_period") or period.get("business_period") or {}
+        source_registry_period = (
+            candidate.get("source_registry_period") or period.get("source_registry_period") or {}
+        )
+        display_period = candidate.get("display_period") or period.get("display_period") or {}
         current_quarter = period.get("current_quarter") or {}
         forward_quarter = period.get("forward_quarter") or {}
         _copy_metric(quarter_policy, summary, "name", "quarter_policy_name")
@@ -1186,6 +1192,41 @@ def _fold_period_policy_summary(
         )
         _copy_metric(current_quarter, summary, "title", "current_quarter_title")
         _copy_metric(forward_quarter, summary, "title", "forward_quarter_title")
+        _copy_metric(quarter_mapping, summary, "approved", "quarter_mapping_approved")
+        _copy_metric(quarter_mapping, summary, "approved_by", "quarter_mapping_approved_by")
+        _copy_metric(quarter_mapping, summary, "approved_at", "quarter_mapping_approved_at")
+        _copy_metric(quarter_mapping, summary, "reason", "quarter_mapping_reason")
+        _copy_metric(
+            quarter_mapping,
+            summary,
+            "business_current_quarter_label",
+            "business_current_quarter_label",
+        )
+        _copy_metric(
+            quarter_mapping,
+            summary,
+            "source_current_quarter_label",
+            "source_current_quarter_label",
+        )
+        _copy_metric(
+            quarter_mapping,
+            summary,
+            "display_current_quarter_label",
+            "display_current_quarter_label",
+        )
+        _copy_metric(
+            business_period,
+            summary,
+            "fiscal_year_naming_policy",
+            "business_fiscal_year_naming_policy",
+        )
+        _copy_metric(
+            source_registry_period,
+            summary,
+            "quarter_label_style",
+            "source_quarter_label_style",
+        )
+        _copy_metric(display_period, summary, "label_source", "display_label_source")
         _copy_metric(period, summary, "reporting_window_start", "reporting_window_start")
         _copy_metric(period, summary, "reporting_window_end", "reporting_window_end")
 
@@ -1467,6 +1508,24 @@ def release_checks_from_manifest(manifest: dict[str, Any]) -> list[dict[str, str
                 f"{summary.get('quarter_policy_fiscal_year_start_month')}; "
                 f"current_quarter_title={summary.get('current_quarter_title')}; "
                 f"forward_quarter_title={summary.get('forward_quarter_title')}"
+            ),
+        ),
+        _release_check(
+            "quarter_mapping_approved",
+            summary.get("quarter_mapping_approved") is True
+            and bool(summary.get("business_current_quarter_label"))
+            and bool(summary.get("source_current_quarter_label"))
+            and bool(summary.get("display_current_quarter_label"))
+            and bool(summary.get("quarter_mapping_reason")),
+            (
+                f"quarter_mapping_approved={summary.get('quarter_mapping_approved')}; "
+                "business_current_quarter_label="
+                f"{summary.get('business_current_quarter_label')}; "
+                "source_current_quarter_label="
+                f"{summary.get('source_current_quarter_label')}; "
+                "display_current_quarter_label="
+                f"{summary.get('display_current_quarter_label')}; "
+                f"quarter_mapping_reason={summary.get('quarter_mapping_reason')}"
             ),
         ),
         _release_check(
@@ -1757,6 +1816,11 @@ def latest_release_index_from_manifest(
                 "director_bundle_count",
                 "quarter_policy_name",
                 "quarter_policy_fiscal_year_start_month",
+                "quarter_mapping_approved",
+                "business_current_quarter_label",
+                "source_current_quarter_label",
+                "display_current_quarter_label",
+                "source_quarter_label_style",
                 "current_quarter_title",
                 "forward_quarter_title",
                 "reporting_window_start",
@@ -1833,6 +1897,12 @@ def latest_release_markdown(index: dict[str, Any]) -> str:
             f"- Quarter policy: `{summary.get('quarter_policy_name')}`, "
             f"current `{summary.get('current_quarter_title')}`, "
             f"forward `{summary.get('forward_quarter_title')}`"
+        ),
+        (
+            f"- Quarter mapping: business `{summary.get('business_current_quarter_label')}` → "
+            f"source `{summary.get('source_current_quarter_label')}` → "
+            f"display `{summary.get('display_current_quarter_label')}`, "
+            f"approved `{summary.get('quarter_mapping_approved')}`"
         ),
         (
             f"- Truth blockers / tie-out mismatches: `{summary.get('high_blocker_count')}` / "
