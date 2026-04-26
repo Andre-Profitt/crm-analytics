@@ -23,11 +23,15 @@ importing it once and registering ``TABLE_ID`` -> ``SCHEMA``.
 
 from __future__ import annotations
 
-from schemas.pandera import source_quality_audit
+from schemas.pandera import (
+    source_quality_audit,
+    staged_source_quality_findings,
+)
 
 
 SCHEMAS = {
     source_quality_audit.TABLE_ID: source_quality_audit.SCHEMA,
+    staged_source_quality_findings.TABLE_ID: staged_source_quality_findings.SCHEMA,
 }
 
 
