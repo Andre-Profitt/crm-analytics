@@ -1,0 +1,38 @@
+[
+  {
+    "requirement_id": "sd_pipeline_open",
+    "enabled": true,
+    "owner": "sales_director_monthly_source_contract",
+    "source_system": "salesforce",
+    "source_type": "salesforce_list_view",
+    "dataset": "pipeline_open",
+    "output_grain": "opportunity",
+    "scope": "territory",
+    "allow_zero": true,
+    "min_rows": 0,
+    "max_rows": null,
+    "has_distribution_policy": true,
+    "distribution_dimension_count": 3,
+    "slice_sentinel_count": 1,
+    "fallback_policy_present": false,
+    "tag_count": 4
+  },
+  {
+    "requirement_id": "sd_pipeline_open_reference",
+    "enabled": true,
+    "owner": "sales_director_monthly_source_contract",
+    "source_system": "salesforce",
+    "source_type": "salesforce_report",
+    "dataset": "pipeline_open_reference",
+    "output_grain": "opportunity_reference",
+    "scope": "global",
+    "allow_zero": true,
+    "min_rows": 0,
+    "max_rows": 50000,
+    "has_distribution_policy": false,
+    "distribution_dimension_count": 0,
+    "slice_sentinel_count": 0,
+    "fallback_policy_present": false,
+    "tag_count": 3
+  }
+]
