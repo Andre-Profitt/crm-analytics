@@ -470,3 +470,225 @@ def test_findings_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
     assert report.status == "pass", [
         f"{f.message}: {f.evidence}" for f in report.findings
     ]
+
+
+# ===========================================================================
+# Slice 3: staged_distribution_findings
+# ===========================================================================
+#
+# Track D companion to slice 2. Same column shape, opposite routing rule.
+# The schema requires ``track == "D"`` and the issue regex
+# ``^source_distribution_[a-z0-9_]+$`` (digits allowed for sentinel /
+# slice identifiers). Together with slice 2 these two schemas enforce the
+# cross-table contract — a row that passes both is impossible.
+
+
+DIST_FIXTURE_DIR = (
+    REPO_ROOT / "tests" / "fixtures" / "bad_extracts" / "staged_distribution_findings"
+)
+DIST_TABLE_ID = "staged_distribution_findings"
+
+
+def _load_dist_fixture(name: str) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = json.loads(
+        (DIST_FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8")
+    )
+    df = pd.DataFrame(rows)
+    return df.reindex(columns=[c for c in FINDINGS_COLUMNS if c in df.columns])
+
+
+def _dist_parquet_from_fixture(name: str, tmp_path: Path) -> Path:
+    df = _load_dist_fixture(name)
+    parquet_path = tmp_path / f"{name}.parquet"
+    df.to_parquet(parquet_path, index=False)
+    return parquet_path
+
+
+# --- Positive control ------------------------------------------------------
+
+
+def test_dist_pandera_accepts_good_fixture():
+    df = _load_dist_fixture("good")
+    report = validate_pandera(table_id=DIST_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+# --- Cross-table contract: B / C must be rejected here -------------------
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "track_b_in_distribution_table",
+        "track_c_in_distribution_table",
+        "unknown_track",
+    ],
+)
+def test_dist_pandera_rejects_non_d_track(fixture):
+    """Track D table accepts only ``track == "D"``; B / C / anything else
+    is a routing error and must be caught by the schema."""
+    df = _load_dist_fixture(fixture)
+    report = validate_pandera(table_id=DIST_TABLE_ID, df=df)
+    assert report.status == "fail", f"{fixture} should fail Pandera validation"
+    assert any("track" in (f.evidence or f.message) for f in report.findings), [
+        (f.message, f.evidence) for f in report.findings
+    ]
+
+
+# --- Pandera negative controls --------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "fixture,expected_substring",
+    [
+        ("unknown_severity", "severity"),
+        ("non_distribution_issue", "issue"),
+        ("issue_with_uppercase", "issue"),
+        ("issue_with_whitespace", "issue"),
+        ("bad_snapshot_date", "snapshot_date"),
+    ],
+)
+def test_dist_pandera_rejects_negative_control(fixture, expected_substring):
+    df = _load_dist_fixture(fixture)
+    report = validate_pandera(table_id=DIST_TABLE_ID, df=df)
+    assert report.status == "fail", f"{fixture} should fail Pandera validation"
+    assert any(
+        expected_substring in (f.evidence or f.message) for f in report.findings
+    ), [(f.message, f.evidence) for f in report.findings]
+
+
+def test_dist_pandera_rejects_missing_run_id():
+    df = _load_dist_fixture("missing_run_id")
+    report = validate_pandera(table_id=DIST_TABLE_ID, df=df)
+    assert report.status == "fail"
+
+
+# --- Cross-table mutual-exclusivity --------------------------------------
+
+
+def test_findings_and_distribution_schemas_are_mutually_exclusive():
+    """A row cannot validly belong to BOTH staged finding tables.
+
+    Use slice 2's positive control (track=B) and slice 3's positive
+    control (track=D) and verify each is accepted by exactly one schema.
+    """
+    quality_good = _load_findings_fixture("good")  # track=B
+    dist_good = _load_dist_fixture("good")  # track=D
+
+    assert (
+        validate_pandera(table_id=FINDINGS_TABLE_ID, df=quality_good).status == "pass"
+    )
+    assert validate_pandera(table_id=DIST_TABLE_ID, df=quality_good).status == "fail"
+    assert validate_pandera(table_id=DIST_TABLE_ID, df=dist_good).status == "pass"
+    assert validate_pandera(table_id=FINDINGS_TABLE_ID, df=dist_good).status == "fail"
+
+
+# --- Frictionless tier ---------------------------------------------------
+
+
+def test_dist_frictionless_accepts_good_fixture(tmp_path: Path):
+    parquet_path = _dist_parquet_from_fixture("good", tmp_path)
+    report = validate_frictionless(
+        table_id=DIST_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_dist_frictionless_rejects_track_b(tmp_path: Path):
+    parquet_path = _dist_parquet_from_fixture("track_b_in_distribution_table", tmp_path)
+    report = validate_frictionless(
+        table_id=DIST_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "fail"
+
+
+def test_dist_frictionless_rejects_non_distribution_issue(tmp_path: Path):
+    parquet_path = _dist_parquet_from_fixture("non_distribution_issue", tmp_path)
+    report = validate_frictionless(
+        table_id=DIST_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "fail"
+
+
+# --- Live-evidence smoke (handles empty distribution table) --------------
+
+
+def test_dist_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
+    """The v20c checkpoint produces an empty distribution-findings table
+    (Track D activation hadn't happened at extract time). The schema must
+    accept the typed-but-empty Parquet without claiming a row violation —
+    Track H specifically added typed empty-table handling, and slice 3
+    is the first schema that exercises that path against live evidence.
+    """
+    audit_path = (
+        REPO_ROOT
+        / "output"
+        / "monthly_salesforce_sources"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "audits"
+        / "source_extract_quality_audit.json"
+    )
+    if not audit_path.exists():
+        pytest.skip("v20c live evidence not on disk")
+
+    rc = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "build_source_backed_warehouse.py"),
+            "--snapshot-date",
+            "2026-04-30",
+            "--run-id",
+            "live-all-sources-pipeline-open-v20c",
+            "--warehouse-root",
+            str(tmp_path / "wh"),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert rc.returncode == 0, rc.stderr or rc.stdout
+
+    parquet_path = (
+        tmp_path
+        / "wh"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "staged"
+        / "distribution_findings.parquet"
+    )
+    assert parquet_path.exists()
+
+    con = duckdb.connect()
+    try:
+        df = con.execute(f"SELECT * FROM read_parquet('{parquet_path}')").df()
+        # Verify the typed-empty-table path actually preserved the column
+        # contract (Codex P2 fix on PR #6) — column NAMES must be present
+        # even for 0 rows; types are all VARCHAR for this finding table.
+        schema_rows = con.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{parquet_path}')"
+        ).fetchall()
+    finally:
+        con.close()
+
+    assert len(df) == 0, "expected empty distribution-findings table"
+    schema_cols = {r[0] for r in schema_rows}
+    assert schema_cols == set(FINDINGS_COLUMNS), (
+        f"empty-table schema drift: {schema_cols} vs {set(FINDINGS_COLUMNS)}"
+    )
+
+    # Pandera must accept the empty DataFrame (0 rows = no checks fail).
+    report = validate_pandera(table_id=DIST_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]

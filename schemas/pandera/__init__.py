@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from schemas.pandera import (
     source_quality_audit,
+    staged_distribution_findings,
     staged_source_quality_findings,
 )
 
@@ -32,6 +33,7 @@ from schemas.pandera import (
 SCHEMAS = {
     source_quality_audit.TABLE_ID: source_quality_audit.SCHEMA,
     staged_source_quality_findings.TABLE_ID: staged_source_quality_findings.SCHEMA,
+    staged_distribution_findings.TABLE_ID: staged_distribution_findings.SCHEMA,
 }
 
 
