@@ -90,6 +90,20 @@ jobs:
             echo "::error::snapshot_date must be provided (workflow_dispatch) or computed (schedule)"
             exit 1
           fi
+          # Strict YYYY-MM-DD shape + real-calendar validation. The source-backed
+          # runner also validates, but failing here keeps a malformed input from
+          # bleeding into RUN_ID, artifact paths, and SharePoint folder names.
+          python3 - "$SNAPSHOT_DATE" <<'PY'
+          import re, sys
+          from datetime import date
+          value = sys.argv[1]
+          if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+              sys.exit(f"::error::snapshot_date must be YYYY-MM-DD, got {value!r}")
+          try:
+              date.fromisoformat(value)
+          except ValueError as exc:
+              sys.exit(f"::error::snapshot_date {value!r} is not a real calendar date: {exc}")
+          PY
           echo "snapshot_date=$SNAPSHOT_DATE" >> $GITHUB_OUTPUT
           echo "Resolved snapshot date: $SNAPSHOT_DATE"
 
@@ -107,7 +121,10 @@ jobs:
           echo "Resolved run id: $RUN_ID"
 
       - name: Run source-backed monthly pipeline
-        if: ${{ inputs.legacy_only != 'true' }}
+        # Run by default. ``inputs`` is only populated on workflow_dispatch, so
+        # the scheduled cron path falls through here unconditionally; manual
+        # dispatches with ``legacy_only=true`` are the only opt-out.
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.legacy_only }}
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -118,7 +135,7 @@ jobs:
             --run-id "${{ steps.runid.outputs.run_id }}"
 
       - name: Run legacy lane (fallback only)
-        if: ${{ inputs.legacy_only == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.legacy_only }}
         run: |
           echo "::warning::Running LEGACY lane via run_monthly_director_review.py — only valid for explicit fallback dispatches."
           python3 scripts/run_monthly_director_review.py \
@@ -132,7 +149,7 @@ jobs:
             || (echo "✗ Legacy tie-out has mismatches" && exit 1)
 
       - name: Upload source-backed run artifacts
-        if: ${{ inputs.legacy_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.legacy_only }}
         uses: actions/upload-artifact@v4
         with:
           name: sd-source-backed-${{ steps.date.outputs.snapshot_date }}-${{ steps.runid.outputs.run_id }}
@@ -146,7 +163,7 @@ jobs:
           retention-days: 90
 
       - name: Upload legacy lane artifacts (fallback only)
-        if: ${{ inputs.legacy_only == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.legacy_only }}
         uses: actions/upload-artifact@v4
         with:
           name: sd-legacy-${{ steps.date.outputs.snapshot_date }}
