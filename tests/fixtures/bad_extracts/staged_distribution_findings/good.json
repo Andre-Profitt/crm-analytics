@@ -1,0 +1,11 @@
+[
+  {
+    "snapshot_date": "2026-04-30",
+    "run_id": "live-all-sources-pipeline-open-v20c",
+    "track": "D",
+    "severity": "info",
+    "issue": "source_distribution_share_drift",
+    "evidence": "sd_pipeline_open APAC current_quarter salesforce_list_view 00BTb00000LJNODMA5: field=StageName; semantic=stage; category='5 - Preferred'; baseline_share=0.1538; current_share=0.4615; abs_delta=0.3077; max_abs_share_delta=0.20; action=info",
+    "owner": null
+  }
+]

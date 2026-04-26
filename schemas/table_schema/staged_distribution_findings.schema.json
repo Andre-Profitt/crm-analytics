@@ -1,0 +1,65 @@
+{
+  "$schema": "https://specs.frictionlessdata.io/table-schema/",
+  "name": "staged_distribution_findings",
+  "title": "Source-distribution findings (Track D, staged tier)",
+  "description": "Per-finding rows from the Track D distribution audit. Pairs with staged_source_quality_findings — the two tables are mutually exclusive on the track column. Anchored to the 2026-04-26 v20d ETL spine checkpoint.",
+  "fields": [
+    {
+      "name": "snapshot_date",
+      "type": "string",
+      "format": "default",
+      "constraints": {
+        "required": true,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    {
+      "name": "run_id",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "track",
+      "type": "string",
+      "description": "Track D distribution findings only.",
+      "constraints": {
+        "required": true,
+        "enum": ["D"]
+      }
+    },
+    {
+      "name": "severity",
+      "type": "string",
+      "description": "From contracts.FindingSeverity.",
+      "constraints": {
+        "required": true,
+        "enum": ["high", "medium", "low", "info"]
+      }
+    },
+    {
+      "name": "issue",
+      "type": "string",
+      "description": "Snake-case issue code in the source_distribution_* namespace. Digits allowed for sentinel / slice identifiers.",
+      "constraints": {
+        "required": true,
+        "pattern": "^source_distribution_[a-z0-9_]+$"
+      }
+    },
+    {
+      "name": "evidence",
+      "type": "string",
+      "description": "Free-form evidence string; may legitimately be empty for some findings.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "owner",
+      "type": "string",
+      "description": "Optional owner attribution; null for unowned findings."
+    }
+  ]
+}

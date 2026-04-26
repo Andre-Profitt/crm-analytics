@@ -33,23 +33,15 @@ from __future__ import annotations
 import pandera.pandas as pa
 from pandera.pandas import Check, Column
 
+from schemas.pandera._finding_common import finding_columns_with
+
 
 TABLE_ID = "staged_source_quality_findings"
 
 
 SCHEMA: pa.DataFrameSchema = pa.DataFrameSchema(
-    columns={
-        "snapshot_date": Column(
-            str,
-            checks=Check.str_matches(r"^\d{4}-\d{2}-\d{2}$"),
-            description="ISO-8601 date of the monthly snapshot (YYYY-MM-DD).",
-        ),
-        "run_id": Column(
-            str,
-            checks=Check.str_length(min_value=1),
-            description="Stable identifier for the extract run.",
-        ),
-        "track": Column(
+    columns=finding_columns_with(
+        track_column=Column(
             str,
             checks=Check.isin(["B", "C", "unknown"]),
             description=(
@@ -58,12 +50,7 @@ SCHEMA: pa.DataFrameSchema = pa.DataFrameSchema(
                 "live in ``staged_distribution_findings``."
             ),
         ),
-        "severity": Column(
-            str,
-            checks=Check.isin(["high", "medium", "low", "info"]),
-            description="From contracts.FindingSeverity.",
-        ),
-        "issue": Column(
+        issue_column=Column(
             str,
             checks=Check.str_matches(r"^source_[a-z_]+$"),
             description=(
@@ -71,18 +58,7 @@ SCHEMA: pa.DataFrameSchema = pa.DataFrameSchema(
                 "Must be in the ``source_*`` namespace and snake_case."
             ),
         ),
-        # Evidence may legitimately be empty for some findings; we don't
-        # require min length, only that the column is a present string.
-        "evidence": Column(str, nullable=False),
-        "owner": Column(
-            str,
-            nullable=True,
-            description=(
-                "Optional owner attribution from contracts.Finding.owner; "
-                "``None`` for findings without a designated owner."
-            ),
-        ),
-    },
+    ),
     strict=True,  # reject any column not declared above
     coerce=False,  # types must already match — the writer handles casting
     name=f"warehouse.{TABLE_ID}",
