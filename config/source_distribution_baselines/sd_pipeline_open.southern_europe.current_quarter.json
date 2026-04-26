@@ -1,0 +1,43 @@
+{
+  "baseline_key": "sd_pipeline_open.southern_europe.current_quarter",
+  "dimensions": {
+    "ForecastCategoryName": {
+      "field": "ForecastCategoryName",
+      "sample_count": 2,
+      "semantic_name": "forecast_category",
+      "share_by_category": {
+        "Pipeline": 1.0
+      }
+    },
+    "Owner.Name": {
+      "field": "Owner.Name",
+      "sample_count": 2,
+      "semantic_name": "owner",
+      "share_by_category": {
+        "Laurence Repert Fillion": 1.0
+      }
+    },
+    "StageName": {
+      "field": "StageName",
+      "sample_count": 2,
+      "semantic_name": "stage",
+      "share_by_category": {
+        "3 - Engagement": 1.0
+      }
+    }
+  },
+  "notes": "",
+  "period_role": "current_quarter",
+  "promoted_at": "2026-04-26T12:18:15.350940+00:00",
+  "promoted_from": [
+    {
+      "row_count": 2,
+      "run_id": "live-all-sources-pipeline-open-v16",
+      "snapshot_date": "2026-04-30",
+      "source_id": "00BTb00000LJRBhMAP"
+    }
+  ],
+  "requirement_id": "sd_pipeline_open",
+  "schema_version": "monthly_platform.source_distribution_seed.v1",
+  "territory": "Southern Europe"
+}

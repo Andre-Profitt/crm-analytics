@@ -36,6 +36,10 @@ from scripts.monthly_platform.source_requirements import (  # noqa: E402
     load_source_requirements,
     requirement_summary,
 )
+from scripts.monthly_platform.distribution_diff import (  # noqa: E402
+    diff_distribution_audits,
+    load_audit,
+)
 from scripts.monthly_platform.source_distribution_audit import (  # noqa: E402
     audit_distribution,
     baseline_key_for_item as distribution_baseline_key_for_item,
@@ -94,6 +98,7 @@ def extract_sources(
     enable_baselines: bool = True,
     distribution_seeds_dir: Path | None = None,
     enable_distribution: bool = True,
+    prior_quality_audit_path: Path | None = None,
 ) -> dict[str, Any]:
     started_at = utc_now_iso()
     started = time.monotonic()
@@ -384,6 +389,39 @@ def extract_sources(
     )
     output_artifacts.append(quality_artifact)
 
+    # Track D activation: optional run-over-run distribution diff artifact.
+    # Information only — never gates the release. Requires both runs to have
+    # the Track D ``distribution_comparison`` block; if the prior run pre-dates
+    # Track D, the diff degrades cleanly to "all categories new".
+    distribution_diff_path: str | None = None
+    if prior_quality_audit_path is not None and enable_distribution:
+        try:
+            prior_audit = load_audit(prior_quality_audit_path)
+            diff_payload = diff_distribution_audits(
+                prior=prior_audit, current=quality_audit
+            )
+            diff_artifact = storage.register_json_artifact(
+                artifact_id="source_distribution_diff",
+                artifact_type="source_distribution_diff",
+                payload=diff_payload,
+                relative_path="audits/source_distribution_diff.json",
+                stage_name=STAGE_NAME,
+                metadata=diff_payload["summary"],
+            )
+            output_artifacts.append(diff_artifact)
+            distribution_diff_path = diff_artifact.path
+        except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
+            findings.append(
+                Finding(
+                    severity="info",
+                    issue="source_distribution_diff_skipped",
+                    evidence=(
+                        f"prior_audit={prior_quality_audit_path}: "
+                        f"{type(exc).__name__}: {exc}"
+                    ),
+                )
+            )
+
     finished_at = utc_now_iso()
     quality_summary = quality_audit["summary"]
     stage = StageResult(
@@ -435,6 +473,7 @@ def extract_sources(
             "distribution_missing_seed_dimension_count": quality_summary[
                 "distribution_missing_seed_dimension_count"
             ],
+            "distribution_diff_path": distribution_diff_path,
             "filters": {
                 "only_requirement": only_requirement,
                 "only_territory": only_territory,
@@ -489,6 +528,7 @@ def extract_sources(
         "distribution_missing_seed_dimension_count": quality_summary[
             "distribution_missing_seed_dimension_count"
         ],
+        "distribution_diff_path": distribution_diff_path,
     }
 
 
@@ -910,6 +950,17 @@ def main() -> int:
         action="store_true",
         help="Disable Track D distribution audit entirely.",
     )
+    parser.add_argument(
+        "--prior-quality-audit",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a prior approved source_extract_quality_audit.json. "
+            "When supplied, a run-over-run distribution diff artifact is "
+            "written next to the current audit. Information only — never "
+            "gates the release."
+        ),
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -932,6 +983,7 @@ def main() -> int:
         enable_baselines=not args.no_baselines,
         distribution_seeds_dir=args.distribution_seeds_dir,
         enable_distribution=not args.no_distribution,
+        prior_quality_audit_path=args.prior_quality_audit,
     )
     if args.json:
         print(json.dumps(result, indent=2))

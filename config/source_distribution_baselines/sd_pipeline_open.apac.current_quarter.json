@@ -1,0 +1,51 @@
+{
+  "baseline_key": "sd_pipeline_open.apac.current_quarter",
+  "dimensions": {
+    "ForecastCategoryName": {
+      "field": "ForecastCategoryName",
+      "sample_count": 13,
+      "semantic_name": "forecast_category",
+      "share_by_category": {
+        "Commit": 0.307692,
+        "Pipeline": 0.692308
+      }
+    },
+    "Owner.Name": {
+      "field": "Owner.Name",
+      "sample_count": 13,
+      "semantic_name": "owner",
+      "share_by_category": {
+        "Alvin Luk": 0.076923,
+        "Edwina Chow": 0.461538,
+        "Enzo Cotroneo": 0.076923,
+        "Jesper Tyrer": 0.076923,
+        "Ronald Tang": 0.307692
+      }
+    },
+    "StageName": {
+      "field": "StageName",
+      "sample_count": 13,
+      "semantic_name": "stage",
+      "share_by_category": {
+        "2 - Discovery": 0.307692,
+        "3 - Engagement": 0.384615,
+        "5 - Preferred": 0.153846,
+        "6 - Contracting": 0.153846
+      }
+    }
+  },
+  "notes": "",
+  "period_role": "current_quarter",
+  "promoted_at": "2026-04-26T12:18:15.350940+00:00",
+  "promoted_from": [
+    {
+      "row_count": 13,
+      "run_id": "live-all-sources-pipeline-open-v16",
+      "snapshot_date": "2026-04-30",
+      "source_id": "00BTb00000LJNODMA5"
+    }
+  ],
+  "requirement_id": "sd_pipeline_open",
+  "schema_version": "monthly_platform.source_distribution_seed.v1",
+  "territory": "APAC"
+}

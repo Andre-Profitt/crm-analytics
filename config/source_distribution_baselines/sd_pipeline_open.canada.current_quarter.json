@@ -1,0 +1,44 @@
+{
+  "baseline_key": "sd_pipeline_open.canada.current_quarter",
+  "dimensions": {
+    "ForecastCategoryName": {
+      "field": "ForecastCategoryName",
+      "sample_count": 3,
+      "semantic_name": "forecast_category",
+      "share_by_category": {
+        "Pipeline": 1.0
+      }
+    },
+    "Owner.Name": {
+      "field": "Owner.Name",
+      "sample_count": 3,
+      "semantic_name": "owner",
+      "share_by_category": {
+        "Megan Miceli": 0.333333,
+        "Terry Lau": 0.666667
+      }
+    },
+    "StageName": {
+      "field": "StageName",
+      "sample_count": 3,
+      "semantic_name": "stage",
+      "share_by_category": {
+        "3 - Engagement": 1.0
+      }
+    }
+  },
+  "notes": "",
+  "period_role": "current_quarter",
+  "promoted_at": "2026-04-26T12:18:15.350940+00:00",
+  "promoted_from": [
+    {
+      "row_count": 3,
+      "run_id": "live-all-sources-pipeline-open-v16",
+      "snapshot_date": "2026-04-30",
+      "source_id": "00BTb00000LJNpeMAH"
+    }
+  ],
+  "requirement_id": "sd_pipeline_open",
+  "schema_version": "monthly_platform.source_distribution_seed.v1",
+  "territory": "Canada"
+}

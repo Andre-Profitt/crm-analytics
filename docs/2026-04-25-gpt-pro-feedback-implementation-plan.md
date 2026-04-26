@@ -9,20 +9,20 @@ Prior cycle plan (for context): [`docs/2026-04-24-gpt55-feedback-implementation-
 
 ## Cycle Status (live)
 
-| Track | Subject                                            | Status           | Commit                                                                     |
-| ----- | -------------------------------------------------- | ---------------- | -------------------------------------------------------------------------- |
-| A     | Cron cutover to source-backed runner               | ✅ DONE          | [`dc0488a`](https://github.com/Andre-Profitt/crm-analytics/commit/dc0488a) |
-| B     | Per-axis source-quality policy actions             | ✅ DONE          | [`5303a5f`](https://github.com/Andre-Profitt/crm-analytics/commit/5303a5f) |
-| C     | Source-quality baselines calibrator                | ✅ DONE          | merged in PR #2                                                            |
-| D     | Distribution checks for pipeline sources           | ✅ DONE          | (this branch — Track D PR)                                                 |
-| **H** | **DuckDB / Parquet warehouse layer (v3)**          | NEW              | —                                                                          |
-| **I** | **Pandera + JSON Schema dataframe contracts (v3)** | NEW              | —                                                                          |
-| E     | `deck_contract.yaml` (deck API)                    | pending          | —                                                                          |
-| F     | Template-first builder + brand fingerprint         | pending          | —                                                                          |
-| **J** | **OpenLineage events + slide-to-source map (v3)**  | NEW              | —                                                                          |
-| **K** | **Release catalog + waiver system (v3)**           | NEW              | —                                                                          |
-| **L** | **Reusable workflows + composite actions (v3)**    | NEW              | —                                                                          |
-| G     | v20d evidence pass                                 | gated on E/F/H/I | —                                                                          |
+| Track | Subject                                            | Status           | Commit                                                                       |
+| ----- | -------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------- |
+| A     | Cron cutover to source-backed runner               | ✅ DONE          | [`dc0488a`](https://github.com/Andre-Profitt/crm-analytics/commit/dc0488a)   |
+| B     | Per-axis source-quality policy actions             | ✅ DONE          | [`5303a5f`](https://github.com/Andre-Profitt/crm-analytics/commit/5303a5f)   |
+| C     | Source-quality baselines calibrator                | ✅ DONE          | merged in PR #2                                                              |
+| D     | Distribution checks for pipeline sources           | ✅ DONE          | merged in PR #4; activation slice (calibrator + first opt-in) on this branch |
+| **H** | **DuckDB / Parquet warehouse layer (v3)**          | NEW              | —                                                                            |
+| **I** | **Pandera + JSON Schema dataframe contracts (v3)** | NEW              | —                                                                            |
+| E     | `deck_contract.yaml` (deck API)                    | pending          | —                                                                            |
+| F     | Template-first builder + brand fingerprint         | pending          | —                                                                            |
+| **J** | **OpenLineage events + slide-to-source map (v3)**  | NEW              | —                                                                            |
+| **K** | **Release catalog + waiver system (v3)**           | NEW              | —                                                                            |
+| **L** | **Reusable workflows + composite actions (v3)**    | NEW              | —                                                                            |
+| G     | v20d evidence pass                                 | gated on E/F/H/I | —                                                                            |
 
 Tracks H/I/J/K/L are the v3 polish layer. They sit between the original A–G to convert the system from "a pipeline that happens to make a deck" into a contract-driven analytics product factory: every source, transform, metric, slide, artifact, and waiver declared in a contract, validated by code, linked by lineage, reproducible from a snapshot date.
 

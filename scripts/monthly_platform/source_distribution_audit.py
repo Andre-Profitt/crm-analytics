@@ -158,10 +158,19 @@ _MISSING = object()
 def _extract_value(row: dict[str, Any], field_name: str) -> Any:
     """Resolve a possibly dotted field path on a Salesforce row dict.
 
-    Supports flat keys, nested dicts (``Owner.Name``), and the common
-    ``__display`` / ``_display`` flat-key suffixes Salesforce list-view
-    payloads use. Returns ``_MISSING`` when the key is absent so callers can
-    distinguish a missing field from an explicit ``None``.
+    Supports four Salesforce row shapes encountered in the wild:
+
+    * Flat top-level key: ``row["StageName"]``.
+    * ``__display`` / ``_display`` flat fallback for relations:
+      ``row["Owner__display"]``.
+    * Simple nested dict (test fixtures, JSON-flat extracts):
+      ``row["Owner"]["Name"]``.
+    * Salesforce list-view nested-object envelope:
+      ``row["Owner"]["fields"]["Name"]["value"]`` (and the matching
+      ``displayValue`` form).
+
+    Returns ``_MISSING`` when the key is absent so callers can distinguish a
+    missing field from an explicit ``None``.
     """
     if field_name in row:
         return row[field_name]
@@ -169,17 +178,55 @@ def _extract_value(row: dict[str, Any], field_name: str) -> Any:
         head, _, tail = field_name.partition(".")
         nested = row.get(head)
         if isinstance(nested, dict):
-            return _extract_value(nested, tail)
+            value = _extract_value_nested(nested, tail)
+            if value is not _MISSING:
+                return value
         flat_key = field_name.replace(".", "_")
         if flat_key in row:
             return row[flat_key]
         for suffix in ("__display", "_display"):
             if flat_key + suffix in row:
                 return row[flat_key + suffix]
+        # Salesforce list-view extracts often expose a relation as
+        # ``Head__display`` instead of ``Head_Tail`` (one display string
+        # per related record). Fall back to that when the dotted path
+        # targets a relation's primary display field (Name / Label).
+        if tail.lower() in {"name", "label"}:
+            for suffix in ("__display", "_display"):
+                if head + suffix in row:
+                    return row[head + suffix]
         return _MISSING
     for suffix in ("__display", "_display"):
         if field_name + suffix in row:
             return row[field_name + suffix]
+    return _MISSING
+
+
+def _extract_value_nested(nested: dict[str, Any], tail: str) -> Any:
+    """Resolve ``tail`` against a nested dict, handling Salesforce envelopes.
+
+    ``tail`` may itself be a dotted path. Tries:
+    1. Plain key lookup (test fixtures).
+    2. Salesforce list-view envelope: ``nested["fields"][key]["value"]``
+       (preferred), then ``["displayValue"]`` as fallback.
+    3. Recursive descent for deeper dotted paths.
+    """
+    if "." in tail:
+        head, _, rest = tail.partition(".")
+        deeper = _extract_value_nested(nested, head)
+        if deeper is _MISSING or not isinstance(deeper, dict):
+            return _MISSING
+        return _extract_value_nested(deeper, rest)
+    if tail in nested:
+        return nested[tail]
+    fields = nested.get("fields")
+    if isinstance(fields, dict):
+        field = fields.get(tail)
+        if isinstance(field, dict):
+            if "value" in field:
+                return field["value"]
+            if "displayValue" in field:
+                return field["displayValue"]
     return _MISSING
 
 

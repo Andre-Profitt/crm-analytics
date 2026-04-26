@@ -1,0 +1,49 @@
+{
+  "baseline_key": "sd_pipeline_open.middle_east_and_africa.current_quarter",
+  "dimensions": {
+    "ForecastCategoryName": {
+      "field": "ForecastCategoryName",
+      "sample_count": 11,
+      "semantic_name": "forecast_category",
+      "share_by_category": {
+        "Best Case": 0.363636,
+        "Pipeline": 0.636364
+      }
+    },
+    "Owner.Name": {
+      "field": "Owner.Name",
+      "sample_count": 11,
+      "semantic_name": "owner",
+      "share_by_category": {
+        "Bassam Chekrane": 0.181818,
+        "Jesper Tyrer": 0.090909,
+        "Nebil Jaiet": 0.545455,
+        "Zahi Bridi": 0.181818
+      }
+    },
+    "StageName": {
+      "field": "StageName",
+      "sample_count": 11,
+      "semantic_name": "stage",
+      "share_by_category": {
+        "2 - Discovery": 0.090909,
+        "3 - Engagement": 0.545455,
+        "4 - Shortlisted": 0.363636
+      }
+    }
+  },
+  "notes": "",
+  "period_role": "current_quarter",
+  "promoted_at": "2026-04-26T12:18:15.350940+00:00",
+  "promoted_from": [
+    {
+      "row_count": 11,
+      "run_id": "live-all-sources-pipeline-open-v16",
+      "snapshot_date": "2026-04-30",
+      "source_id": "00BTb00000LJRDJMA5"
+    }
+  ],
+  "requirement_id": "sd_pipeline_open",
+  "schema_version": "monthly_platform.source_distribution_seed.v1",
+  "territory": "Middle East & Africa"
+}
