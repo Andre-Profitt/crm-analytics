@@ -1,0 +1,308 @@
+# Track E — Deck Contract (Milestone 1)
+#
+# Single source of truth for the source-backed monthly review deck. Defines:
+#   - the SimCorp brand template the deck is built from
+#   - the validated warehouse marts the deck is allowed to read
+#   - per-slide bindings (id, slide_number, title, layout, required text,
+#     metric/table bindings to mart columns)
+#
+# Anchored against the v20d ETL spine freeze (2026-04-30). Every mart
+# referenced here has a Pandera schema in `schemas/pandera/` and a
+# Frictionless Table Schema in `schemas/table_schema/`.
+#
+# This contract is consumed by:
+#   - scripts/validate_deck_contract.py (structural + cross-reference checks)
+#   - scripts/validate_deck_bindings.py (resolves bindings against a real
+#     warehouse run directory)
+#
+# Track E does NOT modify the PowerPoint builder. Track F (template-first
+# builder) is the consumer that switches `Presentation()` to
+# `Presentation(brand.template)` and replaces hard-coded RGB constants with
+# tokens loaded from this contract.
+
+schema_version: monthly_platform.deck_contract.v1
+
+brand:
+  template: assets/SimCorp_PPT_Template.pptx
+  expected_template_sha256: 7834561e83403c4c2f7b1150953a860c23c8e1caf81ef3c7f2fefb0446514195
+  expected_template_size_bytes: 9058051
+  # Theme tokens are intentionally minimal in M1. Track F will move
+  # builder RGB constants here under `theme.colors.*` and `theme.fonts.*`.
+  theme:
+    fonts:
+      heading: SimCorp Sans
+      body: SimCorp Sans
+    colors:
+      navy: "#011946"
+      primary_blue: "#0E3788"
+      rich_blue: "#094FB2"
+      aqua: "#6FCCDD"
+      aqua_light: "#CBF5F3"
+      light_blue_panel: "#E6EEFE"
+      light_panel: "#F5F8FD"
+      magenta: "#9D2E7B"
+      grey_text: "#5C7482"
+      divider_grey: "#D7E2E8"
+      amber: "#FB9B2A"
+      green: "#188A73"
+      white: "#FFFFFF"
+
+# Validated warehouse tables the deck is allowed to read. Each entry pins:
+#   - path: relative to the warehouse run directory
+#     (output/source_backed_warehouse/<snapshot_date>/<run_id>/)
+#   - schema_id: Pandera/Frictionless schema id (matches the TABLE_ID
+#     constant in the corresponding schemas/pandera/<id>.py module).
+#
+# The validator cross-checks that every mart referenced in slides[] resolves
+# to one of these keys, and that every column referenced is declared on the
+# named Pandera schema.
+data_sources:
+  marts:
+    source_run_summary:
+      path: marts/source_run_summary.parquet
+      schema_id: mart_source_run_summary
+      description: One row per (snapshot_date, run_id). Status, source counts, finding counts, baseline + distribution rollups.
+    director_source_health:
+      path: marts/director_source_health.parquet
+      schema_id: mart_director_source_health
+      description: Per-director source-health rollup. ok / warning / blocked counts, total rows, total findings.
+    source_quality_findings:
+      path: staged/source_quality_findings.parquet
+      schema_id: staged_source_quality_findings
+      description: Track B/C source-quality findings (non-distribution). Severity, issue, evidence, owner.
+    distribution_findings:
+      path: staged/distribution_findings.parquet
+      schema_id: staged_distribution_findings
+      description: Track D distribution findings. Severity, issue, evidence, owner.
+    source_requirements:
+      path: staged/source_requirements.parquet
+      schema_id: staged_source_requirements
+      description: Source contract requirements per source.
+    source_quality_audit:
+      path: raw/source_quality_audit.parquet
+      schema_id: raw_source_quality_audit
+      description: Per-source extract status + row counts (raw audit mirror).
+    salesforce_extract_plan:
+      path: raw/salesforce_extract_plan.parquet
+      schema_id: raw_salesforce_extract_plan
+      description: Configured/territory extract scope.
+
+# Slide bindings. Slide identity (id + slide_number + title) is the contract
+# the deck builder MUST satisfy; the metric/table bindings are the contract
+# the data layer MUST satisfy. Every metric/table column must resolve to a
+# real column on the named Pandera schema.
+#
+# `id` is the stable identifier; do not renumber casually. `slide_number`
+# is the 1-based position in the rendered deck and must be unique across the
+# contract. `layout` is a logical name (Track F maps these to actual
+# SimCorp template layouts).
+slides:
+  - id: cover
+    slide_number: 1
+    title: Monthly Sales Director Operating Review
+    purpose: Cover slide — snapshot identity, headline ARR/deal counts, truth status, publish gate, run id.
+    layout: simcorp_title_summary
+    required_takeaway: true
+    max_takeaway_chars: 200
+    required_source_notes:
+      - snapshot_date
+      - run_id
+    required_text:
+      - "Source-backed"
+      - "Truth Status"
+    metrics:
+      - id: snapshot_date
+        mart: source_run_summary
+        column: snapshot_date
+        aggregation: scalar
+      - id: run_id
+        mart: source_run_summary
+        column: run_id
+        aggregation: scalar
+      - id: run_status
+        mart: source_run_summary
+        column: status
+        aggregation: scalar
+      - id: director_count
+        mart: director_source_health
+        column: director
+        aggregation: distinct_count
+      - id: high_finding_count
+        mart: source_run_summary
+        column: high_finding_count
+        aggregation: scalar
+
+  - id: publish_gate
+    slide_number: 2
+    title: Publish gate status is green across the evidence chain
+    purpose: Source-backed publish gate matrix — truth packet, source gate, high blockers, tie-out, distribution.
+    layout: simcorp_content
+    required_takeaway: true
+    max_takeaway_chars: 200
+    required_source_notes:
+      - snapshot_date
+      - run_id
+    required_text:
+      - "Publish gate"
+    metrics:
+      - id: run_status
+        mart: source_run_summary
+        column: status
+        aggregation: scalar
+      - id: source_count
+        mart: source_run_summary
+        column: source_count
+        aggregation: scalar
+      - id: ok_source_count
+        mart: source_run_summary
+        column: ok_source_count
+        aggregation: scalar
+      - id: warning_source_count
+        mart: source_run_summary
+        column: warning_source_count
+        aggregation: scalar
+      - id: blocked_source_count
+        mart: source_run_summary
+        column: blocked_source_count
+        aggregation: scalar
+      - id: high_finding_count
+        mart: source_run_summary
+        column: high_finding_count
+        aggregation: scalar
+      - id: distribution_finding_count
+        mart: source_run_summary
+        column: distribution_finding_count
+        aggregation: scalar
+      - id: distribution_high_finding_count
+        mart: source_run_summary
+        column: distribution_high_finding_count
+        aggregation: scalar
+    tables:
+      - id: tbl_publish_gate_matrix
+        mart: source_run_summary
+        columns:
+          - status
+          - source_count
+          - ok_source_count
+          - warning_source_count
+          - blocked_source_count
+          - high_finding_count
+
+  - id: regional_pipeline
+    slide_number: 3
+    title: Regional open pipeline is traceable to director bundles
+    purpose: Regional rollup — connects open pipeline to director-level source bundles.
+    layout: simcorp_content
+    required_takeaway: true
+    max_takeaway_chars: 200
+    required_source_notes:
+      - snapshot_date
+      - run_id
+    required_text:
+      - "director bundles"
+    metrics:
+      - id: director_count
+        mart: director_source_health
+        column: director
+        aggregation: distinct_count
+      - id: total_row_count
+        mart: director_source_health
+        column: total_row_count
+        aggregation: sum
+      - id: total_finding_count
+        mart: director_source_health
+        column: total_finding_count
+        aggregation: sum
+    tables:
+      - id: tbl_regional_director_health
+        mart: director_source_health
+        columns:
+          - director
+          - source_count
+          - ok_source_count
+          - warning_source_count
+          - blocked_source_count
+          - total_row_count
+          - total_finding_count
+
+  - id: director_book
+    slide_number: 4
+    title: "Director book view: pipeline, risk, and tie-out health"
+    purpose: Per-director book — pipeline value, risk indicators, source-health tie-out.
+    layout: simcorp_content
+    required_takeaway: true
+    max_takeaway_chars: 200
+    required_source_notes:
+      - snapshot_date
+      - run_id
+      - director
+    required_text:
+      - "Director book"
+    metrics:
+      - id: director_count
+        mart: director_source_health
+        column: director
+        aggregation: distinct_count
+    tables:
+      - id: tbl_director_book
+        mart: director_source_health
+        columns:
+          - director
+          - source_count
+          - ok_source_count
+          - warning_source_count
+          - blocked_source_count
+          - total_finding_count
+      - id: tbl_director_findings
+        mart: source_quality_findings
+        columns:
+          - severity
+          - issue
+          - evidence
+          - owner
+
+  - id: quarter_display
+    slide_number: 5
+    title: "Quarter display logic: current quarter unless fallback is required"
+    purpose: Documents the quarter-display convention (current quarter; fallback to prior when ARR=0).
+    layout: simcorp_content
+    required_takeaway: true
+    max_takeaway_chars: 200
+    required_source_notes:
+      - snapshot_date
+      - run_id
+    required_text:
+      - "Quarter display logic"
+      - "fallback"
+    metrics:
+      - id: snapshot_date
+        mart: source_run_summary
+        column: snapshot_date
+        aggregation: scalar
+
+  - id: leadership_readout
+    slide_number: 6
+    title: "Leadership readout: clean source chain, ready for standard deck production"
+    purpose: Closing leadership summary — source chain status, hand-off to think-cell / standard PPT production.
+    layout: simcorp_content
+    required_takeaway: true
+    max_takeaway_chars: 200
+    required_source_notes:
+      - snapshot_date
+      - run_id
+    required_text:
+      - "think-cell"
+      - "source chain"
+    metrics:
+      - id: run_status
+        mart: source_run_summary
+        column: status
+        aggregation: scalar
+      - id: high_finding_count
+        mart: source_run_summary
+        column: high_finding_count
+        aggregation: scalar
+      - id: distribution_high_finding_count
+        mart: source_run_summary
+        column: distribution_high_finding_count
+        aggregation: scalar

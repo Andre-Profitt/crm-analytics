@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crm-analytics.simcorp.local/schemas/deck_contract.schema.json",
+  "title": "monthly_platform.deck_contract.v1",
+  "description": "Track E deck contract — single source of truth for what the source-backed monthly review deck is allowed to show. Cross-reference checks (mart/column existence, schema_id match, template path) are enforced by scripts/monthly_platform/deck_contract.py on top of this structural schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "brand", "data_sources", "slides"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "monthly_platform.deck_contract.v1"
+    },
+    "brand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["template", "expected_template_sha256"],
+      "properties": {
+        "template": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the SimCorp PowerPoint template, relative to the repo root."
+        },
+        "expected_template_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the template file. Validator computes the actual digest and rejects mismatches."
+        },
+        "expected_template_size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "theme": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fonts": {
+              "type": "object",
+              "additionalProperties": { "type": "string", "minLength": 1 }
+            },
+            "colors": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "data_sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["marts"],
+      "properties": {
+        "marts": {
+          "type": "object",
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": { "$ref": "#/$defs/mart" }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "slides": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/slide" }
+    }
+  },
+  "$defs": {
+    "mart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "schema_id"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path relative to the warehouse run directory."
+        },
+        "schema_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Pandera/Frictionless TABLE_ID. Validator verifies the schema is registered."
+        },
+        "description": { "type": "string" }
+      }
+    },
+    "slide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slide_number",
+        "title",
+        "layout",
+        "required_takeaway",
+        "required_source_notes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "slide_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": { "type": "string" },
+        "layout": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_takeaway": { "type": "boolean" },
+        "max_takeaway_chars": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "required_source_notes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "required_text": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "metrics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metric_binding" }
+        },
+        "tables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/table_binding" }
+        }
+      },
+      "anyOf": [{ "required": ["metrics"] }, { "required": ["tables"] }]
+    },
+    "metric_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mart", "column", "aggregation"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "mart": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "column": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aggregation": {
+          "type": "string",
+          "enum": [
+            "scalar",
+            "sum",
+            "min",
+            "max",
+            "mean",
+            "count",
+            "distinct_count"
+          ]
+        }
+      }
+    },
+    "table_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mart", "columns"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "mart": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
