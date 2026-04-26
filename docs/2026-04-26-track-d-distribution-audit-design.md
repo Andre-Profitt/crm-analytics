@@ -41,13 +41,14 @@ For each source the contract opts in (via `distribution_policy` on
 `SourceRequirement`), the audit evaluates four independent axes per declared dimension
 plus an optional named-sentinel layer:
 
-| Axis                       | Default action | Inputs needed       | Catches                                           |
-| -------------------------- | -------------- | ------------------- | ------------------------------------------------- |
-| Required-category presence | `warning`      | contract list       | A category the contract names is empty.           |
-| Disappeared category       | `warning`      | seed shares         | A seed-observed category is now empty.            |
-| Share drift                | `info`         | seed shares + delta | Any category share moved > `max_abs_share_delta`. |
-| Concentration drift        | `ok` (off)     | top share threshold | Top-1 category share exceeds the cap.             |
-| Slice sentinel             | per-sentinel   | (field, category)   | Named guardrail (e.g. `stage_5_presence`).        |
+| Axis                       | Default action | Inputs needed       | Catches                                                                |
+| -------------------------- | -------------- | ------------------- | ---------------------------------------------------------------------- |
+| Required-category presence | `warning`      | contract list       | A category the contract names is empty.                                |
+| Disappeared category       | `warning`      | seed shares         | A seed-observed category is now empty.                                 |
+| Share drift                | `info`         | seed shares + delta | Any category share moved > `max_abs_share_delta`.                      |
+| Concentration drift        | `ok` (off)     | top share threshold | Top-1 category share exceeds the cap.                                  |
+| Missing dimension seed     | `info`         | source seed file    | Source has a seed file, but a configured dimension is not in it (gap). |
+| Slice sentinel             | per-sentinel   | (field, category)   | Named guardrail (e.g. `stage_5_presence`).                             |
 
 Each axis has its own action so a contract can e.g. **block** on a vanished stage but
 only **warn** on share drift. Severities follow the established mapping —
@@ -57,6 +58,29 @@ finding, so contract opt-up is the single switch operators flip when calibration
 
 Each per-source audit emits a payload that includes the top-N categories by count and
 share so a reviewer can answer "what changed?" without opening the raw extract.
+
+### Seed coverage is three-valued, not boolean
+
+Each dimension records a `seed_status` in its per-source payload:
+
+| `seed_status`    | Meaning                                                        | Default action |
+| ---------------- | -------------------------------------------------------------- | -------------- |
+| `present`        | Source has a seed file, and this dimension is in it.           | n/a            |
+| `missing`        | Source has a seed file, but this dimension is not in it (gap). | `info` finding |
+| `no_source_seed` | Source has no seed file at all (also reported at run level).   | no finding     |
+
+The distinction matters because `no_source_seed` is the explicit "not yet calibrated"
+state that Track D ships in by default — flagging it as a finding would block every
+new source. `missing`, by contrast, is a partial-coverage gap on an otherwise
+calibrated source: someone added a dimension to the contract without re-running the
+calibrator. The default `info`-level finding makes the gap visible without blocking;
+contracts opt up via `DimensionPolicy.missing_seed_action` once the dimension's
+calibration is mature.
+
+The run-level summary surfaces `missing_seed_dimension_count` as a distinct counter
+from `missing_seed_source_count` so reviewers can tell at a glance whether a gap is
+"this source has no seed yet" (expected during rollout) or "this source has a seed
+but its calibration is missing some dimensions" (a maintenance signal).
 
 ### Slice sentinels — named guardrails for high-signal failure modes
 

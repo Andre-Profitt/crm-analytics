@@ -189,6 +189,13 @@ class DimensionPolicy(ContractModel):
     concentration_action: DistributionAction = "ok"
     max_top_category_share: float | None = None
     top_n_for_evidence: int = 5
+    # Track D activation: a configured dimension can be silently un-seeded if
+    # the source's seed file omits it. ``missing_seed_action`` controls the
+    # severity of the finding emitted in that case. Default ``info`` makes the
+    # gap visible without blocking; contracts opt up to ``warning``/``blocked``
+    # once the dimension's calibration is mature. ``ok`` suppresses the finding
+    # entirely (e.g. for dimensions intentionally tracked without a seed).
+    missing_seed_action: DistributionAction = "info"
 
     @field_validator("max_abs_share_delta")
     @classmethod

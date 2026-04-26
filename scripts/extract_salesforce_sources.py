@@ -363,6 +363,9 @@ def extract_sources(
     quality_audit["summary"]["distribution_missing_seed_source_count"] = (
         distribution_summary["missing_seed_source_count"]
     )
+    quality_audit["summary"]["distribution_missing_seed_dimension_count"] = (
+        distribution_summary["missing_seed_dimension_count"]
+    )
     high_distribution_findings = [
         f for f in distribution_findings if f.severity == "high"
     ]
@@ -429,6 +432,9 @@ def extract_sources(
             "distribution_missing_seed_source_count": quality_summary[
                 "distribution_missing_seed_source_count"
             ],
+            "distribution_missing_seed_dimension_count": quality_summary[
+                "distribution_missing_seed_dimension_count"
+            ],
             "filters": {
                 "only_requirement": only_requirement,
                 "only_territory": only_territory,
@@ -479,6 +485,9 @@ def extract_sources(
         ],
         "distribution_missing_seed_source_count": quality_summary[
             "distribution_missing_seed_source_count"
+        ],
+        "distribution_missing_seed_dimension_count": quality_summary[
+            "distribution_missing_seed_dimension_count"
         ],
     }
 

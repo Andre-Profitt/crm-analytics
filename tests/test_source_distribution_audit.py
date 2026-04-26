@@ -297,9 +297,145 @@ def test_missing_distribution_seed_skips_seed_dependent_axes():
     assert payload["status"] == "ok"
     assert payload["seed_present"] is False
     for dim in payload["dimensions"]:
+        # No source seed → seed_status is "no_source_seed" (not "missing"), so
+        # no source_distribution_dimension_seed_missing finding fires.
+        assert dim["seed_status"] == "no_source_seed"
         # Disappeared / share_drift outputs should be empty when no seed.
         assert dim["disappeared_categories"] == []
         assert dim["share_drift"] == []
+
+
+# ---------------------------------------------------------------------------
+# Scenario 6b — partial seed coverage (Track D activation patch)
+# Source has a seed file, but a configured dimension is not in it. This used
+# to be a silent gap: the dimension's seed-dependent axes skipped without a
+# finding. The patch emits ``source_distribution_dimension_seed_missing`` and
+# records ``seed_status="missing"`` per dimension.
+# ---------------------------------------------------------------------------
+
+
+def _seed_without(field: str) -> SourceDistributionSeed:
+    """Helper: load the standard seed and remove one dimension."""
+    payload = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+    payload["dimensions"] = {
+        k: v for k, v in payload["dimensions"].items() if k != field
+    }
+    return SourceDistributionSeed.model_validate(payload)
+
+
+def test_partial_seed_emits_missing_dimension_finding_at_info_default():
+    rows = _load_rows("rows_normal_stage_mix.json")
+    item = _item(_full_policy())
+    seed = _seed_without("Owner.Name")
+
+    payload, findings = audit_distribution(item=item, rows=rows, seed=seed)
+
+    owner_payload = next(d for d in payload["dimensions"] if d["field"] == "Owner.Name")
+    assert owner_payload["seed_status"] == "missing"
+    # Other dimensions should still be present.
+    stage_payload = next(d for d in payload["dimensions"] if d["field"] == "StageName")
+    assert stage_payload["seed_status"] == "present"
+
+    missing_findings = [
+        f
+        for f in findings
+        if f.issue == "source_distribution_dimension_seed_missing"
+        and "field=Owner.Name" in f.evidence
+    ]
+    assert len(missing_findings) == 1
+    assert missing_findings[0].severity == "info"
+    assert "seed_status=missing" in missing_findings[0].evidence
+
+
+def test_partial_seed_contract_can_opt_up_to_blocked():
+    """Contract opts ``missing_seed_action=blocked`` for one dimension."""
+    rows = _load_rows("rows_normal_stage_mix.json")
+    policy = DistributionPolicy(
+        default_action="info",
+        dimensions=[
+            DimensionPolicy(
+                field="Owner.Name",
+                semantic_name="owner",
+                missing_seed_action="blocked",
+            ),
+        ],
+    )
+    item = _item(policy)
+    seed = _seed_without("Owner.Name")
+
+    _payload, findings = audit_distribution(item=item, rows=rows, seed=seed)
+
+    high = [f for f in findings if f.severity == "high"]
+    assert any(f.issue == "source_distribution_dimension_seed_missing" for f in high), (
+        "expected high-severity dimension_seed_missing finding"
+    )
+
+
+def test_partial_seed_contract_can_opt_out_to_ok():
+    """``missing_seed_action=ok`` suppresses the finding entirely."""
+    rows = _load_rows("rows_normal_stage_mix.json")
+    policy = DistributionPolicy(
+        default_action="info",
+        dimensions=[
+            DimensionPolicy(
+                field="Owner.Name",
+                semantic_name="owner",
+                missing_seed_action="ok",
+            ),
+        ],
+    )
+    item = _item(policy)
+    seed = _seed_without("Owner.Name")
+
+    payload, findings = audit_distribution(item=item, rows=rows, seed=seed)
+
+    assert findings == []
+    # seed_status is still recorded in the payload even when the finding is
+    # suppressed — operators need the visibility regardless of severity.
+    owner_payload = next(d for d in payload["dimensions"] if d["field"] == "Owner.Name")
+    assert owner_payload["seed_status"] == "missing"
+
+
+def test_partial_seed_does_not_fire_when_seed_is_entirely_absent():
+    """``no_source_seed`` is a separate state and must not emit a missing-dimension finding."""
+    rows = _load_rows("rows_normal_stage_mix.json")
+    item = _item(_full_policy())
+
+    _payload, findings = audit_distribution(item=item, rows=rows, seed=None)
+
+    assert all(
+        f.issue != "source_distribution_dimension_seed_missing" for f in findings
+    ), "no_source_seed must not fire missing_dimension findings"
+
+
+def test_run_summary_counts_missing_seed_dimensions_across_sources():
+    """Run-level summary must surface partial-seed gaps as a distinct count."""
+    item = _item(_full_policy())
+    payload_a, findings_a = audit_distribution(
+        item=item,
+        rows=_load_rows("rows_normal_stage_mix.json"),
+        seed=_seed_without("Owner.Name"),  # 1 missing dim
+    )
+    payload_b, findings_b = audit_distribution(
+        item=item,
+        rows=_load_rows("rows_normal_stage_mix.json"),
+        seed=_seed_without("StageName"),  # 1 missing dim
+    )
+    payload_c, findings_c = audit_distribution(
+        item=item,
+        rows=_load_rows("rows_normal_stage_mix.json"),
+        seed=_seed(),  # full seed, 0 missing
+    )
+
+    summary = compare_run_distributions(
+        per_source_payloads=[payload_a, payload_b, payload_c],
+        findings=findings_a + findings_b + findings_c,
+    )
+
+    assert summary["missing_seed_dimension_count"] == 2
+    # missing_seed_source_count is the existing counter (no source seed at
+    # all). All three sources have a seed here, so it stays at 0.
+    assert summary["missing_seed_source_count"] == 0
 
 
 # ---------------------------------------------------------------------------

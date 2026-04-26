@@ -234,12 +234,34 @@ def _audit_dimension(
     rows: list[dict[str, Any]],
     dimension: DimensionPolicy,
     seed: DimensionSeed | None,
+    seed_status: Literal["present", "missing", "no_source_seed"],
 ) -> tuple[dict[str, Any], list[Finding]]:
     findings: list[Finding] = []
     counts = _category_counts(rows, dimension.field)
     total = sum(counts.values())
     current_shares = _shares(counts, total)
     seed_shares = seed.share_by_category if seed else {}
+
+    # 0. Partial seed coverage — the source has a seed file but this dimension
+    # is not in it. Emit a finding so the gap is visible. ``no_source_seed``
+    # is a separate, explicit state (no seed file at all) and is *not* a
+    # finding here — the run-level summary already records that case.
+    if seed_status == "missing":
+        severity = distribution_action_to_severity(dimension.missing_seed_action)
+        if severity is not None:
+            findings.append(
+                _finding(
+                    severity=severity,
+                    issue="source_distribution_dimension_seed_missing",
+                    item=item,
+                    field=dimension.field,
+                    evidence=(
+                        f"semantic={dimension.semantic_name}; "
+                        f"seed_status={seed_status}; "
+                        f"action={dimension.missing_seed_action}"
+                    ),
+                )
+            )
 
     # 1. Required categories — contract-named presence checks.
     missing_required: list[str] = []
@@ -379,6 +401,7 @@ def _audit_dimension(
         "share_drift": share_drift,
         "concentration": concentration_finding,
         "seed_present": seed is not None,
+        "seed_status": seed_status,
     }
     return payload, findings
 
@@ -463,9 +486,23 @@ def audit_distribution(
     dimension_payloads: list[dict[str, Any]] = []
     findings: list[Finding] = []
     for dimension in policy.dimensions:
-        seed_dim = seed.dimensions.get(dimension.field) if seed else None
+        if seed is None:
+            seed_dim = None
+            seed_status: Literal["present", "missing", "no_source_seed"] = (
+                "no_source_seed"
+            )
+        elif dimension.field not in seed.dimensions:
+            seed_dim = None
+            seed_status = "missing"
+        else:
+            seed_dim = seed.dimensions[dimension.field]
+            seed_status = "present"
         payload, dim_findings = _audit_dimension(
-            item=item, rows=rows, dimension=dimension, seed=seed_dim
+            item=item,
+            rows=rows,
+            dimension=dimension,
+            seed=seed_dim,
+            seed_status=seed_status,
         )
         dimension_payloads.append(payload)
         findings.extend(dim_findings)
@@ -510,12 +547,22 @@ def compare_run_distributions(
     matched = [p for p in per_source_payloads if p["status"] != "no_policy"]
     no_policy = [p for p in per_source_payloads if p["status"] == "no_policy"]
     missing_seed = [p for p in matched if not p.get("seed_present")]
+    # Track D activation: distinct gap from "no source seed" — the source has
+    # a seed but a configured dimension is missing from it. Counted across
+    # all matched sources for the run-level summary.
+    missing_seed_dimension_count = sum(
+        1
+        for p in matched
+        for dim in p.get("dimensions", [])
+        if dim.get("seed_status") == "missing"
+    )
     return {
         "schema_version": SCHEMA_COMPARISON,
         "generated_at": utc_now_iso(),
         "matched_source_count": len(matched),
         "no_policy_source_count": len(no_policy),
         "missing_seed_source_count": len(missing_seed),
+        "missing_seed_dimension_count": missing_seed_dimension_count,
         "distribution_finding_count": len(findings),
         "info_finding_count": sum(1 for f in findings if f.severity == "info"),
         "medium_finding_count": sum(1 for f in findings if f.severity == "medium"),
