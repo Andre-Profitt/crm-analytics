@@ -1,0 +1,58 @@
+{
+  "schema_version": "monthly_platform.source_distribution_seed.v1",
+  "baseline_key": "sd_pipeline_open.apac.current_quarter",
+  "requirement_id": "sd_pipeline_open",
+  "territory": "APAC",
+  "period_role": "current_quarter",
+  "promoted_at": "2026-04-25T00:00:00+00:00",
+  "promoted_from": [
+    {
+      "run_id": "fixture-seed",
+      "snapshot_date": "2026-04-30",
+      "row_count": 20
+    }
+  ],
+  "dimensions": {
+    "StageName": {
+      "field": "StageName",
+      "semantic_name": "stage",
+      "sample_count": 20,
+      "share_by_category": {
+        "2 - Validating": 0.25,
+        "3 - Solutioning": 0.3,
+        "4 - Proposing": 0.25,
+        "5 - Negotiating": 0.2
+      }
+    },
+    "CloseQuarter": {
+      "field": "CloseQuarter",
+      "semantic_name": "close_quarter",
+      "sample_count": 20,
+      "share_by_category": {
+        "Q2": 0.5,
+        "Q3": 0.5
+      }
+    },
+    "Territory": {
+      "field": "Territory",
+      "semantic_name": "territory",
+      "sample_count": 20,
+      "share_by_category": {
+        "APAC": 0.6,
+        "Japan": 0.4
+      }
+    },
+    "Owner.Name": {
+      "field": "Owner.Name",
+      "semantic_name": "owner",
+      "sample_count": 20,
+      "share_by_category": {
+        "Alice": 0.3,
+        "Bob": 0.3,
+        "Carol": 0.2,
+        "Dan": 0.2
+      }
+    }
+  },
+  "notes": "Hand-crafted Track D seed fixture; matches rows_normal_stage_mix exactly."
+}

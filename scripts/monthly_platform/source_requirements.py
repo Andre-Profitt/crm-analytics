@@ -135,6 +135,144 @@ class FallbackPolicy(ContractModel):
     description: str = ""
 
 
+# ---------------------------------------------------------------------------
+# Track D — distribution policy
+# ---------------------------------------------------------------------------
+
+
+DistributionAction = Literal["ok", "info", "warning", "blocked"]
+
+
+def distribution_action_to_severity(
+    action: DistributionAction,
+) -> Literal["high", "medium", "info"] | None:
+    """Map a Track D distribution action to a finding severity.
+
+    Mirrors :func:`baseline_drift_action_to_severity`. ``info`` is the default
+    so the audit surfaces drift without blocking releases until thresholds are
+    calibrated; contracts opt up to ``warning``/``blocked`` per dimension.
+    """
+    if action == "blocked":
+        return "high"
+    if action == "warning":
+        return "medium"
+    if action == "info":
+        return "info"
+    return None
+
+
+class DimensionPolicy(ContractModel):
+    """Per-dimension distribution policy for one Track D dimension.
+
+    Four independent axes — each with its own action so a contract can e.g.
+    block on a vanished stage but only warn on share drift:
+
+    * ``missing_category_action`` — a *contract-required* category produced
+      zero rows. The required list is hand-authored in the YAML.
+    * ``disappeared_category_action`` — a category the *baseline seed*
+      observed has zero rows in the current run. Catches accidental scope
+      collapse even when no required-category list exists.
+    * ``share_drift_action`` — share of any category moved more than
+      ``max_abs_share_delta`` versus the seed.
+    * ``concentration_action`` — top category share exceeds
+      ``max_top_category_share`` (catches accidental filter collapse onto
+      one owner / territory / director).
+    """
+
+    field: str  # Salesforce field name; supports dotted paths (e.g. "Owner.Name").
+    semantic_name: str
+    required_categories: list[str] = Field(default_factory=list)
+    missing_category_action: DistributionAction = "warning"
+    disappeared_category_action: DistributionAction = "warning"
+    share_drift_action: DistributionAction = "info"
+    max_abs_share_delta: float = 0.20
+    concentration_action: DistributionAction = "ok"
+    max_top_category_share: float | None = None
+    top_n_for_evidence: int = 5
+    # Track D activation: a configured dimension can be silently un-seeded if
+    # the source's seed file omits it. ``missing_seed_action`` controls the
+    # severity of the finding emitted in that case. Default ``info`` makes the
+    # gap visible without blocking; contracts opt up to ``warning``/``blocked``
+    # once the dimension's calibration is mature. ``ok`` suppresses the finding
+    # entirely (e.g. for dimensions intentionally tracked without a seed).
+    missing_seed_action: DistributionAction = "info"
+
+    @field_validator("max_abs_share_delta")
+    @classmethod
+    def share_delta_in_unit_interval(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("max_abs_share_delta must be in [0, 1]")
+        return value
+
+    @field_validator("max_top_category_share")
+    @classmethod
+    def top_share_in_unit_interval(cls, value: float | None) -> float | None:
+        if value is not None and not 0.0 < value <= 1.0:
+            raise ValueError("max_top_category_share must be in (0, 1]")
+        return value
+
+    @field_validator("top_n_for_evidence")
+    @classmethod
+    def positive_top_n(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("top_n_for_evidence must be >= 1")
+        return value
+
+
+class SliceSentinel(ContractModel):
+    """Named guardrail for one specific (dimension, category) presence check.
+
+    Sentinels exist so the original Track D motivation — "Stage 5 deals quietly
+    disappeared" — has a friendly named owner in the audit output. A failed
+    sentinel emits a finding tagged ``source_distribution_sentinel_failed``
+    with ``sentinel_id=<id>`` in evidence so reviewers see "stage_5_presence
+    sentinel failed" instead of a generic distribution finding.
+
+    A sentinel is a thin wrapper around the same dimension/category check the
+    main loop already runs; it is not a separate audit pass.
+    """
+
+    id: str
+    field: str
+    category: str
+    action: DistributionAction = "warning"
+    reason: str = ""
+
+
+class DistributionPolicy(ContractModel):
+    """Container for one source's per-dimension distribution policies.
+
+    ``default_action`` is informational metadata describing the contract's
+    intent for any dimension that does not override an axis. The comparator
+    does NOT automatically backfill missing axis actions from this value — it
+    keeps explicit per-dimension defaults so the contract reads unambiguously.
+    """
+
+    default_action: DistributionAction = "info"
+    dimensions: list[DimensionPolicy] = Field(default_factory=list)
+    slice_sentinels: list[SliceSentinel] = Field(default_factory=list)
+
+    @field_validator("dimensions")
+    @classmethod
+    def unique_field_names(cls, value: list[DimensionPolicy]) -> list[DimensionPolicy]:
+        seen: set[str] = set()
+        for dim in value:
+            if dim.field in seen:
+                raise ValueError(f"duplicate distribution dimension field: {dim.field}")
+            seen.add(dim.field)
+        return value
+
+    @field_validator("slice_sentinels")
+    @classmethod
+    def unique_sentinel_ids(cls, value: list[SliceSentinel]) -> list[SliceSentinel]:
+        seen: set[str] = set()
+        for sentinel in value:
+            if sentinel.id in seen:
+                raise ValueError(f"duplicate slice_sentinel id: {sentinel.id}")
+            seen.add(sentinel.id)
+        return value
+
+
 class SourceRequirement(ContractModel):
     requirement_id: str
     enabled: bool = True
@@ -152,6 +290,7 @@ class SourceRequirement(ContractModel):
     required_fields: list[FieldContract] = Field(default_factory=list)
     row_count_policy: RowCountPolicy = Field(default_factory=RowCountPolicy)
     fallback_policy: FallbackPolicy | None = None
+    distribution_policy: DistributionPolicy | None = None
     consumers: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
@@ -203,6 +342,7 @@ class SourcePlanItem(ContractModel):
     required_fields: list[FieldContract] = Field(default_factory=list)
     row_count_policy: RowCountPolicy = Field(default_factory=RowCountPolicy)
     fallback_policy: FallbackPolicy | None = None
+    distribution_policy: DistributionPolicy | None = None
     consumers: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
@@ -386,6 +526,7 @@ def _build_item(
         required_fields=requirement.required_fields,
         row_count_policy=requirement.row_count_policy,
         fallback_policy=requirement.fallback_policy,
+        distribution_policy=requirement.distribution_policy,
         consumers=requirement.consumers,
         tags=requirement.tags,
     )

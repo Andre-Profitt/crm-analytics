@@ -1,0 +1,202 @@
+[
+  {
+    "Id": "006FIX000000000",
+    "Name": "Fixture Opp 000",
+    "StageName": "2 - Validating",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Alice"
+    }
+  },
+  {
+    "Id": "006FIX000000001",
+    "Name": "Fixture Opp 001",
+    "StageName": "2 - Validating",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Alice"
+    }
+  },
+  {
+    "Id": "006FIX000000002",
+    "Name": "Fixture Opp 002",
+    "StageName": "2 - Validating",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Alice"
+    }
+  },
+  {
+    "Id": "006FIX000000003",
+    "Name": "Fixture Opp 003",
+    "StageName": "2 - Validating",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Alice"
+    }
+  },
+  {
+    "Id": "006FIX000000004",
+    "Name": "Fixture Opp 004",
+    "StageName": "2 - Validating",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Alice"
+    }
+  },
+  {
+    "Id": "006FIX000000005",
+    "Name": "Fixture Opp 005",
+    "StageName": "3 - Solutioning",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Alice"
+    }
+  },
+  {
+    "Id": "006FIX000000006",
+    "Name": "Fixture Opp 006",
+    "StageName": "3 - Solutioning",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Bob"
+    }
+  },
+  {
+    "Id": "006FIX000000007",
+    "Name": "Fixture Opp 007",
+    "StageName": "3 - Solutioning",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Bob"
+    }
+  },
+  {
+    "Id": "006FIX000000008",
+    "Name": "Fixture Opp 008",
+    "StageName": "3 - Solutioning",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Bob"
+    }
+  },
+  {
+    "Id": "006FIX000000009",
+    "Name": "Fixture Opp 009",
+    "StageName": "3 - Solutioning",
+    "CloseQuarter": "Q2",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Bob"
+    }
+  },
+  {
+    "Id": "006FIX000000010",
+    "Name": "Fixture Opp 010",
+    "StageName": "3 - Solutioning",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Bob"
+    }
+  },
+  {
+    "Id": "006FIX000000011",
+    "Name": "Fixture Opp 011",
+    "StageName": "4 - Proposing",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Bob"
+    }
+  },
+  {
+    "Id": "006FIX000000012",
+    "Name": "Fixture Opp 012",
+    "StageName": "4 - Proposing",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Carol"
+    }
+  },
+  {
+    "Id": "006FIX000000013",
+    "Name": "Fixture Opp 013",
+    "StageName": "4 - Proposing",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Carol"
+    }
+  },
+  {
+    "Id": "006FIX000000014",
+    "Name": "Fixture Opp 014",
+    "StageName": "4 - Proposing",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Carol"
+    }
+  },
+  {
+    "Id": "006FIX000000015",
+    "Name": "Fixture Opp 015",
+    "StageName": "4 - Proposing",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Carol"
+    }
+  },
+  {
+    "Id": "006FIX000000016",
+    "Name": "Fixture Opp 016",
+    "StageName": "5 - Negotiating",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Dan"
+    }
+  },
+  {
+    "Id": "006FIX000000017",
+    "Name": "Fixture Opp 017",
+    "StageName": "5 - Negotiating",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Dan"
+    }
+  },
+  {
+    "Id": "006FIX000000018",
+    "Name": "Fixture Opp 018",
+    "StageName": "5 - Negotiating",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Dan"
+    }
+  },
+  {
+    "Id": "006FIX000000019",
+    "Name": "Fixture Opp 019",
+    "StageName": "5 - Negotiating",
+    "CloseQuarter": "Q3",
+    "Territory": "APAC",
+    "Owner": {
+      "Name": "Dan"
+    }
+  }
+]
