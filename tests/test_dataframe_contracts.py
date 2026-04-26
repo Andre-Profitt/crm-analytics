@@ -1085,3 +1085,179 @@ def test_requirements_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
     assert report.status == "pass", [
         f"{f.message}: {f.evidence}" for f in report.findings
     ]
+# ===========================================================================
+# Slice 6: mart_director_source_health
+# ===========================================================================
+
+
+HEALTH_FIXTURE_DIR = (
+    REPO_ROOT / "tests" / "fixtures" / "bad_extracts" / "mart_director_source_health"
+)
+HEALTH_TABLE_ID = "mart_director_source_health"
+
+HEALTH_COLUMNS = [
+    "snapshot_date",
+    "run_id",
+    "director",
+    "source_count",
+    "ok_source_count",
+    "warning_source_count",
+    "blocked_source_count",
+    "total_row_count",
+    "total_finding_count",
+]
+
+
+def _load_health_fixture(name: str) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = json.loads(
+        (HEALTH_FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8")
+    )
+    df = pd.DataFrame(rows)
+    df = df.reindex(columns=[c for c in HEALTH_COLUMNS if c in df.columns])
+    int_cols = [
+        "source_count",
+        "ok_source_count",
+        "warning_source_count",
+        "blocked_source_count",
+        "total_row_count",
+        "total_finding_count",
+    ]
+    for c in int_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("Int64")
+    return df
+
+
+def _health_parquet_from_fixture(name: str, tmp_path: Path) -> Path:
+    df = _load_health_fixture(name)
+    parquet_path = tmp_path / f"{name}.parquet"
+    df.to_parquet(parquet_path, index=False)
+    return parquet_path
+
+
+def test_health_pandera_accepts_good_fixture():
+    df = _load_health_fixture("good")
+    report = validate_pandera(table_id=HEALTH_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_health_pandera_rejects_duplicate_director():
+    df = _load_health_fixture("duplicate_director")
+    report = validate_pandera(table_id=HEALTH_TABLE_ID, df=df)
+    assert report.status == "fail"
+
+
+def test_health_pandera_rejects_buckets_exceeding_source_count():
+    """Wide-row contract: ok+warning+blocked must not exceed source_count.
+
+    Pandera's frame-level checks land in ``failure_cases`` with the
+    check's error message in the finding's ``message`` and the table
+    name in ``evidence``. Look in BOTH fields so the assertion is
+    robust to which side carries the substring across pandera versions.
+    """
+    df = _load_health_fixture("buckets_exceed_source_count")
+    report = validate_pandera(table_id=HEALTH_TABLE_ID, df=df)
+    assert report.status == "fail"
+    assert any(
+        "source_count" in f"{f.message} {f.evidence}" for f in report.findings
+    ), [(f.message, f.evidence) for f in report.findings]
+
+
+@pytest.mark.parametrize(
+    "fixture,expected_substring",
+    [
+        ("negative_source_count", "source_count"),
+        ("negative_total_row_count", "total_row_count"),
+        ("negative_total_finding_count", "total_finding_count"),
+        ("bad_snapshot_date", "snapshot_date"),
+        ("empty_run_id", "run_id"),
+    ],
+)
+def test_health_pandera_rejects_negative_control(fixture, expected_substring):
+    df = _load_health_fixture(fixture)
+    report = validate_pandera(table_id=HEALTH_TABLE_ID, df=df)
+    assert report.status == "fail", f"{fixture} should fail"
+    assert any(
+        expected_substring in (f.evidence or f.message) for f in report.findings
+    ), [(f.message, f.evidence) for f in report.findings]
+
+
+def test_health_pandera_rejects_missing_director_column():
+    df = _load_health_fixture("missing_director")
+    report = validate_pandera(table_id=HEALTH_TABLE_ID, df=df)
+    assert report.status == "fail"
+
+
+def test_health_frictionless_accepts_good_fixture(tmp_path: Path):
+    parquet_path = _health_parquet_from_fixture("good", tmp_path)
+    report = validate_frictionless(
+        table_id=HEALTH_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_health_frictionless_rejects_duplicate_director(tmp_path: Path):
+    parquet_path = _health_parquet_from_fixture("duplicate_director", tmp_path)
+    report = validate_frictionless(
+        table_id=HEALTH_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "fail"
+
+
+def test_health_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
+    """Live evidence: v20c run produces 10 director rollup rows."""
+    audit_path = (
+        REPO_ROOT
+        / "output"
+        / "monthly_salesforce_sources"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "audits"
+        / "source_extract_quality_audit.json"
+    )
+    if not audit_path.exists():
+        pytest.skip("v20c live evidence not on disk")
+
+    rc = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "build_source_backed_warehouse.py"),
+            "--snapshot-date",
+            "2026-04-30",
+            "--run-id",
+            "live-all-sources-pipeline-open-v20c",
+            "--warehouse-root",
+            str(tmp_path / "wh"),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert rc.returncode == 0, rc.stderr or rc.stdout
+
+    parquet_path = (
+        tmp_path
+        / "wh"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "marts"
+        / "director_source_health.parquet"
+    )
+    con = duckdb.connect()
+    try:
+        df = con.execute(f"SELECT * FROM read_parquet('{parquet_path}')").df()
+    finally:
+        con.close()
+    assert len(df) >= 1, f"expected director rollup rows, got {len(df)}"
+    report = validate_pandera(table_id=HEALTH_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]

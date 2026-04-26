@@ -1,0 +1,13 @@
+[
+  {
+    "snapshot_date": "2026-04-30",
+    "run_id": "",
+    "director": "Adam Steinhouse",
+    "source_count": 5,
+    "ok_source_count": 5,
+    "warning_source_count": 0,
+    "blocked_source_count": 0,
+    "total_row_count": 21,
+    "total_finding_count": 0
+  }
+]
