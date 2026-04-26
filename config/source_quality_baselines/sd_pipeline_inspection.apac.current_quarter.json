@@ -42,11 +42,9 @@
   "policy": {
     "null_rate_abs_delta": 0.05,
     "null_rate_drift_action": "info",
-    "row_count_drift_action": "info",
-    "row_count_high_factor": 2.0,
-    "row_count_low_factor": 0.5
+    "row_count_drift_action": "info"
   },
-  "promoted_at": "2026-04-26T01:56:11.367343+00:00",
+  "promoted_at": "2026-04-26T02:07:56.649646+00:00",
   "promoted_from": [
     {
       "quarter_label": "Q2",

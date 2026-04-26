@@ -98,8 +98,6 @@ class BaselinePolicy(ContractModel):
 
     row_count_drift_action: BaselineDriftAction = "info"
     null_rate_drift_action: BaselineDriftAction = "info"
-    row_count_low_factor: float = DEFAULT_LOW_FACTOR
-    row_count_high_factor: float = DEFAULT_HIGH_FACTOR
     null_rate_abs_delta: float = DEFAULT_NULL_RATE_DELTA
 
 
@@ -238,27 +236,26 @@ def _row_count_drift(
     baseline: SourceQualityBaseline,
     contract_override: BaselineDriftAction | None,
 ) -> Finding | None:
+    """Emit a drift finding when ``row_count`` falls outside the calibrated envelope.
+
+    ``expected_min`` and ``expected_max`` on the baseline are the *final*
+    release thresholds — the calibrator already applied any low/high cushion
+    factors when deriving them. The comparator therefore compares ``row_count``
+    directly to ``expected_min`` / ``expected_max`` rather than re-multiplying
+    by a policy factor (the prior implementation applied the factors twice
+    and made the gate ``low_factor * high_factor`` looser than intended).
+    """
     row_count = int(quality.get("row_count", 0))
     rc = baseline.row_count
     expected_min = rc.expected_min
     expected_max = rc.expected_max
-    low_threshold = (
-        expected_min * baseline.policy.row_count_low_factor
-        if expected_min is not None
-        else None
-    )
-    high_threshold = (
-        expected_max * baseline.policy.row_count_high_factor
-        if expected_max is not None
-        else None
-    )
 
     breach: str | None = None
     if not rc.allow_zero and row_count == 0:
         breach = "row_count_zero_disallowed"
-    elif low_threshold is not None and row_count < low_threshold:
+    elif expected_min is not None and row_count < expected_min:
         breach = "row_count_below_low_threshold"
-    elif high_threshold is not None and row_count > high_threshold:
+    elif expected_max is not None and row_count > expected_max:
         breach = "row_count_above_high_threshold"
 
     if breach is None:
@@ -278,7 +275,6 @@ def _row_count_drift(
         evidence=(
             f"row_count={row_count}; baseline_median={rc.median}; "
             f"expected_range=[{expected_min}, {expected_max}]; "
-            f"thresholds=[{low_threshold}, {high_threshold}]; "
             f"action={action}"
         ),
     )
@@ -463,16 +459,28 @@ def derive_baseline(
     promoted_at: str | None = None,
     policy: BaselinePolicy | None = None,
     notes: str = "",
+    envelope_low_factor: float = DEFAULT_LOW_FACTOR,
+    envelope_high_factor: float = DEFAULT_HIGH_FACTOR,
 ) -> SourceQualityBaseline:
     """Compute a calibrated baseline from one or more quality observations.
 
     Each observation must be a dict with at least ``run_id``, ``snapshot_date``,
     ``row_count``, ``row_count_policy.allow_zero`` and ``field_audits``.
+
+    The ``envelope_*_factor`` arguments are calibration-time inputs only:
+    ``expected_min = min(observed) * envelope_low_factor`` and
+    ``expected_max = max(observed) * envelope_high_factor`` are written into the
+    baseline as the *final* release thresholds. The comparator uses them
+    directly — it does NOT re-multiply by any factor at compare time.
     """
     if not observations:
         raise ValueError("derive_baseline requires at least one observation")
     row_counts = [int(obs["row_count"]) for obs in observations]
-    expected_min, expected_max = _expected_envelope(row_counts)
+    expected_min, expected_max = _expected_envelope(
+        row_counts,
+        low_factor=envelope_low_factor,
+        high_factor=envelope_high_factor,
+    )
     allow_zero = bool(
         observations[-1].get("row_count_policy", {}).get("allow_zero", True)
     )

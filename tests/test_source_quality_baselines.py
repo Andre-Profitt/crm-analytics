@@ -400,6 +400,96 @@ def test_calibrate_multiple_observations_produces_expected_envelope(tmp_path: Pa
     assert payload["row_count"]["expected_max"] == 40.0
 
 
+def test_calibrated_envelope_catches_row_count_just_below_floor(tmp_path: Path):
+    """Regression: prior implementation applied the low-factor twice.
+
+    With observations=[100, 110] and the default low/high envelope factors, the
+    calibrator stores ``expected_min=50`` and ``expected_max=220`` as final
+    release thresholds. row_count=49 must emit a drift finding; the prior
+    double-factor bug would have set the effective floor to 25 and let 49
+    through silently.
+    """
+    audit_a = _quality_audit([_quality_source(row_count=100, quarter_label="Q1")])
+    audit_a["run_id"] = "two-sample-a"
+    audit_b = _quality_audit([_quality_source(row_count=110, quarter_label="Q2")])
+    audit_b["run_id"] = "two-sample-b"
+    path_a = tmp_path / "a.json"
+    path_b = tmp_path / "b.json"
+    path_a.write_text(json.dumps(audit_a), encoding="utf-8")
+    path_b.write_text(json.dumps(audit_b), encoding="utf-8")
+    baselines_dir = tmp_path / "baselines"
+
+    calibrate(
+        evidence_paths=[path_a, path_b], baselines_dir=baselines_dir, promote=True
+    )
+    baselines = load_baselines(baselines_dir)
+    baseline = next(iter(baselines.values()))
+    assert baseline.row_count.expected_min == 50.0
+    assert baseline.row_count.expected_max == 220.0
+
+    quality = _quality_source(row_count=49)
+    findings = compare_quality_to_baseline(quality=quality, baseline=baseline)
+
+    assert len(findings) == 1
+    assert "below_low_threshold" in findings[0].issue
+    assert findings[0].severity == "info"
+
+
+def test_calibrated_envelope_catches_row_count_just_above_ceiling(tmp_path: Path):
+    """Regression for the high-side double-factor bug.
+
+    With observations=[100, 110]: ``expected_max = 110 * 2.0 = 220``.
+    row_count=221 must emit drift; the prior bug effectively raised the
+    ceiling to 440 and silently accepted >2x deviations.
+    """
+    audit_a = _quality_audit([_quality_source(row_count=100, quarter_label="Q1")])
+    audit_a["run_id"] = "two-sample-a"
+    audit_b = _quality_audit([_quality_source(row_count=110, quarter_label="Q2")])
+    audit_b["run_id"] = "two-sample-b"
+    path_a = tmp_path / "a.json"
+    path_b = tmp_path / "b.json"
+    path_a.write_text(json.dumps(audit_a), encoding="utf-8")
+    path_b.write_text(json.dumps(audit_b), encoding="utf-8")
+    baselines_dir = tmp_path / "baselines"
+
+    calibrate(
+        evidence_paths=[path_a, path_b], baselines_dir=baselines_dir, promote=True
+    )
+    baseline = next(iter(load_baselines(baselines_dir).values()))
+    assert baseline.row_count.expected_max == 220.0
+
+    quality = _quality_source(row_count=221)
+    findings = compare_quality_to_baseline(quality=quality, baseline=baseline)
+
+    assert len(findings) == 1
+    assert "above_high_threshold" in findings[0].issue
+    assert findings[0].severity == "info"
+
+
+def test_calibrated_envelope_inside_bounds_emits_no_findings(tmp_path: Path):
+    """Boundary control for the two prior tests: 50/220 are inclusive."""
+    audit_a = _quality_audit([_quality_source(row_count=100, quarter_label="Q1")])
+    audit_a["run_id"] = "two-sample-a"
+    audit_b = _quality_audit([_quality_source(row_count=110, quarter_label="Q2")])
+    audit_b["run_id"] = "two-sample-b"
+    (tmp_path / "a.json").write_text(json.dumps(audit_a), encoding="utf-8")
+    (tmp_path / "b.json").write_text(json.dumps(audit_b), encoding="utf-8")
+    baselines_dir = tmp_path / "baselines"
+
+    calibrate(
+        evidence_paths=[tmp_path / "a.json", tmp_path / "b.json"],
+        baselines_dir=baselines_dir,
+        promote=True,
+    )
+    baseline = next(iter(load_baselines(baselines_dir).values()))
+
+    for boundary in (50, 100, 110, 220):
+        findings = compare_quality_to_baseline(
+            quality=_quality_source(row_count=boundary), baseline=baseline
+        )
+        assert findings == [], f"unexpected drift at boundary row_count={boundary}"
+
+
 def test_calibrate_excludes_blocked_quality_observations(tmp_path: Path):
     audit = _quality_audit(
         [
