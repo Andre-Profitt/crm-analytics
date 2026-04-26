@@ -1,0 +1,11 @@
+[
+  {
+    "snapshot_date": "2026-04-30",
+    "run_id": "live-all-sources-pipeline-open-v20c",
+    "track": "B",
+    "severity": "medium",
+    "issue": "random_code",
+    "evidence": "sd_pipeline_inspection Southern Europe forward_quarter salesforce_list_view 00BTb00000LJQVlMAP: row_count=0; zero_row_action=fallback",
+    "owner": null
+  }
+]
