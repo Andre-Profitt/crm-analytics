@@ -36,6 +36,11 @@ from scripts.monthly_platform.source_requirements import (  # noqa: E402
     load_source_requirements,
     requirement_summary,
 )
+from scripts.monthly_platform.source_quality_baselines import (  # noqa: E402
+    baseline_key_for_item,
+    compare_run_to_baselines,
+    load_baselines,
+)
 from scripts.monthly_platform.storage import (
     MonthlyStorage,
     sha256_bytes,
@@ -46,6 +51,7 @@ from scripts.monthly_platform.storage import (
 DEFAULT_REQUIREMENTS_PATH = ROOT / "config" / "monthly_source_requirements.json"
 DEFAULT_TERRITORY_CONFIG = ROOT / "config" / "sd_monthly_territories.json"
 DEFAULT_OUTPUT_ROOT = ROOT / "output" / "monthly_salesforce_sources"
+DEFAULT_BASELINES_DIR = ROOT / "config" / "source_quality_baselines"
 STAGE_NAME = "extract_salesforce_sources"
 
 
@@ -77,6 +83,8 @@ def extract_sources(
     only_territory: str | None = None,
     max_sources: int | None = None,
     fail_fast: bool = False,
+    baselines_dir: Path | None = None,
+    enable_baselines: bool = True,
 ) -> dict[str, Any]:
     started_at = utc_now_iso()
     started = time.monotonic()
@@ -225,6 +233,67 @@ def extract_sources(
         sources=quality_sources,
         findings=quality_findings,
     )
+
+    # Track C: compare live source-quality to calibrated baselines.
+    # Read-only — never writes to baselines_dir. Baseline drift findings default
+    # to ``info`` severity; only contracts that explicitly opt up to ``blocked``
+    # via ``RowCountPolicy.baseline_drift_action`` escalate the run status.
+    effective_baselines_dir = (
+        baselines_dir if baselines_dir is not None else DEFAULT_BASELINES_DIR
+    )
+    if enable_baselines:
+        baselines = load_baselines(effective_baselines_dir)
+        contract_overrides = {
+            baseline_key_for_item(item): item.row_count_policy.baseline_drift_action
+            for item in selected_items
+        }
+        baseline_findings, baseline_summary = compare_run_to_baselines(
+            quality_audit=quality_audit,
+            baselines=baselines,
+            contract_overrides=contract_overrides,
+        )
+    else:
+        baseline_findings = []
+        baseline_summary = {
+            "schema_version": (
+                "monthly_platform.source_quality_baseline_comparison.v1"
+            ),
+            "generated_at": utc_now_iso(),
+            "baseline_dir_loaded_count": 0,
+            "matched_source_count": 0,
+            "missing_baseline_source_count": 0,
+            "drift_finding_count": 0,
+            "info_finding_count": 0,
+            "medium_finding_count": 0,
+            "high_finding_count": 0,
+            "comparisons": [],
+            "disabled": True,
+        }
+    baseline_summary["baselines_dir"] = str(effective_baselines_dir)
+    baseline_summary["enabled"] = enable_baselines
+    quality_audit["baseline_comparison"] = baseline_summary
+    quality_audit["summary"]["baseline_drift_finding_count"] = len(baseline_findings)
+    quality_audit["summary"]["baseline_high_finding_count"] = sum(
+        1 for f in baseline_findings if f.severity == "high"
+    )
+    quality_audit["summary"]["baseline_medium_finding_count"] = sum(
+        1 for f in baseline_findings if f.severity == "medium"
+    )
+    quality_audit["summary"]["baseline_info_finding_count"] = sum(
+        1 for f in baseline_findings if f.severity == "info"
+    )
+    quality_audit["summary"]["baseline_matched_source_count"] = baseline_summary[
+        "matched_source_count"
+    ]
+    quality_audit["summary"]["baseline_missing_source_count"] = baseline_summary[
+        "missing_baseline_source_count"
+    ]
+    high_baseline_findings = [f for f in baseline_findings if f.severity == "high"]
+    if high_baseline_findings:
+        findings.extend(high_baseline_findings)
+        if status not in ("blocked", "failed"):
+            status = "blocked"
+
     quality_artifact = storage.register_json_artifact(
         artifact_id="source_extract_quality_audit",
         artifact_type="source_extract_quality_audit",
@@ -261,6 +330,18 @@ def extract_sources(
             "quality_finding_count": quality_summary["finding_count"],
             "quality_high_finding_count": quality_summary["high_finding_count"],
             "quality_medium_finding_count": quality_summary["medium_finding_count"],
+            "baseline_drift_finding_count": quality_summary[
+                "baseline_drift_finding_count"
+            ],
+            "baseline_high_finding_count": quality_summary[
+                "baseline_high_finding_count"
+            ],
+            "baseline_matched_source_count": quality_summary[
+                "baseline_matched_source_count"
+            ],
+            "baseline_missing_source_count": quality_summary[
+                "baseline_missing_source_count"
+            ],
             "filters": {
                 "only_requirement": only_requirement,
                 "only_territory": only_territory,
@@ -294,6 +375,14 @@ def extract_sources(
         "quality_finding_count": quality_summary["finding_count"],
         "quality_high_finding_count": quality_summary["high_finding_count"],
         "quality_medium_finding_count": quality_summary["medium_finding_count"],
+        "baseline_drift_finding_count": quality_summary["baseline_drift_finding_count"],
+        "baseline_high_finding_count": quality_summary["baseline_high_finding_count"],
+        "baseline_matched_source_count": quality_summary[
+            "baseline_matched_source_count"
+        ],
+        "baseline_missing_source_count": quality_summary[
+            "baseline_missing_source_count"
+        ],
     }
 
 
@@ -687,6 +776,20 @@ def main() -> int:
     parser.add_argument("--only-territory")
     parser.add_argument("--max-sources", type=int)
     parser.add_argument("--fail-fast", action="store_true")
+    parser.add_argument(
+        "--baselines-dir",
+        type=Path,
+        default=DEFAULT_BASELINES_DIR,
+        help=(
+            "Source-quality baselines directory (Track C). Read-only — never "
+            f"written by the extract step. Default: {DEFAULT_BASELINES_DIR}"
+        ),
+    )
+    parser.add_argument(
+        "--no-baselines",
+        action="store_true",
+        help="Disable Track C baseline comparison entirely.",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -705,6 +808,8 @@ def main() -> int:
         only_territory=args.only_territory,
         max_sources=args.max_sources,
         fail_fast=args.fail_fast,
+        baselines_dir=args.baselines_dir,
+        enable_baselines=not args.no_baselines,
     )
     if args.json:
         print(json.dumps(result, indent=2))

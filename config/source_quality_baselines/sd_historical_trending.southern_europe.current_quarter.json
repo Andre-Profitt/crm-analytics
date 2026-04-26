@@ -1,0 +1,72 @@
+{
+  "baseline_key": "sd_historical_trending.southern_europe.current_quarter",
+  "notes": "",
+  "null_rates": {
+    "ARR": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Account Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Close Date": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Opportunity Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Stage": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    }
+  },
+  "period_role": "current_quarter",
+  "policy": {
+    "null_rate_abs_delta": 0.05,
+    "null_rate_drift_action": "info",
+    "row_count_drift_action": "info"
+  },
+  "promoted_at": "2026-04-26T02:07:56.649588+00:00",
+  "promoted_from": [
+    {
+      "quarter_label": "Q2",
+      "row_count": 2,
+      "run_id": "live-all-sources-pipeline-open-v20c",
+      "salesforce_id": "00OTb000008gYWvMAM",
+      "snapshot_date": "2026-04-30"
+    }
+  ],
+  "requirement_id": "sd_historical_trending",
+  "row_count": {
+    "allow_zero": true,
+    "expected_max": null,
+    "expected_min": null,
+    "max_observed": 2,
+    "median": 2.0,
+    "min_observed": 2,
+    "p05": 2.0,
+    "p95": 2.0,
+    "sample_count": 1
+  },
+  "schema_version": "monthly_platform.source_quality_baseline.v1",
+  "stage_mix_seed": null,
+  "territory": "Southern Europe"
+}

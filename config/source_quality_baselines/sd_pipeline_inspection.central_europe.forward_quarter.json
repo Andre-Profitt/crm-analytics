@@ -1,0 +1,72 @@
+{
+  "baseline_key": "sd_pipeline_inspection.central_europe.forward_quarter",
+  "notes": "",
+  "null_rates": {
+    "APTS_Forecast_ARR__c": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "CloseDate": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "ForecastCategoryName": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "StageName": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    }
+  },
+  "period_role": "forward_quarter",
+  "policy": {
+    "null_rate_abs_delta": 0.05,
+    "null_rate_drift_action": "info",
+    "row_count_drift_action": "info"
+  },
+  "promoted_at": "2026-04-26T02:07:56.649706+00:00",
+  "promoted_from": [
+    {
+      "quarter_label": "Q3",
+      "row_count": 5,
+      "run_id": "live-all-sources-pipeline-open-v20c",
+      "salesforce_id": "00BTb00000LJQU9MAP",
+      "snapshot_date": "2026-04-30"
+    }
+  ],
+  "requirement_id": "sd_pipeline_inspection",
+  "row_count": {
+    "allow_zero": true,
+    "expected_max": null,
+    "expected_min": null,
+    "max_observed": 5,
+    "median": 5.0,
+    "min_observed": 5,
+    "p05": 5.0,
+    "p95": 5.0,
+    "sample_count": 1
+  },
+  "schema_version": "monthly_platform.source_quality_baseline.v1",
+  "stage_mix_seed": null,
+  "territory": "Central Europe"
+}

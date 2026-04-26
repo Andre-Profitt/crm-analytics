@@ -1,0 +1,36 @@
+{
+  "baseline_key": "sd_historical_trending.pension_and_insurance.forward_quarter",
+  "notes": "",
+  "null_rates": {},
+  "period_role": "forward_quarter",
+  "policy": {
+    "null_rate_abs_delta": 0.05,
+    "null_rate_drift_action": "info",
+    "row_count_drift_action": "info"
+  },
+  "promoted_at": "2026-04-26T02:07:56.649561+00:00",
+  "promoted_from": [
+    {
+      "quarter_label": "Q3",
+      "row_count": 0,
+      "run_id": "live-all-sources-pipeline-open-v20c",
+      "salesforce_id": "00OTb000008jY0vMAE",
+      "snapshot_date": "2026-04-30"
+    }
+  ],
+  "requirement_id": "sd_historical_trending",
+  "row_count": {
+    "allow_zero": true,
+    "expected_max": null,
+    "expected_min": null,
+    "max_observed": 0,
+    "median": 0.0,
+    "min_observed": 0,
+    "p05": 0.0,
+    "p95": 0.0,
+    "sample_count": 1
+  },
+  "schema_version": "monthly_platform.source_quality_baseline.v1",
+  "stage_mix_seed": null,
+  "territory": "Pension & Insurance"
+}

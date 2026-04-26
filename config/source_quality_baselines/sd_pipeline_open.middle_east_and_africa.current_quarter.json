@@ -1,0 +1,114 @@
+{
+  "baseline_key": "sd_pipeline_open.middle_east_and_africa.current_quarter",
+  "notes": "",
+  "null_rates": {
+    "APTS_Forecast_ARR__c": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "APTS_Opportunity_ARR__c": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Account.Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "CloseDate": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "CreatedDate": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "ForecastCategoryName": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Owner.Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Probability": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "StageName": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Type": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    }
+  },
+  "period_role": "current_quarter",
+  "policy": {
+    "null_rate_abs_delta": 0.05,
+    "null_rate_drift_action": "info",
+    "row_count_drift_action": "info"
+  },
+  "promoted_at": "2026-04-26T02:07:56.649924+00:00",
+  "promoted_from": [
+    {
+      "quarter_label": "Q2",
+      "row_count": 11,
+      "run_id": "live-all-sources-pipeline-open-v20c",
+      "salesforce_id": "00BTb00000LJRDJMA5",
+      "snapshot_date": "2026-04-30"
+    }
+  ],
+  "requirement_id": "sd_pipeline_open",
+  "row_count": {
+    "allow_zero": true,
+    "expected_max": null,
+    "expected_min": null,
+    "max_observed": 11,
+    "median": 11.0,
+    "min_observed": 11,
+    "p05": 11.0,
+    "p95": 11.0,
+    "sample_count": 1
+  },
+  "schema_version": "monthly_platform.source_quality_baseline.v1",
+  "stage_mix_seed": null,
+  "territory": "Middle East & Africa"
+}
