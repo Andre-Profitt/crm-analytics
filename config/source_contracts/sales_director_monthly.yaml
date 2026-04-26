@@ -90,6 +90,57 @@ compiled_targets:
             max_rows_action: blocked
             max_records_action: warning
             distribution_action: warning
+          # Track D activation (2026-04-26): first live opt-in for the
+          # distribution audit. Default actions are intentionally low while
+          # the seeds are calibrated from one snapshot of v16 evidence;
+          # operators escalate per dimension as the share envelopes mature.
+          # Stages are SimCorp's actual stage labels:
+          #   1 - Prospecting / 2 - Discovery / 3 - Engagement /
+          #   4 - Shortlisted / 5 - Preferred / 6 - Contracting
+          # required_categories list only the stages that are present in
+          # nearly every territory in the v16 sample; stages 1, 5, and 6
+          # legitimately disappear in small territories so they are
+          # tracked via the share-drift / sentinel axes instead.
+          distribution_policy:
+            default_action: info
+            dimensions:
+              - field: StageName
+                semantic_name: stage
+                required_categories:
+                  - "2 - Discovery"
+                  - "3 - Engagement"
+                  - "4 - Shortlisted"
+                missing_category_action: warning
+                disappeared_category_action: warning
+                share_drift_action: info
+                max_abs_share_delta: 0.20
+                missing_seed_action: info
+              - field: ForecastCategoryName
+                semantic_name: forecast_category
+                required_categories:
+                  - "Pipeline"
+                missing_category_action: warning
+                disappeared_category_action: info
+                share_drift_action: info
+                max_abs_share_delta: 0.20
+                missing_seed_action: info
+              - field: Owner.Name
+                semantic_name: owner
+                disappeared_category_action: info
+                share_drift_action: info
+                concentration_action: info
+                max_top_category_share: 0.50
+                max_abs_share_delta: 0.30
+                missing_seed_action: info
+            slice_sentinels:
+              - id: stage_5_presence
+                field: StageName
+                category: "5 - Preferred"
+                action: info
+                reason: >-
+                  Stage 5 ("5 - Preferred") disappearance is a high-signal
+                  accidental filter / scope failure; surfaced as info while
+                  share envelopes mature.
           consumers:
             - director_bundle
             - analyst_workbook

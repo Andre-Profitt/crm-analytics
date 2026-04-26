@@ -100,6 +100,56 @@
         "max_records_action": "warning",
         "distribution_action": "warning"
       },
+      "distribution_policy": {
+        "default_action": "info",
+        "dimensions": [
+          {
+            "field": "StageName",
+            "semantic_name": "stage",
+            "required_categories": [
+              "2 - Discovery",
+              "3 - Engagement",
+              "4 - Shortlisted"
+            ],
+            "missing_category_action": "warning",
+            "disappeared_category_action": "warning",
+            "share_drift_action": "info",
+            "max_abs_share_delta": 0.2,
+            "missing_seed_action": "info"
+          },
+          {
+            "field": "ForecastCategoryName",
+            "semantic_name": "forecast_category",
+            "required_categories": [
+              "Pipeline"
+            ],
+            "missing_category_action": "warning",
+            "disappeared_category_action": "info",
+            "share_drift_action": "info",
+            "max_abs_share_delta": 0.2,
+            "missing_seed_action": "info"
+          },
+          {
+            "field": "Owner.Name",
+            "semantic_name": "owner",
+            "disappeared_category_action": "info",
+            "share_drift_action": "info",
+            "concentration_action": "info",
+            "max_top_category_share": 0.5,
+            "max_abs_share_delta": 0.3,
+            "missing_seed_action": "info"
+          }
+        ],
+        "slice_sentinels": [
+          {
+            "id": "stage_5_presence",
+            "field": "StageName",
+            "category": "5 - Preferred",
+            "action": "info",
+            "reason": "Stage 5 (\"5 - Preferred\") disappearance is a high-signal accidental filter / scope failure; surfaced as info while share envelopes mature."
+          }
+        ]
+      },
       "consumers": [
         "director_bundle",
         "analyst_workbook",

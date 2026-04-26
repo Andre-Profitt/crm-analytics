@@ -1,0 +1,51 @@
+{
+  "baseline_key": "sd_pipeline_open.pension_and_insurance.current_quarter",
+  "dimensions": {
+    "ForecastCategoryName": {
+      "field": "ForecastCategoryName",
+      "sample_count": 14,
+      "semantic_name": "forecast_category",
+      "share_by_category": {
+        "Best Case": 0.071429,
+        "Commit": 0.071429,
+        "Pipeline": 0.857143
+      }
+    },
+    "Owner.Name": {
+      "field": "Owner.Name",
+      "sample_count": 14,
+      "semantic_name": "owner",
+      "share_by_category": {
+        "Barbara MacNeil": 0.071429,
+        "Jeffrey McCarthy": 0.214286,
+        "Jess Kletz": 0.285714,
+        "Justin Rousseau": 0.285714,
+        "Scott Kaufman": 0.142857
+      }
+    },
+    "StageName": {
+      "field": "StageName",
+      "sample_count": 14,
+      "semantic_name": "stage",
+      "share_by_category": {
+        "3 - Engagement": 0.857143,
+        "4 - Shortlisted": 0.071429,
+        "5 - Preferred": 0.071429
+      }
+    }
+  },
+  "notes": "",
+  "period_role": "current_quarter",
+  "promoted_at": "2026-04-26T12:18:15.350940+00:00",
+  "promoted_from": [
+    {
+      "row_count": 14,
+      "run_id": "live-all-sources-pipeline-open-v16",
+      "snapshot_date": "2026-04-30",
+      "source_id": "00BTb00000LJREvMAP"
+    }
+  ],
+  "requirement_id": "sd_pipeline_open",
+  "schema_version": "monthly_platform.source_distribution_seed.v1",
+  "territory": "Pension & Insurance"
+}
