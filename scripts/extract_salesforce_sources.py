@@ -15,7 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.monthly_platform.contracts import Finding, StageResult, utc_now_iso  # noqa: E402
+from scripts.monthly_platform.contracts import (
+    Finding,
+    FindingSeverity,
+    StageResult,
+    utc_now_iso,
+)  # noqa: E402
 from scripts.monthly_platform.period import resolve_period_context  # noqa: E402
 from scripts.monthly_platform.salesforce_auth import (  # noqa: E402
     DEFAULT_TARGET_ORG,
@@ -25,12 +30,17 @@ from scripts.monthly_platform.salesforce_auth import (  # noqa: E402
 from scripts.monthly_platform.salesforce_reports import SalesforceSourceClient  # noqa: E402
 from scripts.monthly_platform.source_requirements import (  # noqa: E402
     SourcePlanItem,
+    action_to_severity,
     build_source_requirement_plan,
     filter_plan_items,
     load_source_requirements,
     requirement_summary,
 )
-from scripts.monthly_platform.storage import MonthlyStorage, sha256_bytes, stable_json_bytes  # noqa: E402
+from scripts.monthly_platform.storage import (
+    MonthlyStorage,
+    sha256_bytes,
+    stable_json_bytes,
+)  # noqa: E402
 
 
 DEFAULT_REQUIREMENTS_PATH = ROOT / "config" / "monthly_source_requirements.json"
@@ -166,9 +176,7 @@ def extract_sources(
                         "row_count_policy": item.row_count_policy.model_dump(
                             mode="json"
                         ),
-                        "fallback_policy": item.fallback_policy.model_dump(
-                            mode="json"
-                        )
+                        "fallback_policy": item.fallback_policy.model_dump(mode="json")
                         if item.fallback_policy
                         else None,
                         "duration_ms": result.duration_ms,
@@ -351,60 +359,111 @@ def audit_source_extract_quality(
     row_count = len(rows)
     policy = item.row_count_policy
     row_count_status = "ok"
-    if row_count == 0 and (not policy.allow_zero or policy.zero_row_action == "blocked"):
-        row_count_status = "blocked"
+
+    def _bump_status(severity: str | None) -> None:
+        nonlocal row_count_status
+        if severity == "high":
+            row_count_status = "blocked"
+        elif severity == "medium" and row_count_status != "blocked":
+            row_count_status = "warning"
+
+    expected_empty_note = ""
+    if policy.expected_empty_conditions:
+        expected_empty_note = (
+            f"; expected_empty_conditions={','.join(policy.expected_empty_conditions)}"
+        )
+
+    # Zero-row checks: gated on zero_row_action (its proper axis).
+    if row_count == 0 and (
+        not policy.allow_zero or policy.zero_row_action == "blocked"
+    ):
+        _bump_status("high")
         findings.append(
             _quality_finding(
                 item=item,
                 severity="high",
                 issue="source_row_count_zero_blocked",
-                evidence=f"row_count=0; allow_zero={policy.allow_zero}; zero_row_action={policy.zero_row_action}",
+                evidence=(
+                    f"row_count=0; allow_zero={policy.allow_zero}; "
+                    f"zero_row_action={policy.zero_row_action}{expected_empty_note}"
+                ),
             )
         )
     elif row_count == 0 and policy.zero_row_action in {"warning", "fallback"}:
-        row_count_status = "warning"
+        _bump_status("medium")
         findings.append(
             _quality_finding(
                 item=item,
                 severity="medium",
                 issue=f"source_row_count_zero_{policy.zero_row_action}",
-                evidence=f"row_count=0; zero_row_action={policy.zero_row_action}",
-            )
-        )
-    if row_count < policy.min_rows:
-        severity = "high" if policy.zero_row_action == "blocked" else "medium"
-        row_count_status = "blocked" if severity == "high" else "warning"
-        findings.append(
-            _quality_finding(
-                item=item,
-                severity=severity,
-                issue="source_row_count_below_min",
-                evidence=f"row_count={row_count}; min_rows={policy.min_rows}",
-            )
-        )
-    if policy.max_rows is not None and row_count > policy.max_rows:
-        row_count_status = "blocked"
-        findings.append(
-            _quality_finding(
-                item=item,
-                severity="high",
-                issue="source_row_count_above_max",
-                evidence=f"row_count={row_count}; max_rows={policy.max_rows}",
-            )
-        )
-    max_records = int((source_metadata or {}).get("max_records") or 0)
-    if max_records and row_count >= max_records:
-        row_count_status = "warning" if row_count_status == "ok" else row_count_status
-        findings.append(
-            _quality_finding(
-                item=item,
-                severity="medium",
-                issue="source_extract_max_records_reached",
-                evidence=f"row_count={row_count}; max_records={max_records}",
+                evidence=(
+                    f"row_count=0; zero_row_action={policy.zero_row_action}"
+                    f"{expected_empty_note}"
+                ),
             )
         )
 
-    field_audits = [_audit_required_field(item, rows, field.name) for field in item.required_fields if field.required]
+    # Min-rows breach: Track B — uses min_rows_action, no longer derives
+    # severity from zero_row_action. Only fires for non-zero row counts;
+    # the zero-row branch above handles row_count == 0 to avoid emitting
+    # two findings for the same root cause.
+    if 0 < row_count < policy.min_rows:
+        severity = action_to_severity(policy.min_rows_action)
+        if severity is not None:
+            _bump_status(severity)
+            findings.append(
+                _quality_finding(
+                    item=item,
+                    severity=severity,
+                    issue="source_row_count_below_min",
+                    evidence=(
+                        f"row_count={row_count}; min_rows={policy.min_rows}; "
+                        f"min_rows_action={policy.min_rows_action}"
+                    ),
+                )
+            )
+
+    # Max-rows breach (configured upper bound): Track B — uses max_rows_action.
+    if policy.max_rows is not None and row_count > policy.max_rows:
+        severity = action_to_severity(policy.max_rows_action)
+        if severity is not None:
+            _bump_status(severity)
+            findings.append(
+                _quality_finding(
+                    item=item,
+                    severity=severity,
+                    issue="source_row_count_above_max",
+                    evidence=(
+                        f"row_count={row_count}; max_rows={policy.max_rows}; "
+                        f"max_rows_action={policy.max_rows_action}"
+                    ),
+                )
+            )
+
+    # Max-records cap (Salesforce list-view API truncation indicator):
+    # Track B — uses max_records_action; was hardcoded medium.
+    max_records = int((source_metadata or {}).get("max_records") or 0)
+    if max_records and row_count >= max_records:
+        severity = action_to_severity(policy.max_records_action)
+        if severity is not None:
+            _bump_status(severity)
+            findings.append(
+                _quality_finding(
+                    item=item,
+                    severity=severity,
+                    issue="source_extract_max_records_reached",
+                    evidence=(
+                        f"row_count={row_count}; max_records={max_records}; "
+                        f"max_records_action={policy.max_records_action}"
+                    ),
+                )
+            )
+
+    field_audits = [
+        _audit_required_field(item, rows, field.name)
+        for field in item.required_fields
+        if field.required
+    ]
     missing_fields = [
         audit["field_name"]
         for audit in field_audits
@@ -426,11 +485,10 @@ def audit_source_extract_quality(
                 continue
             null_pct = float(audit["null_pct"])
             if null_pct > null_threshold:
-                severity = (
-                    "high"
-                    if policy.required_field_null_action == "blocked"
-                    else "medium"
-                )
+                # Track B: route through action_to_severity for typing + consistency.
+                severity = action_to_severity(policy.required_field_null_action)
+                if severity is None:
+                    continue
                 findings.append(
                     _quality_finding(
                         item=item,
@@ -438,7 +496,8 @@ def audit_source_extract_quality(
                         issue="source_required_field_null_threshold_exceeded",
                         evidence=(
                             f"field={audit['field_name']}; null_pct={null_pct:.3f}; "
-                            f"threshold={null_threshold}"
+                            f"threshold={null_threshold}; "
+                            f"required_field_null_action={policy.required_field_null_action}"
                         ),
                     )
                 )
@@ -518,11 +577,9 @@ def _row_field_value(row: dict[str, Any], field_name: str) -> Any:
 
 
 def _field_key_tokens(normalized_key: str) -> set[str]:
-    return {
-        token
-        for token in re.split(r"[^a-z0-9]+", normalized_key)
-        if token
-    } | {normalized_key}
+    return {token for token in re.split(r"[^a-z0-9]+", normalized_key) if token} | {
+        normalized_key
+    }
 
 
 def _field_aliases(field_name: str) -> set[str]:
@@ -535,7 +592,15 @@ def _field_aliases(field_name: str) -> set[str]:
     if normalized in {"stage", "stagename"}:
         aliases.update({"stage", "stagename"})
     if normalized in {"arr"}:
-        aliases.update({"arr", "forecastarr", "opportunityarr", "aptsforecastarr", "aptsopportunityarr"})
+        aliases.update(
+            {
+                "arr",
+                "forecastarr",
+                "opportunityarr",
+                "aptsforecastarr",
+                "aptsopportunityarr",
+            }
+        )
     if normalized in {"salesregion", "sales.region"}:
         aliases.update({"salesregion", "region", "account.region"})
     return aliases
@@ -580,7 +645,7 @@ def _unwrap_salesforce_function(value: str) -> str:
 def _quality_finding(
     *,
     item: SourcePlanItem,
-    severity: str,
+    severity: FindingSeverity,
     issue: str,
     evidence: str,
 ) -> Finding:
@@ -606,7 +671,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--snapshot-date", required=True)
     parser.add_argument("--requirements", type=Path, default=DEFAULT_REQUIREMENTS_PATH)
-    parser.add_argument("--territory-config", type=Path, default=DEFAULT_TERRITORY_CONFIG)
+    parser.add_argument(
+        "--territory-config", type=Path, default=DEFAULT_TERRITORY_CONFIG
+    )
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--run-id")
     parser.add_argument("--target-org", default=DEFAULT_TARGET_ORG)

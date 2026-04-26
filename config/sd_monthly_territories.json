@@ -1,13 +1,13 @@
 {
   "_meta": {
     "version": 1,
-    "description": "Sales Director Monthly Review \u2014 territory \u2192 (director, SOQL filter, PI list views, historical report IDs) registry.",
+    "description": "Sales Director Monthly Review — territory → (director, SOQL filter, PI list views, historical report IDs) registry.",
     "consumed_by": [
-      "scripts/extract_director_live.py \u2014 TERRITORIES dict",
-      "scripts/extract_historical_trending.py \u2014 active Q1/Q2 historical report registry",
-      "scripts/audit_sales_director_source_contract.py \u2014 active + forward-quarter source contract audit",
-      "scripts/build_sharepoint_analysis.py \u2014 DIRECTORS (via name + territory)",
-      "scripts/generate_obsidian_notes.py \u2014 DIRECTORS + TERRITORY_TO_DIRECTOR"
+      "scripts/extract_director_live.py — TERRITORIES dict",
+      "scripts/extract_historical_trending.py — active Q1/Q2 historical report registry",
+      "scripts/audit_sales_director_source_contract.py — active + forward-quarter source contract audit",
+      "scripts/build_sharepoint_analysis.py — DIRECTORS (via name + territory)",
+      "scripts/generate_obsidian_notes.py — DIRECTORS + TERRITORY_TO_DIRECTOR"
     ],
     "editing_note": "Adding a director? Append an entry below. No code change needed for the extract stage. Downstream builders keep a DIRECTORS list that must be updated to match name/territory labels."
   },

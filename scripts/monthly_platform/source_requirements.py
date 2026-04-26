@@ -18,7 +18,9 @@ from scripts.monthly_platform.contracts import ContractModel, Finding
 from scripts.monthly_platform.period import PeriodContext
 
 
-SourceType = Literal["salesforce_report", "salesforce_list_view", "salesforce_soql_probe"]
+SourceType = Literal[
+    "salesforce_report", "salesforce_list_view", "salesforce_soql_probe"
+]
 RequirementScope = Literal["territory", "global"]
 PeriodRole = Literal["prior_quarter", "current_quarter", "forward_quarter"]
 
@@ -40,13 +42,45 @@ class SourcePathRule(ContractModel):
     source_label: str | None = None
 
 
+QualityAction = Literal["ok", "warning", "fallback", "blocked"]
+
+
+def action_to_severity(action: QualityAction) -> Literal["high", "medium"] | None:
+    """Map a per-axis quality action policy to a finding severity.
+
+    Returns ``None`` for ``ok`` (caller should skip emitting a finding entirely).
+    """
+    if action == "blocked":
+        return "high"
+    if action in ("warning", "fallback"):
+        return "medium"
+    return None
+
+
 class RowCountPolicy(ContractModel):
+    """Per-source row-count and field-quality policy.
+
+    Track B (2026-04-25): each axis carries its own action so a min-rows breach
+    no longer inherits its severity from ``zero_row_action``. GPT Pro v2 review
+    flagged this conflation as "partly theater." See
+    docs/2026-04-25-gpt-pro-feedback-implementation-plan.md.
+    """
+
     allow_zero: bool = True
     min_rows: int = 0
     max_rows: int | None = None
     max_required_field_null_pct: float | None = None
     required_field_null_action: Literal["ok", "warning", "blocked"] = "warning"
-    zero_row_action: Literal["ok", "warning", "fallback", "blocked"] = "ok"
+    zero_row_action: QualityAction = "ok"
+    # Track B: per-axis actions, separate from zero_row_action.
+    min_rows_action: QualityAction = "warning"
+    max_rows_action: QualityAction = "blocked"
+    max_records_action: QualityAction = "warning"
+    distribution_action: QualityAction = "warning"
+    # Free-form annotations describing predicates under which an empty
+    # extraction is legitimate (e.g. "territory_has_no_forward_pipeline").
+    # Propagated into finding evidence; not auto-evaluated yet (Track C/D).
+    expected_empty_conditions: list[str] = Field(default_factory=list)
 
     @field_validator("min_rows")
     @classmethod
@@ -118,7 +152,9 @@ class SourceRequirementsRegistry(ContractModel):
         seen: set[str] = set()
         for requirement in value:
             if requirement.requirement_id in seen:
-                raise ValueError(f"duplicate requirement_id: {requirement.requirement_id}")
+                raise ValueError(
+                    f"duplicate requirement_id: {requirement.requirement_id}"
+                )
             seen.add(requirement.requirement_id)
         return value
 
@@ -213,7 +249,9 @@ def requirement_summary(plan: SourceRequirementPlan) -> dict[str, Any]:
     by_requirement: dict[str, int] = {}
     by_source_type: dict[str, int] = {}
     for item in configured:
-        by_requirement[item.requirement_id] = by_requirement.get(item.requirement_id, 0) + 1
+        by_requirement[item.requirement_id] = (
+            by_requirement.get(item.requirement_id, 0) + 1
+        )
         by_source_type[item.source_type] = by_source_type.get(item.source_type, 0) + 1
     return {
         "status": plan.status,

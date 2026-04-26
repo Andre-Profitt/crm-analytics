@@ -94,7 +94,11 @@
       "row_count_policy": {
         "allow_zero": true,
         "min_rows": 0,
-        "zero_row_action": "warning"
+        "zero_row_action": "warning",
+        "min_rows_action": "warning",
+        "max_rows_action": "blocked",
+        "max_records_action": "warning",
+        "distribution_action": "warning"
       },
       "consumers": [
         "director_bundle",
@@ -158,7 +162,11 @@
       "row_count_policy": {
         "allow_zero": false,
         "min_rows": 1,
-        "zero_row_action": "blocked"
+        "zero_row_action": "blocked",
+        "min_rows_action": "blocked",
+        "max_rows_action": "blocked",
+        "max_records_action": "warning",
+        "distribution_action": "warning"
       },
       "consumers": [
         "source_bundle",
@@ -239,7 +247,11 @@
       "row_count_policy": {
         "allow_zero": true,
         "min_rows": 0,
-        "zero_row_action": "ok"
+        "zero_row_action": "ok",
+        "min_rows_action": "warning",
+        "max_rows_action": "blocked",
+        "max_records_action": "warning",
+        "distribution_action": "warning"
       },
       "consumers": [
         "director_bundle",
@@ -316,7 +328,14 @@
       "row_count_policy": {
         "allow_zero": true,
         "min_rows": 0,
-        "zero_row_action": "fallback"
+        "zero_row_action": "fallback",
+        "min_rows_action": "warning",
+        "max_rows_action": "blocked",
+        "max_records_action": "warning",
+        "distribution_action": "warning",
+        "expected_empty_conditions": [
+          "territory_has_no_forward_pipeline"
+        ]
       },
       "fallback_policy": {
         "trigger": "zero_current_quarter_active_land_pipeline",

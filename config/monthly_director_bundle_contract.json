@@ -6,8 +6,12 @@
       "dataset": "pipeline_open",
       "policy": "source_backed",
       "required_for_publish": true,
-      "source_contract_keys": ["pipeline_open"],
-      "source_requirement_ids": ["sd_pipeline_open"],
+      "source_contract_keys": [
+        "pipeline_open"
+      ],
+      "source_requirement_ids": [
+        "sd_pipeline_open"
+      ],
       "rationale": "APAC pilot is now backed by a dedicated monthly Opportunity list view with unweighted ARR and Probability. Other territories must add equivalent source IDs before full-run promotion."
     },
     {
@@ -38,16 +42,24 @@
       "dataset": "pi_current",
       "policy": "source_backed",
       "required_for_publish": true,
-      "source_contract_keys": ["pi_current"],
-      "source_requirement_ids": ["sd_pipeline_inspection"],
+      "source_contract_keys": [
+        "pi_current"
+      ],
+      "source_requirement_ids": [
+        "sd_pipeline_inspection"
+      ],
       "rationale": "Current-quarter Pipeline Inspection list view is the canonical monthly pipeline display source."
     },
     {
       "dataset": "pi_forward",
       "policy": "source_backed",
       "required_for_publish": true,
-      "source_contract_keys": ["pi_forward"],
-      "source_requirement_ids": ["sd_pipeline_inspection"],
+      "source_contract_keys": [
+        "pi_forward"
+      ],
+      "source_requirement_ids": [
+        "sd_pipeline_inspection"
+      ],
       "rationale": "Forward-quarter Pipeline Inspection list view supports fallback when current-quarter active pipeline is empty."
     },
     {
@@ -110,8 +122,12 @@
       "dataset": "snapshot_trend",
       "policy": "source_backed",
       "required_for_publish": true,
-      "source_contract_keys": ["snapshot_trend"],
-      "source_requirement_ids": ["sd_historical_trending"],
+      "source_contract_keys": [
+        "snapshot_trend"
+      ],
+      "source_requirement_ids": [
+        "sd_historical_trending"
+      ],
       "rationale": "Historical Trending reports are the canonical source for snapshot movement inputs."
     }
   ]
