@@ -1,0 +1,554 @@
+# Sales Director Monthly source-backed contract authoring file.
+# Edit this YAML first; compile/check keeps runtime JSON in sync.
+
+schema_version: monthly_platform.source_contract_authoring.v1
+description:
+  Human-authored source contract for the Sales Director monthly source-backed pipeline. Edit this YAML, run the
+  compiler, and let runtime JSON stay deterministic for tools/tests.
+authoring_rules:
+  - YAML is the human editing surface for reporting requirements, territory source IDs, and publish dataset policy.
+  - Compiled JSON files remain the runtime inputs because they are stable to hash, diff, and consume from existing scripts.
+  - The source-backed runner gates on YAML/JSON sync before touching Salesforce.
+  - Do not edit generated JSON directly unless also back-porting the same change here.
+compiled_targets:
+  monthly_source_requirements:
+    path: config/monthly_source_requirements.json
+    payload:
+      schema_version: monthly_source_requirements.v1
+      description:
+        Declarative source requirements for the Sales Director monthly deck pipeline. Add/remove Salesforce source
+        needs here before changing extraction code.
+      requirements:
+        - requirement_id: sd_pipeline_open
+          enabled: true
+          description:
+            Current fiscal-year open Land pipeline detail for source-backed DirectorBundle pipeline_open across all
+            monthly territories.
+          owner: sales_director_monthly_source_contract
+          source_system: salesforce
+          source_type: salesforce_list_view
+          dataset: pipeline_open
+          output_grain: opportunity
+          scope: territory
+          period_roles:
+            - current_quarter
+          source_path_rules:
+            - period_role: current_quarter
+              source_id_path: pipeline_open_list_view_id
+              source_label_path: pipeline_open_list_view_label
+              source_label_template: "{territory} Pipeline Open FY"
+          required_fields:
+            - name: Name
+              semantic_name: opportunity
+              required: true
+              data_type: string
+            - name: Account.Name
+              semantic_name: account
+              required: true
+              data_type: string
+            - name: Owner.Name
+              semantic_name: owner
+              required: true
+              data_type: string
+            - name: StageName
+              semantic_name: stage
+              required: true
+              data_type: string
+            - name: ForecastCategoryName
+              semantic_name: forecast_category
+              required: true
+              data_type: string
+            - name: CloseDate
+              semantic_name: close_date
+              required: true
+              data_type: date
+            - name: APTS_Opportunity_ARR__c
+              semantic_name: arr_unweighted
+              required: true
+              data_type: currency
+            - name: APTS_Forecast_ARR__c
+              semantic_name: arr_weighted
+              required: true
+              data_type: currency
+            - name: Probability
+              semantic_name: probability
+              required: true
+              data_type: number
+            - name: Type
+              semantic_name: deal_type
+              required: true
+              data_type: string
+            - name: CreatedDate
+              semantic_name: created_date
+              required: true
+              data_type: date
+          row_count_policy:
+            allow_zero: true
+            min_rows: 0
+            zero_row_action: warning
+            min_rows_action: warning
+            max_rows_action: blocked
+            max_records_action: warning
+            distribution_action: warning
+          consumers:
+            - director_bundle
+            - analyst_workbook
+            - gold_metrics
+            - deck_truth_packet
+          tags:
+            - monthly
+            - source_backed
+            - pipeline_open
+            - all_territories
+        - requirement_id: sd_pipeline_open_reference
+          enabled: true
+          description:
+            Global FY26 Pipeline Open report used to enrich list-view pipeline rows with Industry/Sales Region for
+            deterministic NA vertical splits.
+          owner: sales_director_monthly_source_contract
+          source_system: salesforce
+          source_type: salesforce_report
+          dataset: pipeline_open_reference
+          output_grain: opportunity_reference
+          scope: global
+          period_roles:
+            - current_quarter
+          source_path_rules:
+            - period_role: current_quarter
+              source_id: 00OTb000008fzirMAA
+              source_label: SD Pipeline Open FY26
+          required_fields:
+            - name: Opportunity Name
+              semantic_name: opportunity_id
+              required: true
+              data_type: string
+            - name: Industry
+              semantic_name: industry
+              required: true
+              data_type: string
+            - name: Account Unit Group
+              semantic_name: account_unit_group
+              required: true
+              data_type: string
+            - name: Sales Region
+              semantic_name: sales_region
+              required: true
+              data_type: string
+          row_count_policy:
+            allow_zero: false
+            min_rows: 1
+            zero_row_action: blocked
+            min_rows_action: blocked
+            max_rows_action: blocked
+            max_records_action: warning
+            distribution_action: warning
+          consumers:
+            - source_bundle
+            - director_bundle
+          tags:
+            - monthly
+            - source_backed
+            - pipeline_open
+            - reference
+            - na_split
+        - requirement_id: sd_historical_trending
+          enabled: true
+          description: Historical Trending Salesforce reports for prior/current/forward quarter snapshot movement.
+          owner: sales_director_monthly_source_contract
+          source_system: salesforce
+          source_type: salesforce_report
+          dataset: historical_trending
+          output_grain: opportunity_snapshot
+          scope: territory
+          period_roles:
+            - prior_quarter
+            - current_quarter
+            - forward_quarter
+          source_path_rules:
+            - period_role: prior_quarter
+              source_id_path: historical_trending_report_ids.{quarter_label}
+              source_label_template: "{territory} Historical Trending {quarter_title}"
+            - period_role: current_quarter
+              source_id_path: historical_trending_report_ids.{quarter_label}
+              source_label_template: "{territory} Historical Trending {quarter_title}"
+            - period_role: forward_quarter
+              source_id_path: forward_quarter_historical_trending_report_ids.{quarter_label}
+              source_label_template: "{territory} Historical Trending {quarter_title}"
+          required_fields:
+            - name: Opportunity Name
+              semantic_name: opportunity
+              required: true
+              data_type: string
+            - name: Account Name
+              semantic_name: account
+              required: true
+              data_type: string
+            - name: Close Date
+              semantic_name: close_date
+              required: true
+              data_type: date
+            - name: ARR
+              semantic_name: arr
+              required: true
+              data_type: currency
+            - name: Stage
+              semantic_name: stage
+              required: true
+              data_type: string
+          row_count_policy:
+            allow_zero: true
+            min_rows: 0
+            zero_row_action: ok
+            min_rows_action: warning
+            max_rows_action: blocked
+            max_records_action: warning
+            distribution_action: warning
+          consumers:
+            - director_bundle
+            - analyst_workbook
+            - gold_metrics
+            - deck_truth_packet
+          tags:
+            - monthly
+            - report_first
+            - movement
+        - requirement_id: sd_pipeline_inspection
+          enabled: true
+          description: Pipeline Inspection list views for current-quarter and forward-quarter pipeline display/fallback.
+          owner: sales_director_monthly_source_contract
+          source_system: salesforce
+          source_type: salesforce_list_view
+          dataset: pipeline_inspection
+          output_grain: opportunity
+          scope: territory
+          period_roles:
+            - current_quarter
+            - forward_quarter
+          source_path_rules:
+            - period_role: current_quarter
+              source_id_path: pi_list_view_id
+              source_label_path: pi_list_view_label
+              source_label_template: "{territory} Pipeline Inspection {quarter_title}"
+            - period_role: forward_quarter
+              source_id_path: forward_quarter_pi_list_views.{quarter_label}.list_view_id
+              source_label_path: forward_quarter_pi_list_views.{quarter_label}.list_view_label
+              source_label_template: "{territory} Pipeline Inspection {quarter_title}"
+          required_fields:
+            - name: Name
+              semantic_name: opportunity
+              required: true
+              data_type: string
+            - name: StageName
+              semantic_name: stage
+              required: true
+              data_type: string
+            - name: CloseDate
+              semantic_name: close_date
+              required: true
+              data_type: date
+            - name: ForecastCategoryName
+              semantic_name: forecast_category
+              required: true
+              data_type: string
+            - name: APTS_Forecast_ARR__c
+              semantic_name: arr_weighted
+              required: true
+              data_type: currency
+          row_count_policy:
+            allow_zero: true
+            min_rows: 0
+            zero_row_action: fallback
+            min_rows_action: warning
+            max_rows_action: blocked
+            max_records_action: warning
+            distribution_action: warning
+            expected_empty_conditions:
+              - territory_has_no_forward_pipeline
+          fallback_policy:
+            trigger: zero_current_quarter_active_land_pipeline
+            from_period_role: current_quarter
+            to_period_role: forward_quarter
+            description:
+              If current-quarter active non-omitted Land pipeline is empty for a territory, pull/display forward-quarter
+              pipeline.
+          consumers:
+            - director_bundle
+            - analyst_workbook
+            - gold_metrics
+            - quarterly_pipeline_slide
+          tags:
+            - monthly
+            - fallback
+            - pipeline
+  sd_monthly_territories:
+    path: config/sd_monthly_territories.json
+    payload:
+      _meta:
+        version: 1
+        description:
+          Sales Director Monthly Review — territory → (director, SOQL filter, PI list views, historical report
+          IDs) registry.
+        consumed_by:
+          - scripts/extract_director_live.py — TERRITORIES dict
+          - scripts/extract_historical_trending.py — active Q1/Q2 historical report registry
+          - scripts/audit_sales_director_source_contract.py — active + forward-quarter source contract audit
+          - scripts/build_sharepoint_analysis.py — DIRECTORS (via name + territory)
+          - scripts/generate_obsidian_notes.py — DIRECTORS + TERRITORY_TO_DIRECTOR
+        editing_note:
+          Adding a director? Append an entry below. No code change needed for the extract stage. Downstream builders
+          keep a DIRECTORS list that must be updated to match name/territory labels.
+      territories:
+        APAC:
+          director: Jesper Tyrer
+          soql_where: Account_Unit_Group__c = 'SC Asia'
+          pipeline_open_list_view_id: 00BTb00000LJNODMA5
+          pipeline_open_list_view_label: SD Monthly Pipeline Open APAC FY26
+          pi_list_view_id: 00BTb00000LJQHFMA5
+          pi_list_view_label: PI APAC SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJQSXMA5
+              list_view_label: PI APAC Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008g11VMAQ
+            Q2: 00OTb000008gYVJMA2
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jXo1MAE
+        Central Europe:
+          director: Sarah Pittroff
+          soql_where: Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Central Europe'
+          pi_list_view_id: 00BTb00000LJQIrMAP
+          pi_list_view_label: PI CE SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJQU9MAP
+              list_view_label: PI CE Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008gYFBMA2
+            Q2: 00OTb000008gYNGMA2
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jXsrMAE
+          pipeline_open_list_view_id: 00BTb00000LJ5PiMAL
+          pipeline_open_list_view_label: SD Monthly Pipeline Open CE FY26
+        UK & Ireland:
+          director: Dan Peppett
+          soql_where: Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'United Kingdom & Ireland'
+          pi_list_view_id: 00BTb00000LJQM5MAP
+          pi_list_view_label: PI UKI SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJQXNMA5
+              list_view_label: PI UKI Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008gYIPMA2
+            Q2: 00OTb000008gYYXMA2
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jY5lMAE
+          pipeline_open_list_view_id: 00BTb00000LJRA5MAP
+          pipeline_open_list_view_label: SD Monthly Pipeline Open UKI FY26
+        Southern Europe:
+          director: Francois Thaury
+          soql_where: Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Southwestern Europe'
+          pi_list_view_id: 00BTb00000LJQKTMA5
+          pi_list_view_label: PI SWE SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJQVlMAP
+              list_view_label: PI SWE Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008gYGnMAM
+            Q2: 00OTb000008gYWvMAM
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jY49MAE
+          pipeline_open_list_view_id: 00BTb00000LJRBhMAP
+          pipeline_open_list_view_label: SD Monthly Pipeline Open SWE FY26
+        NL & Nordics:
+          director: Christian Ebbesen
+          soql_where: Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Northern Europe'
+          pi_list_view_id: 00BTb00000LJQNhMAP
+          pi_list_view_label: PI NE SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJQabMAH
+              list_view_label: PI NE Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008gYK1MAM
+            Q2: 00OTb000008gYa9MAE
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jXxhMAE
+          pipeline_open_list_view_id: 00BTb00000LJNZZMA5
+          pipeline_open_list_view_label: SD Monthly Pipeline Open NE FY26
+        Middle East & Africa:
+          director: Mourad Essofi
+          soql_where: Account_Unit_Group__c = 'SC EMEA' AND Sales_Region__c = 'Middle East & Africa'
+          pi_list_view_id: 00BTb00000LJErDMAX
+          pi_list_view_label: PI MEA SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJQdpMAH
+              list_view_label: PI MEA Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008gYLdMAM
+            Q2: 00OTb000008gYblMAE
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jXuTMAU
+          pipeline_open_list_view_id: 00BTb00000LJRDJMA5
+          pipeline_open_list_view_label: SD Monthly Pipeline Open MEA FY26
+        Canada:
+          director: Megan Miceli
+          soql_where: Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC Canada'
+          pi_list_view_id: 00BTb00000LJNuUMAX
+          pi_list_view_label: PI Canada SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJJJ1MAP
+              list_view_label: PI Canada Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008gYNFMA2
+            Q2: 00OTb000008gYdNMAU
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jXrFMAU
+          pipeline_open_list_view_id: 00BTb00000LJNpeMAH
+          pipeline_open_list_view_label: SD Monthly Pipeline Open Canada FY26
+        NA Asset Management:
+          director: Patrick Gaughan
+          soql_where:
+            Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC USA' AND Account.Industry IN ('Asset
+            Management','Wealth Management')
+          pi_list_view_id: 00BTb00000LJQPJMA5
+          pi_list_view_label: PI NA AM SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJQfRMAX
+              list_view_label: PI NA AM Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008gYOrMAM
+            Q2: 00OTb000008gYezMAE
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jXw5MAE
+          pipeline_open_list_view_id: 00BTb00000LJ3B0MAL
+          pipeline_open_list_view_label: SD Monthly Pipeline Open NA AM FY26
+        Pension & Insurance:
+          director: Adam Steinhaus
+          soql_where: Account_Unit_Group__c = 'SC North America' AND Account.Unit__c = 'SC USA' AND Account.Industry IN ('Pension','Insurance')
+          pi_list_view_id: 00BTb00000LJQQvMAP
+          pi_list_view_label: PI NA PI SR Scope
+          forward_quarter_pi_list_views:
+            Q3:
+              list_view_id: 00BTb00000LJQh3MAH
+              list_view_label: PI NA PI Q3 SR Land
+          historical_trending_report_ids:
+            Q1: 00OTb000008gYQTMA2
+            Q2: 00OTb000008gYgbMAE
+          forward_quarter_historical_trending_report_ids:
+            Q3: 00OTb000008jY0vMAE
+          pipeline_open_list_view_id: 00BTb00000LJREvMAP
+          pipeline_open_list_view_label: SD Monthly Pipeline Open P&I FY26
+  monthly_director_bundle_contract:
+    path: config/monthly_director_bundle_contract.json
+    payload:
+      schema_version: monthly_platform.director_bundle_contract.v1
+      description:
+        Dataset coverage contract for DirectorBundle artifacts built from monthly Salesforce source bundles. A
+        dataset is either source-backed today or explicitly optional-empty until a source requirement is added.
+      datasets:
+        - dataset: pipeline_open
+          policy: source_backed
+          required_for_publish: true
+          source_contract_keys:
+            - pipeline_open
+          source_requirement_ids:
+            - sd_pipeline_open
+          rationale:
+            APAC pilot is now backed by a dedicated monthly Opportunity list view with unweighted ARR and Probability.
+            Other territories must add equivalent source IDs before full-run promotion.
+        - dataset: won_lost
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale: Legacy SOQL-backed closed-deal dataset. Add a monthly source requirement before using it for publish claims.
+        - dataset: renewals
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale: Renewal detail is not part of the current report-first source contract.
+        - dataset: approvals
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale: Approval detail is not part of the current report-first source contract.
+        - dataset: pi_current
+          policy: source_backed
+          required_for_publish: true
+          source_contract_keys:
+            - pi_current
+          source_requirement_ids:
+            - sd_pipeline_inspection
+          rationale: Current-quarter Pipeline Inspection list view is the canonical monthly pipeline display source.
+        - dataset: pi_forward
+          policy: source_backed
+          required_for_publish: true
+          source_contract_keys:
+            - pi_forward
+          source_requirement_ids:
+            - sd_pipeline_inspection
+          rationale:
+            Forward-quarter Pipeline Inspection list view supports fallback when current-quarter active pipeline is
+            empty.
+        - dataset: activity
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale: Activity signals remain a legacy SOQL enrichment until a source-backed requirement lands.
+        - dataset: commit_items
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale: Commit items are not part of the current monthly report-first source contract.
+        - dataset: stage_events
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale: Field-history stage events are not source-backed by the current specified reports.
+        - dataset: forecast_category_events
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale: Field-history forecast-category events are not source-backed by the current specified reports.
+        - dataset: close_date_events
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale: Field-history close-date events are not source-backed by the current specified reports.
+        - dataset: movement_prior
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale:
+            Prior-quarter movement logic should be rebuilt from historical-trending/field-history requirements before
+            use.
+        - dataset: movement_current
+          policy: optional_empty
+          required_for_publish: false
+          source_contract_keys: []
+          source_requirement_ids: []
+          rationale:
+            Current-quarter movement logic should be rebuilt from historical-trending/field-history requirements before
+            use.
+        - dataset: snapshot_trend
+          policy: source_backed
+          required_for_publish: true
+          source_contract_keys:
+            - snapshot_trend
+          source_requirement_ids:
+            - sd_historical_trending
+          rationale: Historical Trending reports are the canonical source for snapshot movement inputs.

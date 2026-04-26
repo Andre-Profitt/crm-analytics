@@ -1,0 +1,113 @@
+{
+  "source_documents": [
+    "/Users/test/Downloads/Sales Handbook V4.pptx",
+    "/Users/test/crm-analytics/docs/generated/SALES_PROCESS_OPERATING_MODEL_2026-03-11.md",
+    "/Users/test/crm-analytics/docs/generated/role_structure_profile_2026-03-11/profile.md"
+  ],
+  "persona_model": {
+    "Sales": {
+      "primary_motions": ["Land"],
+      "dashboard_family": ["Sales Manager", "Individual Sales"],
+      "primary_questions": [
+        "forecast confidence",
+        "promotion pressure",
+        "commit protection",
+        "omitted cleanup",
+        "deal review readiness"
+      ]
+    },
+    "CX": {
+      "primary_motions": ["Expand", "Renewal", "Contraction", "Churn"],
+      "dashboard_family": ["CSM Manager", "Individual CSM"],
+      "primary_questions": [
+        "protected base",
+        "growth on base",
+        "renewal risk",
+        "churn pressure",
+        "save-plan pressure",
+        "QBR cadence"
+      ]
+    },
+    "Services": {
+      "primary_motions": ["Expand support", "delivery influence"],
+      "dashboard_family": ["Adjacency / supporting"],
+      "primary_questions": [
+        "delivery influence",
+        "implementation pressure",
+        "service delivery dependencies"
+      ]
+    },
+    "Marketing": {
+      "primary_motions": ["Demand"],
+      "dashboard_family": ["Demand / BDR"],
+      "primary_questions": [
+        "lead generation",
+        "handoff quality",
+        "pipeline origination"
+      ]
+    }
+  },
+  "motion_ownership": {
+    "Land": {
+      "primary_persona": "Sales",
+      "secondary_personas": ["Marketing", "BDR"]
+    },
+    "Expand": {
+      "primary_persona": "CX",
+      "secondary_personas": ["Sales", "Services"]
+    },
+    "Renewal": {
+      "primary_persona": "CX",
+      "secondary_personas": ["Services"]
+    },
+    "Contraction": {
+      "primary_persona": "CX",
+      "secondary_personas": ["Services"]
+    },
+    "Churn": {
+      "primary_persona": "CX",
+      "secondary_personas": ["Services"]
+    }
+  },
+  "stage_gate_model": [
+    {"stage": 1, "label": "Prospecting", "persona": "Sales"},
+    {"stage": 2, "label": "Discovery", "persona": "Sales"},
+    {"stage": 3, "label": "Engagement", "persona": "Sales"},
+    {"stage": 4, "label": "Shortlisted", "persona": "Sales"},
+    {"stage": 5, "label": "Preferred", "persona": "Sales"},
+    {"stage": 6, "label": "Contracting", "persona": "Sales"},
+    {"stage": 7, "label": "Opt-out", "persona": "CX"},
+    {"stage": 8, "label": "Won", "persona": "Shared"}
+  ],
+  "operating_cadence": {
+    "Executive": "weekly_to_monthly",
+    "Sales Manager": "weekly",
+    "CSM Manager": "weekly_to_monthly",
+    "Individual": "daily"
+  },
+  "shared_drill_targets": [
+    "Account 360 & History",
+    "Opportunity Detail",
+    "Renewal Detail"
+  ],
+  "canonical_join_keys": {
+    "user": "OwnerId",
+    "account_owner": "Account.OwnerId",
+    "manager": "ManagerId"
+  },
+  "classification_rules": {
+    "required_signals": [
+      "UserRole.Name",
+      "Title",
+      "Division",
+      "Department",
+      "ManagerId"
+    ],
+    "do_not_use_alone": [
+      "OwnerName",
+      "ManagerName",
+      "Title",
+      "UserRole.Name"
+    ]
+  }
+}

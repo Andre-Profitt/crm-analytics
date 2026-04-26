@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-29",
+  "artifact_type_map": {
+    "build_package": [
+      "build_package"
+    ],
+    "report_rest_preview": [
+      "salesforce_report_rest_preview"
+    ],
+    "contract_lint_report": [
+      "contract_lint_report"
+    ],
+    "audit_report": [
+      "audit_report"
+    ],
+    "dataset_validation_report": [
+      "dataset_validation_report"
+    ],
+    "salesforce_profile_report": [
+      "salesforce_profile_report"
+    ],
+    "dashboard_json": [
+      "dashboard_json"
+    ],
+    "dataset_metadata": [
+      "dataset_metadata"
+    ],
+    "xmd": [
+      "xmd"
+    ]
+  },
+  "required_evidence_by_operation": {
+    "mutate_dashboard": [
+      "dashboard_json",
+      "dataset_metadata",
+      "xmd",
+      "contract_lint_report",
+      "audit_report"
+    ],
+    "review_dashboard": [
+      "dashboard_json",
+      "dataset_metadata",
+      "xmd",
+      "contract_lint_report",
+      "audit_report"
+    ],
+    "validate_truth": [
+      "salesforce_profile_report",
+      "dataset_validation_report",
+      "dashboard_json",
+      "audit_report"
+    ],
+    "understand_metric": [
+      "salesforce_profile_report",
+      "dataset_validation_report"
+    ],
+    "export_assets": [
+      "dashboard_json",
+      "dataset_metadata",
+      "xmd"
+    ]
+  },
+  "severity_by_code": {
+    "missing_required_evidence": "blocker",
+    "invalid_lane_transition": "blocker",
+    "mutating_script_in_plan": "blocker",
+    "contract_lint_blocker": "blocker",
+    "dashboard_json_contract_violation": "blocker",
+    "column_map_contract_violation": "blocker",
+    "dataset_integrity_not_validated": "warning"
+  }
+}

@@ -1,0 +1,291 @@
+{
+  "snapshot_date": "2026-03-31",
+  "quarter_focus": "Q1",
+  "notes": [],
+  "external_inputs": {
+    "finance_churn": {
+      "status": "provided",
+      "provenance": "external",
+      "owner": "Finance",
+      "source_name": "Finance Renewal Risk Pack",
+      "headline": "Forward churn risk is concentrated in three live accounts.",
+      "summary_note": "Finance risk remains concentrated in the same accounts that drive renewal pressure.",
+      "top_accounts": [
+        {
+          "account_name": "Risk Account A",
+          "region": "EMEA",
+          "signal": "Renewal timing at risk",
+          "amount": 1800000
+        },
+        {
+          "account_name": "Risk Account B",
+          "region": "North America",
+          "signal": "Budget reset",
+          "amount": 1400000
+        }
+      ]
+    },
+    "slipped_commentary": {
+      "status": "provided",
+      "provenance": "external",
+      "summary_note": "Owners confirm the queue is dominated by close-plan resets and customer timing.",
+      "root_cause_bullets": [
+        "Late-stage pushes are clustered in a handful of commit opportunities.",
+        "Most owners cite customer timing and internal papering delays rather than pipeline creation gaps."
+      ],
+      "owner_comments": [
+        {
+          "owner_name": "Owner Slip A",
+          "region": "North America",
+          "opportunity_name": "Slip Opportunity A",
+          "theme": "Customer timing",
+          "comment": "Customer legal review moved the signature into next month."
+        }
+      ]
+    }
+  },
+  "pipeline": {
+    "deck_regions": {
+      "EMEA": {
+        "target_arr": 22000000,
+        "best_case_call_arr": 18200000,
+        "pipeline_call_arr": 6200000,
+        "low_confidence_pipeline_arr": 4100000,
+        "needed_from_pipeline_arr": 3800000,
+        "promotion_need_pct": 44.2,
+        "coverage_status": "Promotable",
+        "forecast_confidence_pct": 88.4,
+        "projected_arr": 18200000,
+        "watchlist": [
+          {
+            "opportunity_name": "Renewal EMEA Risk",
+            "account_name": "Risk EMEA",
+            "owner_name": "Owner EMEA",
+            "change_signal": "Pushed from commit",
+            "leadership_ask": "Reconfirm buyer timing and signature path this week.",
+            "arr": 2400000
+          }
+        ]
+      },
+      "North America": {
+        "target_arr": 18000000,
+        "best_case_call_arr": 10200000,
+        "pipeline_call_arr": 5200000,
+        "low_confidence_pipeline_arr": 4800000,
+        "needed_from_pipeline_arr": 7800000,
+        "promotion_need_pct": 132.5,
+        "coverage_status": "Insufficient Pipeline",
+        "forecast_confidence_pct": 92.1,
+        "projected_arr": 10200000,
+        "watchlist": [
+          {
+            "opportunity_name": "Expansion NA Risk",
+            "account_name": "Risk NA",
+            "owner_name": "Owner NA",
+            "change_signal": "Coverage gap widening",
+            "leadership_ask": "Create new in-quarter coverage and reset the promotion ask.",
+            "arr": 3200000
+          }
+        ]
+      },
+      "APAC": {
+        "target_arr": 11000000,
+        "best_case_call_arr": 9800000,
+        "pipeline_call_arr": 2600000,
+        "low_confidence_pipeline_arr": 1500000,
+        "needed_from_pipeline_arr": 1200000,
+        "promotion_need_pct": 28.4,
+        "coverage_status": "Promotable",
+        "forecast_confidence_pct": 93.2,
+        "projected_arr": 9800000,
+        "watchlist": [
+          {
+            "opportunity_name": "Renewal APAC Risk",
+            "account_name": "Risk APAC",
+            "owner_name": "Owner APAC",
+            "change_signal": "Pushed from commit",
+            "leadership_ask": "Lock buyer timing and commercial papering this week.",
+            "arr": 1400000
+          }
+        ]
+      }
+    }
+  },
+  "commercial_approval": {
+    "candidate_count": 4,
+    "summary": {
+      "approved_count": 2,
+      "approved_arr": 1200000,
+      "pending_count": 1,
+      "pending_arr": 450000,
+      "stale_count": 1,
+      "stale_arr": 700000
+    },
+    "rule_contract": {
+      "status": "aligned_with_report_target",
+      "label": "Open current-quarter Land stage 3 deals without commercial approval"
+    },
+    "approved_deals": [],
+    "control_exceptions": [
+      {
+        "sales_region": "North America",
+        "account_name": "Approval Risk A",
+        "opportunity_name": "Approval Opportunity A",
+        "owner_name": "Owner Approval",
+        "control_signal": "Stale approval",
+        "approval_age_days": 18
+      }
+    ],
+    "candidates_by_region": {
+      "EMEA": [],
+      "North America": [
+        {
+          "account_name": "Approval Risk A",
+          "opportunity_name": "Approval Opportunity A",
+          "owner_name": "Owner Approval",
+          "stage_progression": "Stage 3",
+          "arr": 950000
+        }
+      ],
+      "APAC": []
+    }
+  },
+  "renewals": {
+    "summary": {
+      "total_renewal_pipeline_acv": 21000000,
+      "total_deals": 8,
+      "critical_acv": 12500000,
+      "critical_count": 5,
+      "due_this_quarter_acv": 9000000,
+      "due_this_quarter_count": 4,
+      "overdue_carryover_acv": 12000000,
+      "overdue_carryover_count": 4
+    },
+    "metric_contract": {
+      "status": "aligned_with_simcorp_methodology",
+      "label": "Renewals and churn use Renewal ACV; land and expand pipeline stays in ARR"
+    },
+    "selection_scope": {
+      "status": "aligned_with_report_target",
+      "label": "Open renewals due by quarter end, including overdue renewals",
+      "quarter_end_date": "2026-04-30"
+    },
+    "top_open_renewals": [
+      {
+        "account_name": "Renewal Risk A",
+        "opportunity_name": "Renewal A",
+        "owner_name": "Owner A",
+        "risk_level": "Overdue",
+        "timing_bucket": "Overdue carryover",
+        "forecast_category": "Commit",
+        "days_until_close": -15,
+        "renewal_acv": 5200000
+      },
+      {
+        "account_name": "Renewal Risk B",
+        "opportunity_name": "Renewal B",
+        "owner_name": "Owner B",
+        "risk_level": "Critical",
+        "timing_bucket": "Due this quarter",
+        "forecast_category": "Pipeline",
+        "days_until_close": 12,
+        "renewal_acv": 4200000
+      },
+      {
+        "account_name": "Renewal Risk C",
+        "opportunity_name": "Renewal C",
+        "owner_name": "Owner C",
+        "risk_level": "High",
+        "timing_bucket": "Due this quarter",
+        "forecast_category": "Best Case",
+        "days_until_close": 20,
+        "renewal_acv": 3100000
+      }
+    ]
+  },
+  "churn": {
+    "trend": [
+      {
+        "quarter_label": "2025-Q3",
+        "churned_deals": 2,
+        "churned_acv": 900000
+      },
+      {
+        "quarter_label": "2025-Q4",
+        "churned_deals": 3,
+        "churned_acv": 1800000
+      }
+    ],
+    "top_owners": [
+      {
+        "owner_name": "Owner Churn A",
+        "churned_acv": 1800000,
+        "churned_deals": 2
+      }
+    ],
+    "top_churned_renewals": [
+      {
+        "account_name": "Churn Risk A",
+        "opportunity_name": "Churn Renewal A",
+        "owner_name": "Owner Churn A",
+        "quarter_label": "2025-Q4",
+        "outcome": "Lost",
+        "renewal_acv": 1800000
+      }
+    ]
+  },
+  "slipped_deals": {
+    "summary_by_region": {
+      "EMEA": {
+        "slipped_arr": 2400000,
+        "slipped_opp_count": 8,
+        "avg_push_count": 2.5
+      },
+      "North America": {
+        "slipped_arr": 3800000,
+        "slipped_opp_count": 6,
+        "avg_push_count": 3.1
+      },
+      "APAC": {
+        "slipped_arr": 5200000,
+        "slipped_opp_count": 5,
+        "avg_push_count": 3.4
+      }
+    },
+    "top_repeat_push": [
+      {
+        "sales_region": "North America",
+        "account_name": "Slip Risk A",
+        "opportunity_name": "Slip Opportunity A",
+        "owner_name": "Owner Slip A",
+        "forecast_category": "Commit",
+        "stage_name": "6 - Contracting",
+        "weighted_open_arr": 2100000,
+        "push_count": 4,
+        "days_in_stage": 220
+      },
+      {
+        "sales_region": "APAC",
+        "account_name": "Slip Risk B",
+        "opportunity_name": "Slip Opportunity B",
+        "owner_name": "Owner Slip B",
+        "forecast_category": "Commit",
+        "stage_name": "5 - Preferred",
+        "weighted_open_arr": 1800000,
+        "push_count": 3,
+        "days_in_stage": 190
+      },
+      {
+        "sales_region": "EMEA",
+        "account_name": "Slip Risk C",
+        "opportunity_name": "Slip Opportunity C",
+        "owner_name": "Owner Slip C",
+        "forecast_category": "Pipeline",
+        "stage_name": "3 - Engagement",
+        "weighted_open_arr": 1200000,
+        "push_count": 2,
+        "days_in_stage": 90
+      }
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-29",
+  "org": {
+    "target_user": "apro@simcorp.com",
+    "instance": "simcorp.my.salesforce.com",
+    "api_version": "v66.0",
+    "fiscal_year_start": "February 1"
+  },
+  "execution_model": {
+    "primary_interface": "cli_to_cli",
+    "machine_state_format": "json",
+    "human_synthesis_format": "markdown",
+    "legacy_builders_allowed": false
+  },
+  "dashboard_rules": {
+    "step_dataset_entries_forbidden_keys": [
+      "label",
+      "url"
+    ],
+    "aggregateflex_forbidden_keys": [
+      "isFacet"
+    ],
+    "number_widget_forbidden_parameters": [
+      "numberFormat",
+      "compact",
+      "title"
+    ],
+    "column_map_required_keys": [
+      "dimensionAxis",
+      "plots",
+      "trellis",
+      "split"
+    ]
+  },
+  "saql_rules": {
+    "aggregates_use_bare_field_names": true,
+    "order_by_must_use_single_column": true,
+    "group_by_precedes_foreach": true,
+    "sum_case_when_forbidden": true,
+    "matches_forbidden": true
+  },
+  "mutation_boundaries": {
+    "mutations_require_guardrails": true,
+    "mutations_require_evaluation": true,
+    "prefer_read_only_before_live_read": true,
+    "mutating_first_step_forbidden": true
+  }
+}

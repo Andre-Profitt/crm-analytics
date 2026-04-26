@@ -1,0 +1,95 @@
+{
+  "version": "2026-04-10",
+  "system_name": "sales_director_ai_workstation",
+  "decision": {
+    "control_plane": "codex_desktop",
+    "excel_worker": "claude_excel_addin",
+    "powerpoint_worker": "claude_powerpoint_addin",
+    "retrieval_augmentation": "microsoft_365_connector_optional",
+    "fallback_renderer": "workbook_native_deck_lane"
+  },
+  "paths": {
+    "workbook_root": "output/director_data_dumps",
+    "snapshot_root": "output/director_workbook_snapshots",
+    "region_snapshot_root": "output/sales_region_snapshots",
+    "global_snapshot_root": "output/sales_global_summary_snapshots",
+    "master_run_root": "output/sales_director_monthly_master_builder",
+    "regional_run_root": "output/sales_region_monthly_builder",
+    "global_run_root": "output/sales_global_summary_builder",
+    "native_review_deck_root": "output/sales_director_monthly_runs",
+    "fallback_review_deck_root": "output/director_workbook_deck_runs",
+    "director_canonical_shell_root": "output/sales_director_canonical_shells",
+    "region_canonical_shell_root": "output/sales_region_canonical_shells",
+    "global_canonical_shell_root": "output/sales_global_canonical_shells",
+    "external_source_input_root": "output/sales_deck_external_inputs",
+    "external_source_packet_root": "output/sales_deck_external_source_packets",
+    "release_packet_root": "output/sales_deck_release_packets",
+    "execution_plan_path": "config/sales_deck_execution_plan.json"
+  },
+  "contracts": {
+    "pipeline_unit": "ARR (€ converted)",
+    "renewal_unit": "ACV (€ converted)",
+    "required_horizons": [
+      "All Open",
+      "FY26",
+      "Q2 2026",
+      "Q1 2026 actuals"
+    ],
+    "headline_pipeline_excludes_omitted": true,
+    "q1_workbook_forecast_block_is_director_safe": false
+  },
+  "deck_family": {
+    "director_primary": {
+      "description": "One deck per MD-1 built from director workbook snapshots.",
+      "required_slides": [
+        "executive_summary",
+        "q1_promised_vs_delivered",
+        "quarterly_pipeline_forecast",
+        "commercial_approval_overview",
+        "missing_commercial_approval_candidates",
+        "renewals_tracking",
+        "slipped_deals_and_follow_up",
+        "salesforce_hygiene_activity_controls",
+        "appendix_or_opportunity_detail"
+      ]
+    },
+    "global_summary": {
+      "description": "One global summary deck with a single operating slide per region plus global control summary.",
+      "required_slides": [
+        "global_executive_summary",
+        "apac_region_summary",
+        "emea_region_summary",
+        "north_america_region_summary",
+        "global_commercial_approval_overview",
+        "global_appendix"
+      ]
+    },
+    "regional_rollup_internal": {
+      "description": "Deterministic regional rollup layer used to support the global summary deck and optional regional artifacts.",
+      "required_outputs": [
+        "regional_snapshot",
+        "regional_validated_fact_pack",
+        "regional_structured_fill_payload"
+      ]
+    }
+  },
+  "run_stages": [
+    "plan",
+    "extract",
+    "excel_brief",
+    "fact_gate",
+    "deck_source",
+    "powerpoint_review",
+    "publish_gate"
+  ],
+  "publish_blockers": [
+    "missing_validated_fact_pack",
+    "missing_required_slide",
+    "arr_acv_mislabel",
+    "ambiguous_pipeline_horizon",
+    "omitted_buried_in_headline_pipeline",
+    "unqualified_global_q1_baseline",
+    "missing_commercial_approval_coverage",
+    "finance_placeholder_presented_as_fact"
+  ]
+}

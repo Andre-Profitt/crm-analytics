@@ -1,0 +1,442 @@
+{
+  "schema_version": "monthly_platform.source_backed_release_packet.v1",
+  "status": "ok",
+  "publish_recommendation": "publish",
+  "generated_at": "2026-04-24T20:40:10.382543+00:00",
+  "snapshot_date": "2026-04-30",
+  "run_id": "live-all-sources-pipeline-open-v20c",
+  "runner_manifest_path": "output/source_backed_monthly_pipeline_runs/2026-04-30/live-all-sources-pipeline-open-v20c/pipeline_run_manifest.json",
+  "summary": {
+    "status": "ok",
+    "stage_count": 24,
+    "ok_stage_count": 24,
+    "error_stage_count": 0,
+    "planned_stage_count": 0,
+    "failed_stage": null,
+    "source_contract_authoring_target_count": 3,
+    "source_contract_authoring_drift_count": 0,
+    "source_contract_authoring_missing_count": 0,
+    "source_contract_authoring_finding_count": 0,
+    "source_contract_authoring_high_finding_count": 0,
+    "list_view_audit_view_count": 27,
+    "list_view_audit_finding_count": 0,
+    "list_view_audit_high_finding_count": 0,
+    "dead_or_invalid_filter_field_count": 4,
+    "source_contract_preflight_high_finding_count": 0,
+    "source_contract_preflight_warning_finding_count": 9,
+    "source_contract_preflight_missing_report_id_count": 0,
+    "source_contract_preflight_territory_count": 9,
+    "source_contract_lint_finding_count": 0,
+    "source_contract_lint_high_finding_count": 0,
+    "publish_required_source_backed_dataset_count": 4,
+    "source_fingerprint_selected_source_count": 55,
+    "source_fingerprint_fingerprinted_source_count": 55,
+    "source_fingerprint_probed_source_count": 55,
+    "source_fingerprint_failed_source_count": 0,
+    "source_fingerprint_fallback_probe_count": 0,
+    "source_fingerprint_finding_count": 0,
+    "source_fingerprint_high_finding_count": 0,
+    "source_fingerprint_medium_finding_count": 0,
+    "selected_source_count": 55,
+    "executed_source_count": 55,
+    "source_extract_count": 55,
+    "failed_source_count": 0,
+    "finding_count": 0,
+    "extract_quality_source_count": 55,
+    "extract_quality_ok_source_count": 54,
+    "extract_quality_warning_source_count": 1,
+    "extract_quality_blocked_source_count": 0,
+    "extract_quality_finding_count": 1,
+    "extract_quality_high_finding_count": 0,
+    "extract_quality_medium_finding_count": 1,
+    "bundle_count": 9,
+    "territory_count": 9,
+    "missing_selected_source_count": 0,
+    "forward_fallback_count": 4,
+    "director_bundle_count": 9,
+    "quarter_policy_name": "calendar_quarter",
+    "quarter_policy_fiscal_year_start_month": 1,
+    "current_quarter_title": "Q2 2026",
+    "forward_quarter_title": "Q3 2026",
+    "quarter_mapping_approved": true,
+    "quarter_mapping_approved_by": "repo_config",
+    "quarter_mapping_approved_at": "2026-04-24T00:00:00Z",
+    "quarter_mapping_reason": "Salesforce source registry remains calendar-quarter labelled while business reporting uses an explicitly mapped fiscal period.",
+    "business_current_quarter_label": "FY26 Q1",
+    "source_current_quarter_label": "Q2 2026",
+    "display_current_quarter_label": "Q2 2026",
+    "business_fiscal_year_naming_policy": "start_year",
+    "source_quarter_label_style": "salesforce_calendar_label",
+    "display_label_source": "source_registry_period",
+    "reporting_window_start": "2026-01-01",
+    "reporting_window_end": "2026-09-30",
+    "source_contract_final_high_finding_count": 0,
+    "source_contract_final_warning_finding_count": 0,
+    "source_contract_final_missing_report_id_count": 0,
+    "source_contract_final_missing_bundle_count": 0,
+    "source_contract_final_territory_count": 9,
+    "source_contract_final_forward_fallback_count": 4,
+    "source_contract_final_current_quarter_empty_count": 5,
+    "publish_gate_director_bundle_count": 9,
+    "publish_gate_publish_required_dataset_count": 4,
+    "publish_gate_list_view_audit_view_count": 27,
+    "publish_gate_list_view_audit_finding_count": 0,
+    "publish_gate_finding_count": 0,
+    "publish_gate_high_finding_count": 0,
+    "high_blocker_count": 0,
+    "tieout_mismatch_count": 0,
+    "director_count": 9,
+    "metric_count": 60,
+    "claim_count": 60,
+    "deck_slide_count": 6,
+    "polish_finding_count": 0,
+    "polish_high_finding_count": 0,
+    "polish_replacements_applied_count": 43,
+    "polished_text_checked": true,
+    "visual_finding_count": 0,
+    "visual_high_finding_count": 0,
+    "visual_slide_count": 6,
+    "visual_table_count": 5,
+    "visual_chart_count": 1,
+    "table_contract_finding_count": 0,
+    "table_contract_high_finding_count": 0,
+    "table_contract_medium_finding_count": 0,
+    "table_contract_table_count": 5,
+    "table_contract_expected_table_count": 5,
+    "table_contract_checked": true,
+    "semantic_finding_count": 0,
+    "semantic_high_finding_count": 0,
+    "semantic_medium_finding_count": 0,
+    "semantic_human_style_score": 100,
+    "business_readiness_checked": true,
+    "render_finding_count": 0,
+    "render_high_finding_count": 0,
+    "render_deck_slide_count": 6,
+    "render_expected_slide_count": 6,
+    "rendered_slide_count": 6,
+    "rendered_png_checked": true,
+    "release_bundle_artifact_count": 23,
+    "release_bundle_copied_artifact_count": 23,
+    "release_bundle_required_artifact_count": 23,
+    "release_bundle_missing_required_artifact_count": 0,
+    "release_bundle_zip_size_bytes": 505020,
+    "release_bundle_upload_ready": true,
+    "sharepoint_upload_plan_status": "planned",
+    "sharepoint_upload_planned_count": 5,
+    "sharepoint_upload_missing_count": 0,
+    "sharepoint_upload_publish_ready": true,
+    "sharepoint_upload_source_backed": true,
+    "sharepoint_upload_folder": "General/Book of Business/Sales Director Reporting/Q2 2026/Sales Director Monthly Review - 2026-04-30 - live-all-sources-pipeline-open-v20c",
+    "sharepoint_upload_status": "ok",
+    "sharepoint_uploaded_count": 5,
+    "sharepoint_upload_skipped_count": 0
+  },
+  "artifacts": {
+    "analyst_workbook": "/Users/test/crm-analytics/output/monthly_director_bundles_from_sources/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_analyst_workbook.xlsx",
+    "thinkcell_workbook": "/Users/test/crm-analytics/output/thinkcell_source_from_bundles/2026-04-30/live-all-sources-pipeline-open-v20c/thinkcell_source.xlsx",
+    "thinkcell_ppttc": "/Users/test/crm-analytics/output/thinkcell_source_from_bundles/2026-04-30/live-all-sources-pipeline-open-v20c/thinkcell_data.ppttc",
+    "publish_gate": "/Users/test/crm-analytics/output/monthly_source_backed_publish_gate/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_publish_gate.json",
+    "deck_truth_packet": "/Users/test/crm-analytics/output/deck_truth_packets_from_sources/live-all-sources-pipeline-open-v20c/2026-04-30/deck_truth_packet.json",
+    "source_backed_deck": "/Users/test/crm-analytics/output/source_backed_decks/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_monthly_review.pptx",
+    "polish_audit": "/Users/test/crm-analytics/output/source_backed_deck_polish/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_polish_audit.json",
+    "visual_audit": "/Users/test/crm-analytics/output/source_backed_deck_visuals/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_visual_audit.json",
+    "table_contract_audit": "/Users/test/crm-analytics/output/source_backed_deck_table_contract/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_table_contract_audit.json",
+    "semantic_audit": "/Users/test/crm-analytics/output/source_backed_deck_semantics/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_semantic_audit.json",
+    "render_audit": "/Users/test/crm-analytics/output/source_backed_deck_renders/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_render_audit.json",
+    "release_bundle_manifest": "/Users/test/crm-analytics/output/source_backed_release_bundles/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_release_bundle_manifest.json",
+    "release_bundle_zip": "/Users/test/crm-analytics/output/source_backed_release_bundles/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_release_bundle.zip",
+    "sharepoint_upload_plan": "/Users/test/crm-analytics/output/source_backed_sharepoint_upload_plans/2026-04-30/live-all-sources-pipeline-open-v20c/sharepoint_upload_plan.json",
+    "sharepoint_upload_result": "/Users/test/crm-analytics/output/source_backed_sharepoint_uploads/2026-04-30/live-all-sources-pipeline-open-v20c/sharepoint_upload_result.json",
+    "list_view_audit": "/Users/test/crm-analytics/output/pi_list_view_filter_audit/2026-04-30/live-all-sources-pipeline-open-v20c/pi_list_view_filter_audit.json",
+    "source_fingerprint_preflight": "/Users/test/crm-analytics/output/source_fingerprint_preflight/2026-04-30/live-all-sources-pipeline-open-v20c/source_fingerprint_manifest.json",
+    "source_extract_quality_audit": "/Users/test/crm-analytics/output/monthly_salesforce_sources/2026-04-30/live-all-sources-pipeline-open-v20c/audits/source_extract_quality_audit.json"
+  },
+  "release_checks": [
+    {
+      "name": "runner_status_ok",
+      "status": "pass",
+      "evidence": "runner_status=ok"
+    },
+    {
+      "name": "all_required_stages_ok",
+      "status": "pass",
+      "evidence": "required_stage_errors="
+    },
+    {
+      "name": "source_contract_authoring_synced",
+      "status": "pass",
+      "evidence": "source_contract_authoring_target_count=3; source_contract_authoring_drift_count=0; source_contract_authoring_missing_count=0; source_contract_authoring_high_finding_count=0"
+    },
+    {
+      "name": "source_contract_preflight_clean",
+      "status": "pass",
+      "evidence": "source_contract_preflight_high_finding_count=0; source_contract_preflight_missing_report_id_count=0"
+    },
+    {
+      "name": "source_contract_lint_clean",
+      "status": "pass",
+      "evidence": "source_contract_lint_finding_count=0; source_contract_lint_high_finding_count=0"
+    },
+    {
+      "name": "source_fingerprint_preflight_clean",
+      "status": "pass",
+      "evidence": "source_fingerprint_selected_source_count=55; source_fingerprint_fingerprinted_source_count=55; source_fingerprint_high_finding_count=0; source_fingerprint_failed_source_count=0"
+    },
+    {
+      "name": "source_contract_final_clean",
+      "status": "pass",
+      "evidence": "source_contract_final_high_finding_count=0; source_contract_final_warning_finding_count=0; source_contract_final_missing_report_id_count=0; source_contract_final_missing_bundle_count=0; source_contract_final_territory_count=9"
+    },
+    {
+      "name": "quarter_policy_locked",
+      "status": "pass",
+      "evidence": "quarter_policy_name=calendar_quarter; quarter_policy_fiscal_year_start_month=1; current_quarter_title=Q2 2026; forward_quarter_title=Q3 2026"
+    },
+    {
+      "name": "quarter_mapping_approved",
+      "status": "pass",
+      "evidence": "quarter_mapping_approved=True; business_current_quarter_label=FY26 Q1; source_current_quarter_label=Q2 2026; display_current_quarter_label=Q2 2026; quarter_mapping_reason=Salesforce source registry remains calendar-quarter labelled while business reporting uses an explicitly mapped fiscal period."
+    },
+    {
+      "name": "list_view_audit_clean",
+      "status": "pass",
+      "evidence": "list_view_audit_view_count=27; list_view_audit_finding_count=0; list_view_audit_high_finding_count=0"
+    },
+    {
+      "name": "salesforce_extracts_complete",
+      "status": "pass",
+      "evidence": "selected_source_count=55; executed_source_count=55; source_extract_count=55; failed_source_count=0"
+    },
+    {
+      "name": "source_extract_quality_clean",
+      "status": "pass",
+      "evidence": "extract_quality_source_count=55; extract_quality_high_finding_count=0; extract_quality_blocked_source_count=0"
+    },
+    {
+      "name": "source_bundles_complete",
+      "status": "pass",
+      "evidence": "bundle_count=9; territory_count=9; missing_selected_source_count=0"
+    },
+    {
+      "name": "director_bundles_complete",
+      "status": "pass",
+      "evidence": "director_bundle_count=9; publish_gate_director_bundle_count=9; territory_count=9"
+    },
+    {
+      "name": "publish_gate_clean",
+      "status": "pass",
+      "evidence": "publish_gate_finding_count=0; publish_gate_high_finding_count=0"
+    },
+    {
+      "name": "truth_packet_clean",
+      "status": "pass",
+      "evidence": "high_blocker_count=0; tieout_mismatch_count=0; claim_count=60"
+    },
+    {
+      "name": "deck_visuals_clean",
+      "status": "pass",
+      "evidence": "visual_finding_count=0; visual_high_finding_count=0; visual_slide_count=6; visual_table_count=5; visual_chart_count=1"
+    },
+    {
+      "name": "deck_polish_clean",
+      "status": "pass",
+      "evidence": "polish_finding_count=0; polish_high_finding_count=0; polish_replacements_applied_count=43; polished_text_checked=True"
+    },
+    {
+      "name": "deck_table_contract_clean",
+      "status": "pass",
+      "evidence": "table_contract_finding_count=0; table_contract_high_finding_count=0; table_contract_medium_finding_count=0; table_contract_table_count=5; table_contract_expected_table_count=5; table_contract_checked=True"
+    },
+    {
+      "name": "deck_semantics_clean",
+      "status": "pass",
+      "evidence": "semantic_finding_count=0; semantic_high_finding_count=0; semantic_medium_finding_count=0; semantic_human_style_score=100; business_readiness_checked=True"
+    },
+    {
+      "name": "deck_render_clean",
+      "status": "pass",
+      "evidence": "render_finding_count=0; render_high_finding_count=0; render_deck_slide_count=6; rendered_slide_count=6; rendered_png_checked=True"
+    },
+    {
+      "name": "release_bundle_complete",
+      "status": "pass",
+      "evidence": "release_bundle_missing_required_artifact_count=0; release_bundle_artifact_count=23; release_bundle_copied_artifact_count=23; release_bundle_zip_size_bytes=505020; release_bundle_upload_ready=True"
+    },
+    {
+      "name": "sharepoint_upload_plan_clean",
+      "status": "pass",
+      "evidence": "sharepoint_upload_plan_status=planned; sharepoint_upload_planned_count=5; sharepoint_upload_missing_count=0; sharepoint_upload_publish_ready=True; sharepoint_upload_source_backed=True"
+    }
+  ],
+  "blocking_reasons": [],
+  "gates": [
+    {
+      "name": "source_contract_authoring_config_check",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/monthly_source_contract_authoring/2026-04-30/live-all-sources-pipeline-open-v20c/source_contract_authoring_check.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "pi_list_view_filter_audit",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/pi_list_view_filter_audit/2026-04-30/live-all-sources-pipeline-open-v20c/pi_list_view_filter_audit.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "source_contract_preflight",
+      "status": "ok",
+      "payload_status": "warning",
+      "output_path": "/Users/test/crm-analytics/output/monthly_source_contract/live-all-sources-pipeline-open-v20c/2026-04-30/monthly_source_contract.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "source_contract_requirement_lint",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/monthly_source_contract/2026-04-30/live-all-sources-pipeline-open-v20c/source_contract_lint.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "source_fingerprint_preflight",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_fingerprint_preflight/2026-04-30/live-all-sources-pipeline-open-v20c/source_fingerprint_manifest.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "extract_salesforce_sources",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/monthly_salesforce_sources/2026-04-30/live-all-sources-pipeline-open-v20c/run_manifest.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "build_source_bundles",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/monthly_source_bundles/2026-04-30/live-all-sources-pipeline-open-v20c/source_bundle_manifest.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "build_director_bundles",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/monthly_director_bundles_from_sources/2026-04-30/live-all-sources-pipeline-open-v20c/director_bundle_manifest.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "source_contract_final",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/monthly_source_contract/live-all-sources-pipeline-open-v20c/2026-04-30/monthly_source_contract.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "dataset_readiness_pipeline_open",
+      "status": "ok",
+      "payload_status": "ready",
+      "output_path": "/Users/test/crm-analytics/output/monthly_dataset_readiness/2026-04-30/live-all-sources-pipeline-open-v20c/pipeline_open_readiness.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "build_analyst_workbook",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/monthly_director_bundles_from_sources/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_analyst_workbook.xlsx",
+      "blocking_reason": null
+    },
+    {
+      "name": "build_thinkcell_source",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/thinkcell_source_from_bundles/2026-04-30/live-all-sources-pipeline-open-v20c/thinkcell_source.xlsx",
+      "blocking_reason": null
+    },
+    {
+      "name": "source_backed_publish_gate",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/monthly_source_backed_publish_gate/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_publish_gate.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "build_director_gold_analytics",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/director_gold_analytics_from_sources/live-all-sources-pipeline-open-v20c/2026-04-30/manifest.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "build_deck_truth_packet",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/deck_truth_packets_from_sources/live-all-sources-pipeline-open-v20c/2026-04-30/deck_truth_packet.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "build_source_backed_deck",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_decks/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_monthly_review.pptx",
+      "blocking_reason": null
+    },
+    {
+      "name": "polish_source_backed_deck_language",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_deck_polish/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_polish_audit.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "validate_source_backed_deck_visuals",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_deck_visuals/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_visual_audit.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "validate_source_backed_deck_table_contract",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_deck_table_contract/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_table_contract_audit.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "validate_source_backed_deck_semantics",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_deck_semantics/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_semantic_audit.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "validate_source_backed_deck_render",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_deck_renders/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_deck_render_audit.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "build_source_backed_release_bundle",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_release_bundles/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_release_bundle_manifest.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "plan_source_backed_sharepoint_upload",
+      "status": "ok",
+      "payload_status": "planned",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_sharepoint_upload_plans/2026-04-30/live-all-sources-pipeline-open-v20c/sharepoint_upload_plan.json",
+      "blocking_reason": null
+    },
+    {
+      "name": "upload_source_backed_sharepoint_assets",
+      "status": "ok",
+      "payload_status": "ok",
+      "output_path": "/Users/test/crm-analytics/output/source_backed_sharepoint_uploads/2026-04-30/live-all-sources-pipeline-open-v20c/sharepoint_upload_result.json",
+      "blocking_reason": null
+    }
+  ]
+}

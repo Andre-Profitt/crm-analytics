@@ -1,0 +1,187 @@
+{
+  "generated_at": "2026-04-09",
+  "target_org": "apro@simcorp.com",
+  "notes": [
+    "Pipeline Inspection views in this org hang off underlying Opportunity list views.",
+    "Existing PI coverage is already present for Global, APAC, EMEA, North America, and one EMEA Middle East variant.",
+    "Opportunity list views are createable/updateable through UI API even though Metadata API is unavailable.",
+    "Direct PipelineInspectionListView create still rejects standard custom list views with 'The filter type must be a supported type'.",
+    "The workable no-metadata path is: create or patch the underlying Opportunity list view through UI API, then use the Pipeline Inspection UI clone flow to create a PI-native sibling view.",
+    "For North America, Account.BillingCountryCode is not accepted by the standard Opportunity list-view UI API, but Opportunity.Account_Unit__c cleanly splits SC USA vs SC Canada."
+  ],
+  "templates": {
+    "book_of_business_arr_cfq_global": {
+      "pi_id": "4c2Tb0000003jobIAA",
+      "list_view_id": "00BTb00000Ic82DMAR",
+      "list_view_name": "Global Book of Business ARR CFQ Forecast",
+      "date_literal_type": "THIS_FISCAL_QUARTER",
+      "summary_field": "00N7S000002tG9rUAE",
+      "change_period_literal_type": "START_OF_THE_PERIOD"
+    },
+    "book_of_business_arr_cfq_apac": {
+      "pi_id": "4c2Tb0000003jmzIAA",
+      "list_view_id": "00BTb00000Ic7kTMAR",
+      "list_view_name": "Book of Business ARR CFQ Forecast APAC",
+      "date_literal_type": "THIS_FISCAL_QUARTER",
+      "summary_field": "00N7S000002tG9rUAE",
+      "change_period_literal_type": "START_OF_THE_PERIOD"
+    },
+    "book_of_business_arr_cfq_emea": {
+      "pi_id": "4c2Tb0000003jjlIAA",
+      "list_view_id": "00BTb00000Ic77lMAB",
+      "list_view_name": "Book of Business ARR CFQ Forecast EMEA",
+      "date_literal_type": "THIS_FISCAL_QUARTER",
+      "summary_field": "00N7S000002tG9rUAE",
+      "change_period_literal_type": "START_OF_THE_PERIOD"
+    },
+    "book_of_business_arr_cfq_na": {
+      "pi_id": "4c2Tb0000003ji9IAA",
+      "list_view_id": "00BTb00000Ic6JlMAJ",
+      "list_view_name": "Book of Business ARR CFQ Forecast NA",
+      "date_literal_type": "THIS_FISCAL_QUARTER",
+      "summary_field": "00N7S000002tG9rUAE",
+      "change_period_literal_type": "START_OF_THE_PERIOD"
+    }
+  },
+  "territories": [
+    {
+      "status": "existing",
+      "director": "Jesper Tyrer",
+      "territory": "APAC",
+      "pi_view_name": "Book of Business ARR CFQ Forecast APAC",
+      "list_view_name": "Book of Business ARR CFQ Forecast APAC",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_APAC",
+      "template_key": "book_of_business_arr_cfq_apac",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC Asia"
+      }
+    },
+    {
+      "status": "new",
+      "director": "Sarah Pittroff",
+      "territory": "Central Europe",
+      "pi_view_name": "Book of Business ARR CFQ Forecast Central Europe",
+      "list_view_name": "BoB ARR CFQ Forecast CE",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_CE",
+      "template_key": "book_of_business_arr_cfq_emea",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC EMEA",
+        "Sales_Region__c": "Central Europe"
+      }
+    },
+    {
+      "status": "new",
+      "director": "Francois Thaury",
+      "territory": "Southwestern Europe",
+      "pi_view_name": "Book of Business ARR CFQ Forecast Southwestern Europe",
+      "list_view_name": "BoB ARR CFQ Forecast SWE",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_SWE",
+      "template_key": "book_of_business_arr_cfq_emea",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC EMEA",
+        "Sales_Region__c": "Southwestern Europe"
+      }
+    },
+    {
+      "status": "new",
+      "director": "Dan Peppett",
+      "territory": "United Kingdom & Ireland",
+      "pi_view_name": "Book of Business ARR CFQ Forecast UK and Ireland",
+      "list_view_name": "BoB ARR CFQ Forecast UKI",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_UKI",
+      "template_key": "book_of_business_arr_cfq_emea",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC EMEA",
+        "Sales_Region__c": "United Kingdom & Ireland"
+      }
+    },
+    {
+      "status": "new",
+      "director": "Christian Ebbesen",
+      "territory": "Northern Europe",
+      "pi_view_name": "Book of Business ARR CFQ Forecast Northern Europe",
+      "list_view_name": "BoB ARR CFQ Forecast NE",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_NE",
+      "template_key": "book_of_business_arr_cfq_emea",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC EMEA",
+        "Sales_Region__c": "Northern Europe"
+      }
+    },
+    {
+      "status": "new",
+      "director": "Mourad Essofi",
+      "territory": "Middle East & Africa",
+      "pi_view_name": "Book of Business ARR CFQ Forecast Middle East and Africa",
+      "list_view_name": "BoB ARR CFQ Forecast MEA",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_MEA",
+      "template_key": "book_of_business_arr_cfq_emea",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC EMEA",
+        "Sales_Region__c": "Middle East & Africa"
+      }
+    },
+    {
+      "status": "new",
+      "director": "Megan Miceli",
+      "territory": "Canada",
+      "pi_view_name": "Book of Business ARR CFQ Forecast Canada",
+      "list_view_name": "BoB ARR CFQ Forecast Canada",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_CA",
+      "template_key": "book_of_business_arr_cfq_na",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC North America",
+        "Sales_Region__c": "North America",
+        "Account_Unit__c": "SC Canada"
+      }
+    },
+    {
+      "status": "new",
+      "director": "Patrick Gaughan",
+      "territory": "North America ex Canada",
+      "pi_view_name": "Book of Business ARR CFQ Forecast North America ex Canada",
+      "list_view_name": "BoB ARR CFQ Forecast NA ex CA",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_NA_US",
+      "template_key": "book_of_business_arr_cfq_na",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC North America",
+        "Sales_Region__c": "North America",
+        "Account_Unit__c": "SC USA"
+      }
+    },
+    {
+      "status": "blocked",
+      "director": "Adam Steinhaus",
+      "territory": "North America Pension and Insurance",
+      "pi_view_name": "Book of Business ARR CFQ Forecast North America Pension and Insurance",
+      "list_view_name": "BoB ARR CFQ Forecast NA P&I",
+      "list_view_api_name": "Book_of_Business_ARR_CFQ_Forecast_NA_PI",
+      "template_key": "book_of_business_arr_cfq_na",
+      "filters": {
+        "scope": "my_team_territory",
+        "Account_Unit_Group__c": "SC North America",
+        "Sales_Region__c": "North America",
+        "Account_Unit__c": "SC USA",
+        "Account.Industry": {
+          "operator": "in",
+          "values": [
+            "Pension",
+            "Insurance"
+          ]
+        }
+      },
+      "open_questions": [
+        "Confirm whether Pension Fund should also route to Adam.",
+        "Standard Opportunity list views reject Account.Industry in this org, so Adam currently needs a PI/UI workaround or a denormalized Opportunity field."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "version": "2026-03-12",
+  "source_documents": [
+    "Sales Handbook V4.pptx",
+    "BDR_INSTITUTIONAL_BLUEPRINT_2026-03-12.md",
+    "bdr_operating_state_2026-03-12/profile.md",
+    "bdr_field_readiness_2026-03-12/profile.md",
+    "bdr_activity_model_2026-03-12/profile.md",
+    "BDR_STAGE_GATE_AND_ACCOUNT_MODEL_2026-03-13.md"
+  ],
+  "process_model": {
+    "lead_vs_opportunity": {
+      "lead": "Earlier process owned by Marketing and BDR; assess potential interest",
+      "opportunity": "Later process owned by BDR and Sales Manager; gather PAIC and move through stage gates"
+    },
+    "stage_ownership": {
+      "stage_1_prospecting": "BDR-led",
+      "stage_2_discovery": "BDR + Sales shared",
+      "stage_3_engagement": "Sales Manager-led"
+    },
+    "stage_2_to_3_handoff": {
+      "entry_to_stage_3": [
+        "Prospect moves forward with due diligence after price guidance",
+        "Buying process and timeline are clearer",
+        "PAIC completed",
+        "Decision-makers started to be identified and engaged",
+        "Initial quote created",
+        "Relationship map / TAS expected",
+        "Prospect investment visible through RFP, consulting, or budget approval",
+        "Prospect effectively on long list / short-list path"
+      ],
+      "dashboard_implication": "BDR dashboards must measure handoff readiness and handoff quality, not just lead volume"
+    }
+  },
+  "truth_layers": {
+    "account_universe": {
+      "grain": "one row per BDR-owned or targetable account",
+      "must_include": [
+        "AccountId",
+        "AccountName",
+        "OwnerId",
+        "OwnerName",
+        "Industry",
+        "Region",
+        "TAM_Universe_Segment",
+        "Tier",
+        "Product_Mainline",
+        "Product_Opportunity",
+        "Finance_Client",
+        "ClientBaseClass",
+        "FormerClientLostDate",
+        "FormerClientAgeBand",
+        "TelemarketingStatus"
+      ]
+    },
+    "contact_coverage": {
+      "grain": "one row per contact on BDR-owned or targetable accounts",
+      "must_include": [
+        "ContactId",
+        "AccountId",
+        "Persona",
+        "OfficialTitle",
+        "LastTouchDate",
+        "MeetingsHeld",
+        "Calls",
+        "Emails",
+        "CampaignMembership"
+      ]
+    },
+    "lead_execution": {
+      "grain": "one row per lead or prospect-response unit",
+      "must_include": [
+        "LeadId",
+        "LeadStatus",
+        "MQL_SQL_Disqualification",
+        "DirectLeadTouch24h",
+        "AssociatedProspectTouch24h",
+        "DaysToFirstTouch",
+        "DaysSinceLastTouch",
+        "Campaign",
+        "Source",
+        "MatchedAccount"
+      ]
+    },
+    "opportunity_handoff": {
+      "grain": "one row per BDR-created or BDR-touched opportunity",
+      "must_include": [
+        "OpportunityId",
+        "AccountId",
+        "OwnerId",
+        "StageName",
+        "Stage2Date",
+        "Stage3Date",
+        "AgeInStage2",
+        "QuoteProxy",
+        "ProductFamily"
+      ]
+    }
+  },
+  "metric_tiers": {
+    "tier_a_operational_truth": [
+      "lead_volume_by_bdr",
+      "open_lead_load_by_bdr",
+      "mql_sql_disqualified_mix",
+      "direct_lead_touch_24h",
+      "associated_prospect_touch_24h",
+      "days_to_first_touch",
+      "days_since_last_touch",
+      "meetings_booked",
+      "meetings_held",
+      "responders_awaiting_action",
+      "stale_reengagement_candidates",
+      "lead_linked_activity_integrity",
+      "activity_mix_by_bdr",
+      "persona_industry_country_mix",
+      "campaign_membership_and_response"
+    ],
+    "tier_b_directional": [
+      "lead_to_meeting_pct",
+      "lead_to_opportunity_pct",
+      "known_attributed_arr",
+      "known_opportunity_stage_distribution",
+      "matched_account_segment_tier_coverage",
+      "campaign_to_meeting_quality",
+      "campaign_to_handoff_quality"
+    ],
+    "tier_c_not_launch_safe_as_hero": [
+      "full_sourced_pipeline",
+      "full_sourced_arr",
+      "utm_led_attribution",
+      "strict_campaign_roi",
+      "strict_lead_only_response_model"
+    ]
+  },
+  "required_process_distinctions": {
+    "response_model": [
+      "direct_lead_touch_24h",
+      "associated_prospect_response_24h"
+    ],
+    "disqualification_model": [
+      "disqualified_by_marketing",
+      "disqualified_by_sales"
+    ],
+    "launch_safe_mql_sql_logic": {
+      "mql": "Qualified by Marketing",
+      "sql": "Hot Lead",
+      "handoff": "Converted / qualified opportunity"
+    }
+  },
+  "dashboard_contract": {
+    "bdr_manager": {
+      "must_answer": [
+        "who_is_getting_the_most_leads",
+        "who_is_creating_meetings",
+        "who_is_handing_off_quality_opportunities",
+        "which_accounts_and_personas_are_covered_or_undercovered",
+        "where_activity_is_logged_correctly_vs_incorrectly",
+        "which_sources_personas_industries_products_are_working",
+        "where_reengagement_and_campaign_response_bottlenecks_exist"
+      ],
+      "must_include": [
+        "24h_response_metrics",
+        "activity_by_person",
+        "mql_sql_mix_by_person",
+        "lead_load_by_person",
+        "response_and_meeting_rates",
+        "persona_x_industry",
+        "account_coverage_and_contact_coverage",
+        "campaign_source_quality",
+        "stage_opportunity_quality",
+        "manager_action_queue"
+      ]
+    },
+    "bdr_rep_queue": {
+      "must_answer": [
+        "who_do_i_work_now",
+        "what_tool_should_i_use",
+        "which_responses_are_waiting",
+        "which_meetings_need_follow_up",
+        "which_leads_are_stale_but_recoverable",
+        "which_target_accounts_personas_matter_most"
+      ],
+      "must_include": [
+        "next_best_action",
+        "suggested_tool",
+        "campaign_context",
+        "persona_and_industry",
+        "target_account_context",
+        "response_urgency"
+      ]
+    },
+    "bdr_campaign_target_list_control": {
+      "must_answer": [
+        "which_campaigns_are_worth_scaling",
+        "which_segments_or_personas_are_undercovered",
+        "where_we_get_meetings_vs_only_responses",
+        "which_old_leads_or_dormant_accounts_should_be_reactivated",
+        "which_product_led_plays_should_run_by_segment"
+      ],
+      "must_include": [
+        "campaign_product",
+        "campaign_scope_type",
+        "response_quality",
+        "meeting_quality",
+        "handoff_quality",
+        "segment_persona_industry_product_cuts",
+        "prospect_account_target_lists"
+      ]
+    }
+  },
+  "simcorp_plays": {
+    "launch_plays": [
+      "inbound_contact_me",
+      "event_webinar_follow_up",
+      "high_intent_scored_leads",
+      "stale_lead_reactivation",
+      "not_touched_recently",
+      "target_account_gaps"
+    ],
+    "next_wave_plays": [
+      "lost_clients_after_2_years",
+      "dormant_contacts_on_current_customers",
+      "persona_specific_product_plays",
+      "product_led_whitespace_outreach",
+      "segment_seasonality_plays"
+    ]
+  },
+  "audit_fail_rules": [
+    "hide_owned_prospect_account_universe",
+    "hide_contact_coverage_on_target_accounts",
+    "hide_lead_vs_contact_account_activity_split",
+    "merge_marketing_and_sales_disqualification",
+    "show_source_or_campaign_without_persona_industry_product_context",
+    "overclaim_sourced_arr_or_pipeline_precision",
+    "lack_handoff_quality_view_into_sales",
+    "lack_next_best_action_in_queues",
+    "lack_person_level_activity_conversion_and_load_views"
+  ]
+}

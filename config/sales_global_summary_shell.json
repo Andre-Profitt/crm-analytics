@@ -1,0 +1,211 @@
+{
+  "template_version": "2026-04-11",
+  "template_name": "Sales Global Summary",
+  "agenda_title": "Global Monthly Agenda",
+  "agenda_subtitle": "Fixed global leadership sequence with one operating slide per region",
+  "production_rules": {
+    "canonical_shell_required": true,
+    "generated_shell_publish_safe": false,
+    "population_mode": "structured-fill-only"
+  },
+  "coverage_standard": {
+    "support_levels": [
+      "strong",
+      "qualified",
+      "placeholder"
+    ],
+    "minimum_fields_per_slide": [
+      "support_level",
+      "source_tabs",
+      "source_fields",
+      "metric_rules",
+      "known_gaps"
+    ]
+  },
+  "slides": [
+    {
+      "id": "global-executive-summary",
+      "title": "Global Executive Summary",
+      "subtitle": "Global position, leadership actions, and cross-region control points",
+      "required_slots": [
+        "global_pipeline_arr_q2",
+        "global_renewal_acv_q2",
+        "global_missing_approval_count",
+        "global_top_risk",
+        "global_top_action"
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Regional Snapshots", "Commercial Approval", "Renewals & Retention"],
+        "source_fields": [
+          "regions[].scorecard.pipeline-health.Pipeline ARR — Q2 2026 Close Dates Only (excl. Omitted)",
+          "regions[].renewals.summary_metrics.q2_open_acv",
+          "regions[].commercial_approval.missing_candidates"
+        ],
+        "metric_rules": [
+          "Global executive summary is a deterministic rollup of validated regional snapshots.",
+          "Top risk and top action are synthesized from validated regional control points."
+        ],
+        "known_gaps": [
+          "Leadership summary statements are derived, not direct workbook fields."
+        ]
+      }
+    },
+    {
+      "id": "apac-region-summary",
+      "title": "APAC Regional Summary",
+      "subtitle": "Display-quarter pipeline, approvals, renewals, and intervention points",
+      "required_slots": [
+        "region_name",
+        "headline_pipeline_arr_q2",
+        "q2_commit_arr",
+        "q2_best_case_arr",
+        "q2_omitted_arr",
+        "quarterly_pipeline_label",
+        "quarterly_pipeline_title",
+        "quarterly_pipeline_display_reason",
+        "quarterly_pipeline_footnote",
+        "approval_rate_stage3_plus",
+        "renewal_open_acv",
+        "top_risk",
+        "top_action"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Regional Snapshot", "Q2 Outlook", "Commercial Approval", "Renewals & Retention"],
+        "source_fields": [
+          "scorecard.sections.pipeline-health",
+          "q2_outlook.by_category",
+          "commercial_approval.summary",
+          "renewals.summary_metrics"
+        ],
+        "metric_rules": [
+          "Each region slide is populated only from its validated regional snapshot.",
+          "Renewals remain ACV and pipeline remains ARR.",
+          "If a region has no current-quarter in-scope pipeline, it may fall forward to next-quarter outlook only with explicit footnote disclosure."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "emea-region-summary",
+      "title": "EMEA Regional Summary",
+      "subtitle": "Display-quarter pipeline, approvals, renewals, and intervention points",
+      "required_slots": [
+        "region_name",
+        "headline_pipeline_arr_q2",
+        "q2_commit_arr",
+        "q2_best_case_arr",
+        "q2_omitted_arr",
+        "quarterly_pipeline_label",
+        "quarterly_pipeline_title",
+        "quarterly_pipeline_display_reason",
+        "quarterly_pipeline_footnote",
+        "approval_rate_stage3_plus",
+        "renewal_open_acv",
+        "top_risk",
+        "top_action"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Regional Snapshot", "Q2 Outlook", "Commercial Approval", "Renewals & Retention"],
+        "source_fields": [
+          "scorecard.sections.pipeline-health",
+          "q2_outlook.by_category",
+          "commercial_approval.summary",
+          "renewals.summary_metrics"
+        ],
+        "metric_rules": [
+          "Each region slide is populated only from its validated regional snapshot.",
+          "Renewals remain ACV and pipeline remains ARR.",
+          "If a region has no current-quarter in-scope pipeline, it may fall forward to next-quarter outlook only with explicit footnote disclosure."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "north-america-region-summary",
+      "title": "North America Regional Summary",
+      "subtitle": "Display-quarter pipeline, approvals, renewals, and intervention points",
+      "required_slots": [
+        "region_name",
+        "headline_pipeline_arr_q2",
+        "q2_commit_arr",
+        "q2_best_case_arr",
+        "q2_omitted_arr",
+        "quarterly_pipeline_label",
+        "quarterly_pipeline_title",
+        "quarterly_pipeline_display_reason",
+        "quarterly_pipeline_footnote",
+        "approval_rate_stage3_plus",
+        "renewal_open_acv",
+        "top_risk",
+        "top_action"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Regional Snapshot", "Q2 Outlook", "Commercial Approval", "Renewals & Retention"],
+        "source_fields": [
+          "scorecard.sections.pipeline-health",
+          "q2_outlook.by_category",
+          "commercial_approval.summary",
+          "renewals.summary_metrics"
+        ],
+        "metric_rules": [
+          "Each region slide is populated only from its validated regional snapshot.",
+          "Renewals remain ACV and pipeline remains ARR.",
+          "If a region has no current-quarter in-scope pipeline, it may fall forward to next-quarter outlook only with explicit footnote disclosure."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "global-commercial-approval-overview",
+      "title": "Global Commercial Approval Overview",
+      "subtitle": "Approved 2026 exposure and missing-approval candidates by region",
+      "required_slots": [
+        "approved_2026_by_region",
+        "missing_approval_by_region",
+        "largest_global_missing_candidates"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Commercial Approval"],
+        "source_fields": [
+          "regions[].commercial_approval.approved_ytd",
+          "regions[].commercial_approval.missing_candidates"
+        ],
+        "metric_rules": [
+          "Commercial approval overview rolls up approved-2026 and missing-candidate exposure by region.",
+          "Largest global missing candidates should be ranked by ARR."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "global-appendix",
+      "title": "Global Appendix and Factual Notes",
+      "subtitle": "Definitions, hierarchy notes, and known data limitations",
+      "required_slots": [
+        "metric_definition_notes",
+        "region_rollup_notes",
+        "known_gaps"
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Regional Snapshots", "Architecture Notes"],
+        "source_fields": [
+          "metric_definition_notes",
+          "region_rollup_notes",
+          "known_gaps"
+        ],
+        "metric_rules": [
+          "Appendix notes should document ARR versus ACV usage and rollup limitations."
+        ],
+        "known_gaps": [
+          "Global appendix is partly derived from architecture and rollup rules, not just workbook tabs."
+        ]
+      }
+    }
+  ]
+}

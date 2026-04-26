@@ -27,6 +27,17 @@ from typing import Any
 
 import requests
 
+try:
+    from manage_pipeline_open_list_views import (  # noqa: E402
+        TERRITORY_FILTERS,
+        list_view_filter,
+    )
+except ModuleNotFoundError:  # pragma: no cover
+    from scripts.manage_pipeline_open_list_views import (  # noqa: E402
+        TERRITORY_FILTERS,
+        list_view_filter,
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_TERRITORY_CONFIG_PATH = REPO_ROOT / "config" / "sd_monthly_territories.json"
@@ -218,41 +229,29 @@ def get_existing_list_info(
 
 
 def build_list_payload(territory_label: str, quarter_code: str, close_date_literal: str) -> dict[str, Any]:
+    if territory_label not in TERRITORY_FILTERS:
+        raise ValueError(f"No PI list-view filter policy for territory: {territory_label}")
     label = f"PI ARR Forecast {territory_label} {quarter_code} Land"
     api_name = normalize_api_name(label)
+    filtered_by_info = [
+        list_view_filter(item["fieldApiName"], list(item["operandLabels"]))
+        for item in TERRITORY_FILTERS[territory_label]
+    ]
+    filtered_by_info.extend(
+        [
+            list_view_filter("StageName", OPEN_STAGES),
+            list_view_filter("Type", ["Land"]),
+            list_view_filter("ForecastCategoryName", OPEN_FORECAST_CATEGORIES),
+            list_view_filter("CloseDate", [close_date_literal]),
+        ]
+    )
     return {
         "label": label,
         "listViewApiName": api_name,
         "visibility": "Private",
         "scope": {"apiName": "my_team_territory"},
         "displayColumns": DISPLAY_COLUMNS,
-        "filteredByInfo": [
-            {
-                "fieldApiName": "Sales_Director_Book__c",
-                "operator": "Equals",
-                "operandLabels": [territory_label],
-            },
-            {
-                "fieldApiName": "StageName",
-                "operator": "Equals",
-                "operandLabels": OPEN_STAGES,
-            },
-            {
-                "fieldApiName": "Type",
-                "operator": "Equals",
-                "operandLabels": ["Land"],
-            },
-            {
-                "fieldApiName": "ForecastCategoryName",
-                "operator": "Equals",
-                "operandLabels": OPEN_FORECAST_CATEGORIES,
-            },
-            {
-                "fieldApiName": "CloseDate",
-                "operator": "Equals",
-                "operandLabels": [close_date_literal],
-            },
-        ],
+        "filteredByInfo": filtered_by_info,
     }
 
 

@@ -1,0 +1,19 @@
+{
+  "roles": [
+    {
+      "role": "clean_book",
+      "slug": "patrick-gaughan",
+      "selection_basis": "Low omitted pressure in the modular fill payload and no approval backlog in the legacy sidecar."
+    },
+    {
+      "role": "omitted_heavy",
+      "slug": "sarah-pittroff",
+      "selection_basis": "Highest omitted ARR in the validated modular fill payload among the current director set."
+    },
+    {
+      "role": "approval_heavy",
+      "slug": "jesper-tyrer",
+      "selection_basis": "Highest combined approved and conditional approval count in the current legacy sidecar set."
+    }
+  ]
+}

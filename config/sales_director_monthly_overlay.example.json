@@ -1,0 +1,63 @@
+{
+  "finance_churn": {
+    "status": "provided",
+    "provenance": "example",
+    "owner": "Finance partner",
+    "source_name": "Quarterly Finance Churn Pack",
+    "headline": "Finance risk view shows concentration in a small set of renewals due this quarter.",
+    "summary_note": "Replace this example with the confirmed Finance source, owner, and refresh cadence once Alex P connects the team.",
+    "top_accounts": [
+      {
+        "account_name": "Example Asset Manager",
+        "region": "EMEA",
+        "signal": "Budget approval risk",
+        "amount": 4200000
+      },
+      {
+        "account_name": "Example Bank Group",
+        "region": "North America",
+        "signal": "Delayed procurement",
+        "amount": 3100000
+      },
+      {
+        "account_name": "Example Pension Fund",
+        "region": "APAC",
+        "signal": "Product scope reset",
+        "amount": 1900000
+      }
+    ]
+  },
+  "slipped_commentary": {
+    "status": "provided",
+    "provenance": "example",
+    "summary_note": "Sample owner commentary attached. Replace with current-quarter reasons before publishing the monthly pack.",
+    "root_cause_bullets": [
+      "Procurement and legal review are the most common documented slip drivers in this sample overlay.",
+      "Several high-value deals moved because customer decision committees pushed approval into the next month.",
+      "A smaller set of slips came from internal pricing and packaging resets rather than lost demand."
+    ],
+    "owner_comments": [
+      {
+        "owner_name": "Example Owner",
+        "region": "North America",
+        "opportunity_name": "Example Expansion",
+        "theme": "Procurement delay",
+        "comment": "Customer legal redlines pushed signature into next quarter."
+      },
+      {
+        "owner_name": "Example Owner",
+        "region": "EMEA",
+        "opportunity_name": "Example Renewal",
+        "theme": "Budget hold",
+        "comment": "Budget release slipped pending board approval at the client."
+      },
+      {
+        "owner_name": "Example Owner",
+        "region": "APAC",
+        "opportunity_name": "Example Land Deal",
+        "theme": "Scope reset",
+        "comment": "Client reduced scope and asked for repricing before final approval."
+      }
+    ]
+  }
+}

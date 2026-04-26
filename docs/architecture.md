@@ -1,5 +1,11 @@
 # SD Monthly Deck Pipeline — Architecture
 
+## Repo split decision
+
+CRM Analytics dashboard engineering and Sales Director monthly decks are separate operating products. The split boundary is recorded in [2026-04-24-crm-analytics-monthly-decks-split.md](/Users/test/crm-analytics/docs/2026-04-24-crm-analytics-monthly-decks-split.md:1), with the machine-readable inventory in [repo_split_manifest.json](/Users/test/crm-analytics/config/repo_split_manifest.json:1).
+
+Until the physical repo split is complete, treat `run_sales_director_monthly_cadence.py` and all deck/workbook/release-packet gates as monthly-deck ownership. Treat root `build_*.py`, Wave patch executors, and CRMA dashboard helpers as CRM Analytics ownership. Do not add new cross-imports between those lanes.
+
 ## Read this first: repo layout
 
 There are 161 Python scripts in `scripts/`. Most of them are not part of the production pipeline. Here is what matters and what to ignore.

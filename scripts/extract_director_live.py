@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Extract live Salesforce data into a director Excel workbook.
+"""Extract live Salesforce data into typed DirectorBundle models.
 
-Uses Alex P's methodology: Opportunity ARR (unweighted), reporting year only,
-stages 1-6 for open pipeline, account/owner exclusions.
-
-The Excel workbook is the single editable source of truth.
-The SimCorp deck renderer reads from this Excel.
+Produces a JSON bundle (the contract) and an Excel workbook (render artifact)
+per director territory. Uses Alex P's methodology: Opportunity ARR (unweighted),
+reporting year only, stages 1-6 for open pipeline, account/owner exclusions.
 
 Usage:
     python3 scripts/extract_director_live.py --territory APAC
@@ -17,28 +15,68 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+
 import requests
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.table import Table, TableStyleInfo
 
 try:
     from monthly_platform import SF_API_VERSION
     from monthly_platform.period import resolve_period_context
+    from monthly_platform.models import (
+        ActivitySignal,
+        ApprovalDeal,
+        BundleManifestEntry,
+        CloseDateEvent,
+        CommitItem,
+        DatasetSource,
+        Datasets,
+        DirectorBundle,
+        ForecastEvent,
+        MovementEvent,
+        PIDeal,
+        PipelineDeal,
+        RenewalDeal,
+        RunManifest,
+        SourceContract,
+        StageEvent,
+        WonLostDeal,
+    )
+    from monthly_platform.excel_renderer import render_bundle_to_excel
 except ModuleNotFoundError:  # pragma: no cover
-    from scripts.monthly_platform.period import resolve_period_context
+    from scripts.monthly_platform import SF_API_VERSION  # noqa: F811
+    from scripts.monthly_platform.period import resolve_period_context  # noqa: F811
+    from scripts.monthly_platform.models import (  # noqa: F811
+        ActivitySignal,
+        ApprovalDeal,
+        BundleManifestEntry as BundleManifestEntry,  # noqa: F811
+        CloseDateEvent,
+        CommitItem,
+        DatasetSource,
+        Datasets,
+        DirectorBundle,
+        ForecastEvent,
+        MovementEvent,
+        PIDeal,
+        PipelineDeal,
+        RenewalDeal,
+        RunManifest as RunManifest,  # noqa: F811
+        SourceContract,
+        StageEvent,
+        WonLostDeal,
+    )
+    from scripts.monthly_platform.excel_renderer import render_bundle_to_excel  # noqa: F811
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "output" / "director_live_workbooks"
 SOURCE_CONTRACT_AUDIT_ROOT = REPO_ROOT / "output" / "source_contract_audit"
 AUDIT_OUTPUT_ROOT = REPO_ROOT / "output" / "director_live_extract"
+BUNDLE_OUTPUT_ROOT = REPO_ROOT / "output" / "director_bundles"
 
 # ── Territory config ──
 # Loaded from config/sd_monthly_territories.json so that onboarding a new
@@ -66,6 +104,13 @@ TYPE_FILTER = "AND Type IN ('Land', 'Expand', 'Renewal')"
 OPEN_STAGES = "AND StageName IN ('1 - Prospecting', '2 - Discovery', '3 - Engagement', '4 - Shortlisted', '5 - Preferred', '6 - Contracting')"
 CLOSED_STAGES = "AND IsClosed = true"
 
+
+def _utc_now_iso() -> str:
+    import datetime as _dtmod
+
+    return _dtmod.datetime.now(tz=_dtmod.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 # ── Shared columns (matches Alex's report) ──
 # ARR fields wrapped in convertCurrency() so multi-currency books (APAC USD,
 # NA USD, EMEA CHF/SEK) report in the corporate currency (EUR) rather than
@@ -73,6 +118,7 @@ CLOSED_STAGES = "AND IsClosed = true"
 # response-parsing code does not change.
 PIPELINE_FIELDS = """
     Id, Account.Name, Name, Owner.Name, StageName, CloseDate,
+    IsClosed, IsWon,
     convertCurrency(APTS_Opportunity_ARR__c) APTS_Opportunity_ARR__c,
     convertCurrency(APTS_Forecast_ARR__c) APTS_Forecast_ARR__c,
     ForecastCategoryName, Probability, PushCount, Type,
@@ -83,12 +129,6 @@ PIPELINE_FIELDS = """
     Submit_for_Stage_20_Review__c, Submit_for_Stage_20_Review_Date__c,
     Approval_Status__c, Lost_to_Competitor__c
 """.strip()
-
-# ── Styling ──
-HEADER_FILL = PatternFill(start_color="083EA7", end_color="083EA7", fill_type="solid")
-HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
-DATA_FONT = Font(size=9)
-EUR_FMT = "#,##0"
 
 
 def _display_path(path: Path) -> str:
@@ -406,6 +446,55 @@ def fetch_pi(session, instance_url: str, lv_id: str, label: str = "") -> list[di
     return records
 
 
+def _ui_record_id(record: dict) -> str:
+    record_id = str(record.get("id") or "").strip()
+    if record_id:
+        return record_id
+    field = (record.get("fields") or {}).get("Id") or {}
+    return str(field.get("value") or "").strip()
+
+
+def _filter_pi_records_to_territory_scope(
+    session,
+    instance_url: str,
+    records: list[dict],
+    soql_where: str,
+    *,
+    label: str,
+) -> list[dict]:
+    """Apply the canonical territory SOQL scope after a PI/list-view fetch.
+
+    Salesforce UI list-view filters reject cross-account fields such as
+    Account.Industry, so NA AM/P&I need this guard to split a broad no-SDB
+    North America list view into the configured semantic scope.
+    """
+    if not records or not soql_where:
+        return records
+    ids_by_record = [(_ui_record_id(record), record) for record in records]
+    ids = [record_id for record_id, _record in ids_by_record if record_id]
+    if not ids:
+        return []
+
+    allowed: set[str] = set()
+    for start in range(0, len(ids), 200):
+        chunk = ids[start : start + 200]
+        id_clause = ",".join(f"'{item}'" for item in chunk)
+        query = (
+            "SELECT Id FROM Opportunity "
+            f"WHERE Id IN ({id_clause}) AND ({soql_where})"
+        )
+        allowed.update(
+            row["Id"]
+            for row in run_soql(
+                session,
+                instance_url,
+                query,
+                label=f"{label}:territory_scope",
+            )
+        )
+    return [record for record_id, record in ids_by_record if record_id in allowed]
+
+
 def _write_run_audit(output_dir: Path, payload: dict[str, Any]) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "director_live_extract_audit.json").write_text(
@@ -463,6 +552,67 @@ def _write_run_audit(output_dir: Path, payload: dict[str, Any]) -> None:
     )
 
 
+def _write_run_manifest(
+    manifest_path: Path,
+    *,
+    processed: list[dict],
+    failures: list[dict],
+    durations: dict[str, float],
+    snapshot_date: str,
+    started_at: str,
+    finished_at: str,
+    query_telemetry_totals: dict,
+) -> None:
+    import dataclasses as _dc
+
+    directors = [
+        BundleManifestEntry(
+            name=item["director"],
+            territory=item["territory"],
+            status="ok",
+            bundle_path=item.get("bundle_path", ""),
+            workbook_path=item.get("workbook_path", ""),
+            row_counts=item.get("counts", {}),
+            duration_seconds=durations.get(item["territory"], 0.0),
+        )
+        for item in processed
+    ]
+    failed = [
+        BundleManifestEntry(
+            name=TERRITORIES.get(item.get("territory", ""), {}).get(
+                "director", item.get("territory", "")
+            ),
+            territory=item.get("territory", ""),
+            status="failed",
+            bundle_path="",
+            workbook_path="",
+            row_counts={},
+            duration_seconds=0.0,
+            failure_reason=item.get("message", ""),
+        )
+        for item in failures
+    ]
+    manifest = RunManifest(
+        schema_version="1",
+        run_date=snapshot_date,
+        started_at=started_at,
+        finished_at=finished_at,
+        directors=directors,
+        failures=failed,
+        telemetry={
+            "total_queries": query_telemetry_totals.get("queries", 0),
+            "total_rows": query_telemetry_totals.get("rows", 0),
+            "total_duration_seconds": query_telemetry_totals.get("duration_ms", 0)
+            / 1000.0,
+        },
+    )
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(_dc.asdict(manifest), indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def build_session(token: str) -> requests.Session:
     """Build a requests.Session with the SF bearer token set.
 
@@ -486,48 +636,6 @@ def _val(record, field):
         else:
             return ""
     return obj if obj is not None else ""
-
-
-def _add_sheet(wb, name, headers, rows, eur_cols=None):
-    ws = wb.create_sheet(title=name[:31])
-    for ci, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=ci, value=h)
-        cell.fill = HEADER_FILL
-        cell.font = HEADER_FONT
-        cell.alignment = Alignment(horizontal="center")
-    for ri, row in enumerate(rows, 2):
-        for ci, val in enumerate(row, 1):
-            cell = ws.cell(row=ri, column=ci, value=val)
-            cell.font = DATA_FONT
-            if eur_cols and ci in eur_cols and isinstance(val, (int, float)):
-                cell.number_format = EUR_FMT
-    for ci in range(1, len(headers) + 1):
-        col_letter = get_column_letter(ci)
-        max_len = max(
-            len(str(headers[ci - 1])),
-            *(len(str(r[ci - 1])) for r in rows[:50]) if rows else [0],
-        )
-        ws.column_dimensions[col_letter].width = min(max_len + 3, 40)
-    if rows:
-        end_col = get_column_letter(len(headers))
-        table_name = (
-            name.replace(" ", "_")
-            .replace("-", "_")
-            .replace("&", "And")
-            .replace("/", "")[:30]
-        )
-        try:
-            table = Table(displayName=table_name, ref=f"A1:{end_col}{len(rows) + 1}")
-            table.tableStyleInfo = TableStyleInfo(
-                name="TableStyleMedium2",
-                showFirstColumn=False,
-                showLastColumn=False,
-                showRowStripes=True,
-            )
-            ws.add_table(table)
-        except Exception as exc:
-            print(f"  [WARN] table creation skipped: {exc}")
-    ws.freeze_panes = "A2"
 
 
 def extract_territory(
@@ -582,12 +690,7 @@ def extract_territory(
         token, instance_url = get_auth()
         session = build_session(token)
 
-    wb = Workbook()
-    wb.remove(wb.active)
-
     # ── 1+2. All FY deals (single query to avoid race condition) ──
-    # A deal that closes between two separate open/closed queries would appear
-    # in neither result set. One combined query eliminates that window.
     print("  All FY deals...", end=" ", flush=True)
     q = (
         f"SELECT {PIPELINE_FIELDS}, Reason_Won_Lost__c FROM Opportunity WHERE {where} "
@@ -596,7 +699,6 @@ def extract_territory(
     )
     all_deals = run_soql(session, instance_url, q, label=f"{territory}:all_fy_deals")
 
-    # Split in Python: open pipeline (stages 1-6) vs closed (won/lost)
     _open_stage_names = {
         "1 - Prospecting",
         "2 - Discovery",
@@ -613,110 +715,88 @@ def extract_territory(
     won_lost = [r for r in all_deals if r.get("IsClosed")]
     print(f"{len(all_deals)} total ({len(pipeline)} open, {len(won_lost)} closed)")
 
-    headers = [
-        "Account",
-        "Opportunity",
-        "Owner",
-        "Stage",
-        "Forecast Category",
-        "Close Date",
-        f"ARR Unweighted ({corp_ccy})",
-        f"ARR Weighted ({corp_ccy})",
-        "Probability %",
-        "Push Count",
-        "Type",
-        "Lead Scope",
-        "Industry",
-        "Tier",
-        "Sales Region",
-        "Created",
-        "Last Activity",
-        "Next Step",
-        "Last Modified",
-        "Approved",
-        "Approval Date",
-        "Competitor",
-    ]
-    rows = []
+    pipeline_models = []
     for r in pipeline:
-        rows.append(
-            [
-                _val(r, "Account.Name"),
-                r.get("Name", ""),
-                _val(r, "Owner.Name"),
-                r.get("StageName", ""),
-                r.get("ForecastCategoryName", ""),
-                r.get("CloseDate", ""),
-                r.get("APTS_Opportunity_ARR__c") or 0,
-                r.get("APTS_Forecast_ARR__c") or 0,
-                r.get("Probability") or 0,
-                r.get("PushCount") or 0,
-                r.get("Type", ""),
-                r.get("Lead_Scope__c", ""),
-                _val(r, "Account.Industry"),
-                _val(r, "Account.Tier_Calculation__c"),
-                r.get("Sales_Region__c", ""),
-                (r.get("CreatedDate") or "")[:10],
-                r.get("LastActivityDate", ""),
-                r.get("NextStep", ""),
-                (r.get("LastModifiedDate") or "")[:10],
-                "Yes" if r.get("Stage_20_Approval__c") else "No",
-                r.get("Stage_20_Approval_Date__c", ""),
-                # Known competitor on an OPEN deal — a risk signal worth
-                # flagging. Same field we already pull on closed deals.
-                r.get("Lost_to_Competitor__c", "") or "",
-            ]
+        created = (r.get("CreatedDate") or "")[:10]
+        close = r.get("CloseDate", "")
+        age = 0
+        if created and close:
+            try:
+                age = (
+                    date.fromisoformat(snapshot_date) - date.fromisoformat(created)
+                ).days
+            except ValueError:
+                pass
+        pipeline_models.append(
+            PipelineDeal(
+                account=_val(r, "Account.Name"),
+                opportunity=r.get("Name", ""),
+                owner=_val(r, "Owner.Name"),
+                stage=r.get("StageName", ""),
+                forecast_category=r.get("ForecastCategoryName", ""),
+                close_date=close,
+                arr_unweighted=r.get("APTS_Opportunity_ARR__c") or 0,
+                arr_weighted=r.get("APTS_Forecast_ARR__c") or 0,
+                probability=r.get("Probability") or 0,
+                push_count=r.get("PushCount") or 0,
+                deal_type=r.get("Type", ""),
+                lead_scope=r.get("Lead_Scope__c", ""),
+                industry=_val(r, "Account.Industry"),
+                tier=_val(r, "Account.Tier_Calculation__c"),
+                sales_region=r.get("Sales_Region__c", ""),
+                created_date=created,
+                last_activity_date=r.get("LastActivityDate") or None,
+                next_step=r.get("NextStep", ""),
+                last_modified_date=(r.get("LastModifiedDate") or "")[:10],
+                approved=bool(r.get("Stage_20_Approval__c")),
+                approval_date=r.get("Stage_20_Approval_Date__c") or None,
+                competitor=r.get("Lost_to_Competitor__c", "") or "",
+                currency=corp_ccy,
+                age_days=age,
+                quarter=_quarter_label(close, int(period["analysis_year"])),
+            )
         )
-    _add_sheet(
-        wb, f"Pipeline Open {period['fy_label']}", headers, rows, eur_cols=[7, 8]
-    )
 
-    # ── 2. Won/Lost (from combined query, closed deals) ──
-    headers = [
-        "Account",
-        "Opportunity",
-        "Owner",
-        "Stage",
-        "Close Date",
-        f"ARR Unweighted ({corp_ccy})",
-        "Type",
-        "Reason",
-        "Lost To Competitor",
-        "Industry",
-        "Sales Region",
-        "Created",
-    ]
-    rows = []
+    # ── 2. Won/Lost ──
+    won_lost_models = []
     for r in won_lost:
-        rows.append(
-            [
-                _val(r, "Account.Name"),
-                r.get("Name", ""),
-                _val(r, "Owner.Name"),
-                r.get("StageName", ""),
-                r.get("CloseDate", ""),
-                r.get("APTS_Opportunity_ARR__c") or 0,
-                r.get("Type", ""),
-                r.get("Reason_Won_Lost__c", ""),
-                r.get("Lost_to_Competitor__c", ""),
-                _val(r, "Account.Industry"),
-                r.get("Sales_Region__c", ""),
-                (r.get("CreatedDate") or "")[:10],
-            ]
+        created = (r.get("CreatedDate") or "")[:10]
+        close = r.get("CloseDate", "")
+        age = 0
+        if created and close:
+            try:
+                age = (
+                    date.fromisoformat(snapshot_date) - date.fromisoformat(created)
+                ).days
+            except ValueError:
+                pass
+        won_lost_models.append(
+            WonLostDeal(
+                account=_val(r, "Account.Name"),
+                opportunity=r.get("Name", ""),
+                owner=_val(r, "Owner.Name"),
+                stage=r.get("StageName", ""),
+                close_date=close,
+                arr_unweighted=r.get("APTS_Opportunity_ARR__c") or 0,
+                deal_type=r.get("Type", ""),
+                industry=_val(r, "Account.Industry"),
+                sales_region=r.get("Sales_Region__c", ""),
+                reason_won_lost=r.get("Reason_Won_Lost__c", ""),
+                competitor=r.get("Lost_to_Competitor__c", ""),
+                created_date=created,
+                currency=corp_ccy,
+                age_days=age,
+                quarter=_quarter_label(close, int(period["analysis_year"])),
+            )
         )
-    _add_sheet(wb, f"Won Lost {period['fy_label']}", headers, rows, eur_cols=[6])
 
-    # ── 3. Commercial Approval (open Land, reporting year) ──
-    # Approvals reuse the same open pipeline records, filtered to Land type.
-    # All approval fields are now in PIPELINE_FIELDS, so we skip the separate
-    # SOQL call entirely — saves one SF round-trip per director (9/run).
+    # ── 3. Commercial Approval ──
     print("  Approvals... (filtering from pipeline)", end=" ", flush=True)
     approvals = [r for r in pipeline if str(r.get("Type") or "").strip() == "Land"]
     approved_2026, approved_prior, pending, missing = [], [], [], []
     for r in approvals:
         approval_status = str(r.get("Approval_Status__c") or "").strip()
         if r.get("Stage_20_Approval__c"):
-            # Fully approved — split by year
             if str(r.get("Stage_20_Approval_Date__c", ""))[:4] == str(
                 period["analysis_year"]
             ):
@@ -727,93 +807,44 @@ def extract_territory(
             r.get("Submit_for_Stage_20_Review__c")
             or approval_status == "Needs Approval"
         ):
-            # Submitted for review OR flagged as needing approval but not yet approved
             pending.append(r)
         elif (
             r.get("StageName", "") >= "3" and approval_status != "No Approval Necessary"
         ):
-            # Stage 3+ with no approval AND not exempt → truly missing
             missing.append(r)
-        # Deals with "No Approval Necessary" at Stage 3+ are exempt — not counted as missing
     print(
         f"{len(approvals)} land ({len(approved_2026)} approved 2026, {len(approved_prior)} prior, {len(pending)} pending, {len(missing)} missing stage 3+)"
     )
 
-    headers = [
-        "Account",
-        "Opportunity",
-        "Owner",
-        "Stage",
-        "Close Date",
-        f"ARR Unweighted ({corp_ccy})",
-        "Status",
-        "Approval Date",
-        "Next Step",
-        "Lead Scope",
-    ]
-    rows = []
-    for r in approved_2026:
-        rows.append(
-            [
-                _val(r, "Account.Name"),
-                r.get("Name", ""),
-                _val(r, "Owner.Name"),
-                r.get("StageName", ""),
-                r.get("CloseDate", ""),
-                r.get("APTS_Opportunity_ARR__c") or 0,
-                "Approved 2026",
-                r.get("Stage_20_Approval_Date__c", ""),
-                r.get("NextStep", ""),
-                r.get("Lead_Scope__c", ""),
-            ]
+    def _approval_model(r, status, date_field="Stage_20_Approval_Date__c"):
+        return ApprovalDeal(
+            account=_val(r, "Account.Name"),
+            opportunity=r.get("Name", ""),
+            owner=_val(r, "Owner.Name"),
+            stage=r.get("StageName", ""),
+            close_date=r.get("CloseDate", ""),
+            arr_unweighted=r.get("APTS_Opportunity_ARR__c") or 0,
+            status=status,
+            approval_date=r.get(date_field) or None,
+            next_step=r.get("NextStep", ""),
+            lead_scope=r.get("Lead_Scope__c", ""),
+            quarter=_quarter_label(
+                r.get("CloseDate", ""), int(period["analysis_year"])
+            ),
         )
-    for r in approved_prior:
-        rows.append(
-            [
-                _val(r, "Account.Name"),
-                r.get("Name", ""),
-                _val(r, "Owner.Name"),
-                r.get("StageName", ""),
-                r.get("CloseDate", ""),
-                r.get("APTS_Opportunity_ARR__c") or 0,
-                "Approved (prior year)",
-                r.get("Stage_20_Approval_Date__c", ""),
-                r.get("NextStep", ""),
-                r.get("Lead_Scope__c", ""),
-            ]
-        )
-    for r in pending:
-        rows.append(
-            [
-                _val(r, "Account.Name"),
-                r.get("Name", ""),
-                _val(r, "Owner.Name"),
-                r.get("StageName", ""),
-                r.get("CloseDate", ""),
-                r.get("APTS_Opportunity_ARR__c") or 0,
-                "Pending Approval",
-                r.get("Submit_for_Stage_20_Review_Date__c", ""),
-                r.get("NextStep", ""),
-                r.get("Lead_Scope__c", ""),
-            ]
-        )
-    for r in missing:
-        rows.append(
-            [
-                _val(r, "Account.Name"),
-                r.get("Name", ""),
-                _val(r, "Owner.Name"),
-                r.get("StageName", ""),
-                r.get("CloseDate", ""),
-                r.get("APTS_Opportunity_ARR__c") or 0,
-                "Missing (Stage 3+)",
-                "",
-                r.get("NextStep", ""),
-                r.get("Lead_Scope__c", ""),
-            ]
-        )
-    _add_sheet(wb, "Commercial Approval", headers, rows, eur_cols=[6])
-    commercial_approval_rows = len(rows)
+
+    approval_models = (
+        [
+            _approval_model(r, f"Approved {period['analysis_year']}")
+            for r in approved_2026
+        ]
+        + [_approval_model(r, "Approved (prior year)") for r in approved_prior]
+        + [
+            _approval_model(r, "Pending Approval", "Submit_for_Stage_20_Review_Date__c")
+            for r in pending
+        ]
+        + [_approval_model(r, "Missing (Stage 3+)") for r in missing]
+    )
 
     # ── 4. Renewals (open, reporting year, sorted by close date) ──
     print("  Renewals...", end=" ", flush=True)
@@ -826,61 +857,69 @@ def extract_territory(
     renewals = run_soql(session, instance_url, q, label=f"{territory}:renewals")
     print(f"{len(renewals)} renewals")
 
-    headers = [
-        "Close Date",
-        "Account",
-        "Opportunity",
-        "Owner",
-        "Stage",
-        f"ACV Unweighted ({corp_ccy})",
-        "Probability %",
-        "Comments",
-    ]
-    rows = []
-    for r in renewals:
-        rows.append(
-            [
-                r.get("CloseDate", ""),
-                _val(r, "Account.Name"),
-                r.get("Name", ""),
-                _val(r, "Owner.Name"),
-                r.get("StageName", ""),
-                r.get("Amount") or 0,
-                r.get("Probability") or 0,
-                "",  # Comments column for director
-            ]
+    renewal_models = [
+        RenewalDeal(
+            account=_val(r, "Account.Name"),
+            opportunity=r.get("Name", ""),
+            owner=_val(r, "Owner.Name"),
+            stage=r.get("StageName", ""),
+            close_date=r.get("CloseDate", ""),
+            acv_unweighted=r.get("Amount") or 0,
+            deal_type="Renewal",
+            quarter=_quarter_label(
+                r.get("CloseDate", ""), int(period["analysis_year"])
+            ),
+            probability=r.get("Probability") or 0,
+            comments="",
         )
-    _add_sheet(wb, f"Renewals {period['fy_label']}", headers, rows, eur_cols=[6])
+        for r in renewals
+    ]
 
-    # ── 5. Pipeline Inspection (open reporting-year deals from PI list view) ──
+    # ── 5. Pipeline Inspection ──
     print("  PI view...", end=" ", flush=True)
     pi_raw = fetch_pi(session, instance_url, pi_lv, label=f"{territory}:pi")
-    pi_headers = [
-        "Opportunity",
-        "Owner",
-        "Stage",
-        "Forecast Category",
-        "ARR Weighted (native ccy)",
-        "Currency",
-        "Close Date",
-        "Push Count",
-        "Score",
-        "Priority",
-    ]
+    pi_raw = _filter_pi_records_to_territory_scope(
+        session,
+        instance_url,
+        pi_raw,
+        where,
+        label=f"{territory}:pi",
+    )
     pi_rows = _build_pipeline_inspection_rows(
         pi_raw, analysis_year=int(period["analysis_year"]), corp_ccy=corp_ccy
     )
     print(f"{len(pi_rows)} open {period['fy_label']} deals")
-    _add_sheet(wb, "Pipeline Inspection", pi_headers, pi_rows, eur_cols=[5])
+    pi_models = [
+        PIDeal(
+            opportunity=row[0],
+            owner=row[1],
+            stage=row[2],
+            forecast_category=row[3],
+            arr_weighted=row[4] or 0,
+            currency=row[5],
+            close_date=row[6],
+            push_count=row[7] or 0,
+            score=row[8],
+            priority=row[9] == "Yes",
+        )
+        for row in pi_rows
+    ]
 
-    # ── 5a. Forward-quarter Pipeline Inspection (quarter-scoped PI source) ──
-    forward_pi_rows: list[list] = []
+    # ── 5a. Forward-quarter Pipeline Inspection ──
+    forward_pi_models: list[PIDeal] = []
     if forward_pi_source:
         print("  PI forward quarter...", end=" ", flush=True)
         forward_pi_raw = fetch_pi(
             session,
             instance_url,
             forward_pi_source["list_view_id"],
+            label=f"{territory}:pi_forward:{forward_pi_source['quarter_label']}",
+        )
+        forward_pi_raw = _filter_pi_records_to_territory_scope(
+            session,
+            instance_url,
+            forward_pi_raw,
+            where,
             label=f"{territory}:pi_forward:{forward_pi_source['quarter_label']}",
         )
         forward_pi_rows = _build_pipeline_inspection_rows(
@@ -891,13 +930,21 @@ def extract_territory(
             corp_ccy=corp_ccy,
         )
         print(f"{len(forward_pi_rows)} open {forward_pi_source['quarter_title']} deals")
-        _add_sheet(
-            wb,
-            "Pipeline Inspection Forward",
-            pi_headers,
-            forward_pi_rows,
-            eur_cols=[5],
-        )
+        forward_pi_models = [
+            PIDeal(
+                opportunity=row[0],
+                owner=row[1],
+                stage=row[2],
+                forecast_category=row[3],
+                arr_weighted=row[4] or 0,
+                currency=row[5],
+                close_date=row[6],
+                push_count=row[7] or 0,
+                score=row[8],
+                priority=row[9] == "Yes",
+            )
+            for row in forward_pi_rows
+        ]
 
     # ── 5b. Activity volume per open deal ──
     # Group Task + Event count per Opportunity for the 30/60/90-day windows.
@@ -983,92 +1030,47 @@ def extract_territory(
         # computes across Tasks+Events+EmailMessage so is authoritative).
         for rec in pipeline:
             oid = rec.get("Id")
-            acct = _val(rec, "Account.Name")
-            opp = rec.get("Name", "")
-            owner = _val(rec, "Owner.Name")
             agg = act_by_opp.get(str(oid or ""), {"tasks": 0, "events": 0})
             total_90 = int(agg.get("tasks", 0)) + int(agg.get("events", 0))
-            last_activity = rec.get("LastActivityDate") or ""
             activity_rows.append(
-                [
-                    acct,
-                    opp,
-                    owner,
-                    agg.get("tasks", 0),
-                    agg.get("events", 0),
-                    total_90,
-                    last_activity,
-                    "No touch 90d" if total_90 == 0 else "",
-                ]
+                ActivitySignal(
+                    account=_val(rec, "Account.Name"),
+                    opportunity=rec.get("Name", ""),
+                    owner=_val(rec, "Owner.Name"),
+                    tasks_90d=int(agg.get("tasks", 0)),
+                    events_90d=int(agg.get("events", 0)),
+                    total_touches_90d=total_90,
+                    last_activity_date=rec.get("LastActivityDate") or None,
+                    flag="No touch 90d" if total_90 == 0 else "",
+                )
             )
-    activity_rows.sort(key=lambda x: (x[5], x[6] or ""))  # silent first
-    print(f"{sum(1 for r in activity_rows if r[5] == 0)} silent deals (90d)")
-    _add_sheet(
-        wb,
-        "Activity Volume",
-        [
-            "Account",
-            "Opportunity",
-            "Owner",
-            "Tasks 90d",
-            "Events 90d",
-            "Total Touches 90d",
-            "Last Activity",
-            "Flag",
-        ],
-        activity_rows,
+    activity_models = activity_rows
+    print(
+        f"{sum(1 for a in activity_models if a.total_touches_90d == 0)} silent deals (90d)"
     )
 
-    # ── 5c. Per-deal commit breakdown ──
-    # ForecastingItem rolls up per (owner, period, category) — it has no
-    # OpportunityId column, so we can't join per-deal via that table. The
-    # Opportunity's own ForecastCategoryName + APTS_Forecast_ARR__c
-    # (already in PIPELINE_FIELDS) IS the per-deal commit view, so we
-    # project that here as the "Commit Items" sheet — same shape as a
-    # ForecastingItem breakdown but sourced authoritatively from the deal.
+    # ── 5c. Commit items ──
     print("  Commit items... ", end=" ", flush=True)
-    fi_rows_out = []
+    commit_models = []
     for r in pipeline:
         cat = str(r.get("ForecastCategoryName") or "").strip()
-        # Skip Omitted + blanks; those aren't part of any commit.
         if not cat or cat == "Omitted":
             continue
         close = str(r.get("CloseDate") or "")[:10]
-        # Derive quarter from close date for period grouping.
-        qtr = ""
-        qtr = _quarter_label(close, int(period["analysis_year"]))
-        fi_rows_out.append(
-            [
-                _val(r, "Account.Name"),
-                r.get("Name", ""),
-                _val(r, "Owner.Name"),
-                cat,
-                r.get("APTS_Forecast_ARR__c") or 0,
-                r.get("APTS_Opportunity_ARR__c") or 0,
-                close,
-                qtr,
-                r.get("StageName", ""),
-            ]
+        commit_models.append(
+            CommitItem(
+                account=_val(r, "Account.Name"),
+                opportunity=r.get("Name", ""),
+                owner=_val(r, "Owner.Name"),
+                forecast_category=cat,
+                arr_weighted=r.get("APTS_Forecast_ARR__c") or 0,
+                arr_unweighted=r.get("APTS_Opportunity_ARR__c") or 0,
+                close_date=close,
+                period=_quarter_label(close, int(period["analysis_year"])),
+                stage=r.get("StageName", ""),
+            )
         )
-    fi_rows_out.sort(key=lambda x: -(x[4] or 0))
-    print(f"{len(fi_rows_out)} commit rows")
-    _add_sheet(
-        wb,
-        "Commit Items",
-        [
-            "Account",
-            "Opportunity",
-            "Owner",
-            "Forecast Category",
-            f"Forecast ARR Wtd ({corp_ccy})",
-            f"ARR Unwtd ({corp_ccy})",
-            "Close Date",
-            "Period",
-            "Stage",
-        ],
-        fi_rows_out,
-        eur_cols=[5, 6],
-    )
+    print(f"{len(commit_models)} commit rows")
 
     # ── 6. Q1 Movement (field history analysis) ──
     print("  Q1 movement...", end=" ", flush=True)
@@ -1120,8 +1122,7 @@ def extract_territory(
     close_history = [r for r in close_history if r.get("Field") == "CloseDate"]
 
     # Classify: Q1 slipped, post-Q1 pushed
-    q1_slipped_rows = []
-    post_q1_pushed_rows = []
+    q1_movement_models = []
     seen_slip = set()
     seen_push = set()
     for r in close_history:
@@ -1137,8 +1138,6 @@ def extract_territory(
         stage = opp.get("StageName", "")
         is_closed = opp.get("IsClosed", False)
 
-        # Q1 slipped: close date WAS in Q1 of the reporting year, got pushed
-        # out of Q1, and the push event itself occurred in that reporting year.
         if (
             old_val >= period["q1_start"]
             and old_val <= period["q1_end"]
@@ -1147,63 +1146,48 @@ def extract_territory(
             and oid not in seen_slip
         ):
             seen_slip.add(oid)
-            q1_slipped_rows.append(
-                [
-                    account,
-                    name,
-                    owner,
-                    stage,
-                    "Q1 Slipped",
-                    old_val,
-                    new_val,
-                    change_date,
-                    arr,
-                ]
+            q1_movement_models.append(
+                MovementEvent(
+                    account=account,
+                    opportunity=name,
+                    owner=owner,
+                    stage=stage,
+                    movement_type="Q1 Slipped",
+                    old_close=old_val,
+                    new_close=new_val,
+                    changed_on=change_date,
+                    arr_unweighted=arr,
+                )
             )
 
-        # Post-Q1 pushed: any push after the end of Q1 in the reporting year.
         if change_date >= period["q2_start"] and not is_closed and oid not in seen_push:
             seen_push.add(oid)
-            post_q1_pushed_rows.append(
-                [
-                    account,
-                    name,
-                    owner,
-                    stage,
-                    "Post-Q1 Push",
-                    old_val,
-                    new_val,
-                    change_date,
-                    arr,
-                ]
+            q1_movement_models.append(
+                MovementEvent(
+                    account=account,
+                    opportunity=name,
+                    owner=owner,
+                    stage=stage,
+                    movement_type="Post-Q1 Push",
+                    old_close=old_val,
+                    new_close=new_val,
+                    changed_on=change_date,
+                    arr_unweighted=arr,
+                )
             )
 
-    headers = [
-        "Account",
-        "Opportunity",
-        "Owner",
-        "Stage",
-        "Movement",
-        "Old Close",
-        "New Close",
-        "Changed On",
-        f"ARR Unweighted ({corp_ccy})",
-    ]
-    all_movement = q1_slipped_rows + post_q1_pushed_rows
-    all_movement.sort(key=lambda x: -(x[8] or 0))
-    print(f"{len(q1_slipped_rows)} Q1 slips, {len(post_q1_pushed_rows)} post-Q1 pushes")
-    _add_sheet(wb, "Q1 Movement", headers, all_movement, eur_cols=[9])
+    print(
+        f"{sum(1 for m in q1_movement_models if m.movement_type == 'Q1 Slipped')} Q1 slips, {sum(1 for m in q1_movement_models if m.movement_type == 'Post-Q1 Push')} post-Q1 pushes"
+    )
 
-    # ── 6a. Q2 Movement (same event stream, Q2 scope) ──
+    # ── 6a. Q2 Movement ──
     print("  Q2 movement...", end=" ", flush=True)
-    q2_slipped_rows = []
-    post_q2_pushed_rows = []
+    q2_movement_models = []
     seen_q2_slip = set()
     seen_q2_push = set()
-    for r_raw in [r for r in close_history]:
+    for r_raw in close_history:
         opp = r_raw.get("Opportunity") or {}
         oid = r_raw.get("OpportunityId", "")
-        name = opp.get("Name", "")
         old_val = str(r_raw.get("OldValue", ""))
         new_val = str(r_raw.get("NewValue", ""))
         change_date = str(r_raw.get("CreatedDate", ""))[:10]
@@ -1221,18 +1205,18 @@ def extract_territory(
             and oid not in seen_q2_slip
         ):
             seen_q2_slip.add(oid)
-            q2_slipped_rows.append(
-                [
-                    account,
-                    name,
-                    owner,
-                    stage,
-                    "Q2 Slipped",
-                    old_val,
-                    new_val,
-                    change_date,
-                    arr,
-                ]
+            q2_movement_models.append(
+                MovementEvent(
+                    account=account,
+                    opportunity=opp.get("Name", ""),
+                    owner=owner,
+                    stage=stage,
+                    movement_type="Q2 Slipped",
+                    old_close=old_val,
+                    new_close=new_val,
+                    changed_on=change_date,
+                    arr_unweighted=arr,
+                )
             )
 
         if (
@@ -1241,257 +1225,261 @@ def extract_territory(
             and oid not in seen_q2_push
         ):
             seen_q2_push.add(oid)
-            post_q2_pushed_rows.append(
-                [
-                    account,
-                    name,
-                    owner,
-                    stage,
-                    "Post-Q2 Push",
-                    old_val,
-                    new_val,
-                    change_date,
-                    arr,
-                ]
+            q2_movement_models.append(
+                MovementEvent(
+                    account=account,
+                    opportunity=opp.get("Name", ""),
+                    owner=owner,
+                    stage=stage,
+                    movement_type="Post-Q2 Push",
+                    old_close=old_val,
+                    new_close=new_val,
+                    changed_on=change_date,
+                    arr_unweighted=arr,
+                )
             )
 
-    all_q2_movement = q2_slipped_rows + post_q2_pushed_rows
-    all_q2_movement.sort(key=lambda x: -(x[8] or 0))
-    print(f"{len(q2_slipped_rows)} Q2 slips, {len(post_q2_pushed_rows)} post-Q2 pushes")
-    _add_sheet(wb, "Q2 Movement", headers, all_q2_movement, eur_cols=[9])
+    print(
+        f"{sum(1 for m in q2_movement_models if m.movement_type == 'Q2 Slipped')} Q2 slips, {sum(1 for m in q2_movement_models if m.movement_type == 'Post-Q2 Push')} post-Q2 pushes"
+    )
 
-    # ── 6b. Stage History + Forecast Category History (from extended query) ──
-    # Raw event streams for downstream analytics (stage-at-loss, forecast
-    # drift, commit accuracy). One row per field-change event.
-    def _history_row(r):
+    # ── 6b. Stage + Forecast Category + Close Date History ──
+    def _event_fields(r):
         opp = r.get("Opportunity") or {}
-        return [
-            (opp.get("Account") or {}).get("Name", ""),
-            opp.get("Name", ""),
-            (opp.get("Owner") or {}).get("Name", ""),
-            opp.get("StageName", ""),
-            str(r.get("OldValue") or ""),
-            str(r.get("NewValue") or ""),
-            str(r.get("CreatedDate", ""))[:10],
-            opp.get("APTS_Opportunity_ARR__c") or 0,
-        ]
+        return {
+            "opportunity_id": r.get("OpportunityId", ""),
+            "opportunity": opp.get("Name", ""),
+            "account": (opp.get("Account") or {}).get("Name", ""),
+            "owner": (opp.get("Owner") or {}).get("Name", ""),
+            "current_stage": opp.get("StageName", ""),
+            "old_value": str(r.get("OldValue") or ""),
+            "new_value": str(r.get("NewValue") or ""),
+            "created_date": str(r.get("CreatedDate", ""))[:10],
+            "arr_unweighted": opp.get("APTS_Opportunity_ARR__c") or 0,
+        }
 
-    stage_headers = [
-        "Account",
-        "Opportunity",
-        "Owner",
-        "Stage (live)",
-        "From Stage",
-        "To Stage",
-        "Changed On",
-        f"ARR Unweighted ({corp_ccy})",
+    stage_models = [
+        StageEvent(
+            **_event_fields(r),
+            is_closed=(r.get("Opportunity") or {}).get("IsClosed", False),
+            is_won=(r.get("Opportunity") or {}).get("IsWon", False),
+        )
+        for r in stage_history_events
     ]
-    stage_rows = [_history_row(r) for r in stage_history_events]
-    stage_rows.sort(key=lambda x: x[6], reverse=True)
-    print(f"  Stage history: {len(stage_rows)} events")
-    _add_sheet(wb, "Stage History", stage_headers, stage_rows, eur_cols=[8])
-
-    fcat_headers = [
-        "Account",
-        "Opportunity",
-        "Owner",
-        "Stage (live)",
-        "From Category",
-        "To Category",
-        "Changed On",
-        f"ARR Unweighted ({corp_ccy})",
+    fcat_models = [ForecastEvent(**_event_fields(r)) for r in fcat_history_events]
+    close_date_models = [
+        CloseDateEvent(
+            **_event_fields(r),
+            is_closed=(r.get("Opportunity") or {}).get("IsClosed", False),
+        )
+        for r in close_history
     ]
-    fcat_rows = [_history_row(r) for r in fcat_history_events]
-    fcat_rows.sort(key=lambda x: x[6], reverse=True)
-    print(f"  Forecast category history: {len(fcat_rows)} events")
-    _add_sheet(wb, "Forecast Category History", fcat_headers, fcat_rows, eur_cols=[8])
+    print(f"  Stage history: {len(stage_models)} events")
+    print(f"  Forecast category history: {len(fcat_models)} events")
 
-    # ── Summary sheet ──
-    ws = wb.create_sheet(title="Summary", index=0)
-    ws["A1"] = f"{director} ({territory})"
-    ws["A1"].font = Font(bold=True, size=14, color="083EA7")
-    ws["A2"] = f"Reporting period: {period['fy_label']} (Q1-Q4)"
-    ws["A2"].font = Font(size=10, color="666666")
-    ws["A3"] = f"Snapshot date: {period['snapshot_date']} — live pull from Salesforce"
-    ws["A3"].font = Font(size=10, color="666666")
-    ws["A4"] = (
-        "Methodology: Alex P — ARR Unweighted = APTS_Opportunity_ARR__c (full deal value); "
-        "ARR Weighted = APTS_Forecast_ARR__c (probability-weighted). "
-        "Excl simcorp/test/delete accounts, excl Sabiniewicz/Profit owners."
+    # ── Assemble DirectorBundle ──
+    def _tele_ms(label_substring: str) -> int:
+        for entry in reversed(QUERY_TELEMETRY):
+            if label_substring in entry.get("label", ""):
+                return int(entry.get("duration_ms", 0))
+        return 0
+
+    source_contract = SourceContract(
+        sf_org="simcorp.my.salesforce.com",
+        api_version=SF_API_VERSION,
+        territory_soql_where=where,
+        extract_timestamp=_utc_now_iso(),
+        sources={
+            "pipeline_open": DatasetSource(
+                "soql",
+                None,
+                f"{territory}:all_fy_deals",
+                len(pipeline_models),
+                _tele_ms(f"{territory}:all_fy_deals"),
+            ),
+            "won_lost": DatasetSource(
+                "soql",
+                None,
+                f"{territory}:all_fy_deals",
+                len(won_lost_models),
+                _tele_ms(f"{territory}:all_fy_deals"),
+            ),
+            "renewals": DatasetSource(
+                "soql",
+                None,
+                f"{territory}:renewals",
+                len(renewal_models),
+                _tele_ms(f"{territory}:renewals"),
+            ),
+            "pi_current": DatasetSource(
+                "list_view",
+                str(pi_lv),
+                f"{territory}:pi",
+                len(pi_models),
+                _tele_ms(f"{territory}:pi"),
+            ),
+            "pi_forward": DatasetSource(
+                "list_view",
+                str((forward_pi_source or {}).get("list_view_id", "")) or None,
+                f"{territory}:pi_forward",
+                len(forward_pi_models),
+                _tele_ms(f"{territory}:pi_forward"),
+            )
+            if forward_pi_source
+            else DatasetSource(
+                "list_view",
+                None,
+                f"{territory}:pi_forward",
+                0,
+                0,
+            ),
+            "activity": DatasetSource(
+                "soql",
+                None,
+                f"{territory}:activity",
+                len(activity_models),
+                sum(_tele_ms(f"{territory}:{k}") for k in ("tasks_90d", "events_90d")),
+            ),
+            "stage_events": DatasetSource(
+                "field_history",
+                None,
+                f"{territory}:field_history",
+                len(stage_models),
+                _tele_ms(f"{territory}:field_history"),
+            ),
+        },
     )
-    ws["A4"].font = Font(size=8, italic=True, color="999999")
 
-    # KPI summary
-    total_pipeline_arr = sum(r.get("APTS_Opportunity_ARR__c") or 0 for r in pipeline)
-    won = [r for r in won_lost if "Won" in (r.get("StageName") or "")]
-    lost = [
-        r
-        for r in won_lost
-        if "Lost" in (r.get("StageName") or "")
-        or "Opt Out" in (r.get("StageName") or "")
-    ]
-    won_arr = sum(r.get("APTS_Opportunity_ARR__c") or 0 for r in won)
-    lost_arr = sum(r.get("APTS_Opportunity_ARR__c") or 0 for r in lost)
-    renewal_acv = sum(r.get("Amount") or 0 for r in renewals)
+    dataset_counts = {
+        "pipeline_open": len(pipeline_models),
+        "won_lost": len(won_lost_models),
+        "renewals": len(renewal_models),
+        "approvals": len(approval_models),
+        "pi_current": len(pi_models),
+        "pi_forward": len(forward_pi_models),
+        "activity": len(activity_models),
+        "commit_items": len(commit_models),
+        "stage_events": len(stage_models),
+        "forecast_category_events": len(fcat_models),
+        "close_date_events": len(close_date_models),
+        "movement_prior": len(q1_movement_models),
+        "movement_current": len(q2_movement_models),
+        "snapshot_trend": 0,
+    }
 
-    ws["A6"] = "KPI"
-    ws["B6"] = "Value"
-    ws["A6"].font = HEADER_FONT
-    ws["A6"].fill = HEADER_FILL
-    ws["B6"].font = HEADER_FONT
-    ws["B6"].fill = HEADER_FILL
-    kpis = [
-        (
-            "Open Pipeline Unweighted (stages 1-6)",
-            f"{corp_ccy} {total_pipeline_arr:,.0f}",
+    bundle = DirectorBundle(
+        schema_version="1",
+        snapshot_date=snapshot_date,
+        director=director,
+        territory=territory,
+        corp_ccy=corp_ccy,
+        extract_timestamp=source_contract.extract_timestamp,
+        source_contract=source_contract,
+        dataset_counts=dataset_counts,
+        datasets=Datasets(
+            pipeline_open=pipeline_models,
+            won_lost=won_lost_models,
+            renewals=renewal_models,
+            approvals=approval_models,
+            pi_current=pi_models,
+            pi_forward=forward_pi_models,
+            activity=activity_models,
+            commit_items=commit_models,
+            stage_events=stage_models,
+            forecast_category_events=fcat_models,
+            close_date_events=close_date_models,
+            movement_prior=q1_movement_models,
+            movement_current=q2_movement_models,
+            snapshot_trend=[],
         ),
-        ("Open Deal Count", str(len(pipeline))),
-        (f"Won ARR Unweighted {period['fy_label']}", f"{corp_ccy} {won_arr:,.0f}"),
-        ("Won Deal Count", str(len(won))),
-        (f"Lost ARR Unweighted {period['fy_label']}", f"{corp_ccy} {lost_arr:,.0f}"),
-        ("Lost Deal Count", str(len(lost))),
-        (f"Approved {period['analysis_year']} (Land)", str(len(approved_2026))),
-        ("Approved Prior Year", str(len(approved_prior))),
-        ("Pending Approval", str(len(pending))),
-        ("Missing Approval (Stage 3+)", str(len(missing))),
-        ("Open Renewal ACV Unweighted", f"{corp_ccy} {renewal_acv:,.0f}"),
-        ("Open Renewals", str(len(renewals))),
-        (f"PI Open Deals ({period['fy_label']})", str(len(pi_rows))),
-    ]
-    if forward_pi_source:
-        kpis.append(
-            (
-                f"PI Forward Deals ({forward_pi_source['quarter_title']})",
-                str(len(forward_pi_rows)),
-            )
+    )
+
+    # Validate bundle before writing
+    try:
+        from monthly_platform.bundle_validation import (
+            validate_bundle as _validate_bundle,
         )
-    for i, (label, val) in enumerate(kpis, 7):
-        ws[f"A{i}"] = label
-        ws[f"B{i}"] = val
-
-    # Sheet index
-    ws[f"A{len(kpis) + 8}"] = "Sheet"
-    ws[f"B{len(kpis) + 8}"] = "Records"
-    ws[f"C{len(kpis) + 8}"] = "Source"
-    for col in ("A", "B", "C"):
-        ws[f"{col}{len(kpis) + 8}"].font = HEADER_FONT
-        ws[f"{col}{len(kpis) + 8}"].fill = HEADER_FILL
-    sheets = [
-        (
-            f"Pipeline Open {period['fy_label']}",
-            len(pipeline),
-            f"SOQL — open, stages 1-6, {period['fy_label']}",
-        ),
-        (
-            f"Won Lost {period['fy_label']}",
-            len(won_lost),
-            f"SOQL — closed, stages 0/7/8, {period['fy_label']}",
-        ),
-        (
-            "Commercial Approval",
-            commercial_approval_rows,
-            f"SOQL — open Land, {period['fy_label']}",
-        ),
-        (
-            f"Renewals {period['fy_label']}",
-            len(renewals),
-            f"SOQL — open Renewal, {period['fy_label']}",
-        ),
-        (
-            "Pipeline Inspection",
-            len(pi_rows),
-            f"PI list view — broad coaching population, {period['fy_label']}",
-        ),
-    ]
-    if forward_pi_source:
-        sheets.append(
-            (
-                "Pipeline Inspection Forward",
-                len(forward_pi_rows),
-                f"PI list view — forward quarter {forward_pi_source['quarter_title']}",
-            )
+    except ModuleNotFoundError:
+        from scripts.monthly_platform.bundle_validation import (
+            validate_bundle as _validate_bundle,
         )
-    for i, (sname, count, source) in enumerate(sheets, len(kpis) + 9):
-        ws[f"A{i}"] = sname
-        ws[f"B{i}"] = count
-        ws[f"C{i}"] = source
 
-    ws.column_dimensions["A"].width = 30
-    ws.column_dimensions["B"].width = 20
-    ws.column_dimensions["C"].width = 40
+    validation_errors = _validate_bundle(bundle)
+    if validation_errors:
+        print(f"  [WARN] bundle validation: {len(validation_errors)} issue(s)")
+        for err in validation_errors[:5]:
+            print(f"    - {err}")
 
-    # ── Save ──
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(str(output_path))
+    # Write JSON bundle
+    slug = re.sub(r"[^a-z0-9]+", "-", director.lower()).strip("-")
+    bundle_dir = BUNDLE_OUTPUT_ROOT / snapshot_date
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    bundle_path = bundle_dir / f"{slug}.json"
+    bundle_path.write_text(bundle.to_json() + "\n", encoding="utf-8")
+
+    # Render Excel workbook from the bundle
+    render_bundle_to_excel(bundle, output_path)
+
     print(f"\n  Saved: {output_path}")
-    print(f"  Pipeline: {len(pipeline)} deals, {corp_ccy} {total_pipeline_arr:,.0f}")
+    print(f"  Bundle: {bundle_path}")
     print(
-        f"  Won/Lost: {len(won)} won ({corp_ccy} {won_arr:,.0f}) / {len(lost)} lost ({corp_ccy} {lost_arr:,.0f})"
+        f"  Pipeline: {len(pipeline_models)} deals, {corp_ccy} {sum(d.arr_unweighted for d in pipeline_models):,.0f}"
     )
-    print(
-        f"  Approvals: {len(approved_2026)} approved {period['analysis_year']} / {len(approved_prior)} prior / {len(pending)} pending / {len(missing)} missing"
-    )
-    print(f"  Renewals: {len(renewals)} ({corp_ccy} {renewal_acv:,.0f} ACV)")
-    print(f"  PI: {len(pi_rows)} open {period['fy_label']} deals")
-    if forward_pi_source:
-        print(
-            f"  PI forward: {len(forward_pi_rows)} open {forward_pi_source['quarter_title']} deals"
-        )
 
+    # Return dict (backward compat for audit — Phase 1)
+    won = [d for d in won_lost_models if "Won" in d.stage]
+    lost = [d for d in won_lost_models if "Lost" in d.stage or "Opt Out" in d.stage]
     return {
         "territory": territory,
         "director": director,
         "snapshot_date": snapshot_date,
         "workbook_path": _display_path(output_path),
+        "bundle_path": _display_path(bundle_path),
         "analysis_year": int(period["analysis_year"]),
         "fy_label": str(period["fy_label"]),
         "counts": {
-            "pipeline_open": len(pipeline),
-            "won_lost": len(won_lost),
+            "pipeline_open": len(pipeline_models),
+            "won_lost": len(won_lost_models),
             "won": len(won),
             "lost": len(lost),
             "commercial_approval_land": len(approvals),
-            "commercial_approval_sheet_rows": commercial_approval_rows,
+            "commercial_approval_sheet_rows": len(approval_models),
             "approved_current_year": len(approved_2026),
             "approved_prior_year": len(approved_prior),
             "pending_approval": len(pending),
             "missing_approval": len(missing),
-            "renewals": len(renewals),
-            "pipeline_inspection": len(pi_rows),
-            "pipeline_inspection_forward": len(forward_pi_rows),
-            "activity_volume_rows": len(activity_rows),
-            "commit_items": len(fi_rows_out),
-            "q1_movement": len(all_movement),
-            "q2_movement": len(all_q2_movement),
-            "stage_history_events": len(stage_rows),
-            "forecast_category_history_events": len(fcat_rows),
+            "renewals": len(renewal_models),
+            "pipeline_inspection": len(pi_models),
+            "pipeline_inspection_forward": len(forward_pi_models),
+            "activity_volume_rows": len(activity_models),
+            "commit_items": len(commit_models),
+            "q1_movement": len(q1_movement_models),
+            "q2_movement": len(q2_movement_models),
+            "stage_history_events": len(stage_models),
+            "forecast_category_history_events": len(fcat_models),
         },
         "arr": {
-            "pipeline_open_eur": total_pipeline_arr,
-            "won_eur": won_arr,
-            "lost_eur": lost_arr,
-            "renewal_acv_eur": renewal_acv,
+            "pipeline_open_eur": sum(d.arr_unweighted for d in pipeline_models),
+            "won_eur": sum(d.arr_unweighted for d in won),
+            "lost_eur": sum(d.arr_unweighted for d in lost),
+            "renewal_acv_eur": sum(d.acv_unweighted for d in renewal_models),
         },
         "pi_source": {
             "list_view_id": str(pi_lv),
             "scope": str(period["fy_label"]),
-            "deal_count": len(pi_rows),
+            "deal_count": len(pi_models),
         },
         "forward_quarter_pi": {
             "status": forward_pi_source_origin,
             "quarter_label": str(period["forward_quarter_label"]),
             "quarter_title": str(period["forward_quarter_title"]),
-            "list_view_id": (
-                str(forward_pi_source.get("list_view_id") or "")
-                if isinstance(forward_pi_source, dict)
-                else ""
-            ),
-            "list_view_label": (
-                str(forward_pi_source.get("list_view_label") or "")
-                if isinstance(forward_pi_source, dict)
-                else ""
-            ),
-            "deal_count": len(forward_pi_rows),
+            "list_view_id": str((forward_pi_source or {}).get("list_view_id", ""))
+            if isinstance(forward_pi_source, dict)
+            else "",
+            "list_view_label": str((forward_pi_source or {}).get("list_view_label", ""))
+            if isinstance(forward_pi_source, dict)
+            else "",
+            "deal_count": len(forward_pi_models),
         },
     }
 
@@ -1516,13 +1504,14 @@ def main():
         print("Specify --territory or --all", file=sys.stderr)
         sys.exit(1)
 
-    import re
-
     # Auth once; reuse across every territory. Saves ~1s × N sf-CLI subprocess
     # calls and removes N/A token-rotation windows mid-run.
+    _run_started_at = _utc_now_iso()
     token, instance_url = get_auth()
     session = build_session(token)
     corp_ccy = get_corporate_currency(session, instance_url)
+
+    _territory_durations: dict[str, float] = {}
 
     def _run_one(territory):
         config = TERRITORIES[territory]
@@ -1537,6 +1526,14 @@ def main():
             corp_ccy=corp_ccy,
         )
 
+    def _run_one_timed(territory):
+        import time
+
+        t0 = time.monotonic()
+        result = _run_one(territory)
+        _territory_durations[territory] = round(time.monotonic() - t0, 1)
+        return result
+
     processed: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
 
@@ -1548,7 +1545,7 @@ def main():
 
         print(f"\nExtracting {len(territories)} territories in parallel...\n")
         with ThreadPoolExecutor(max_workers=min(9, len(territories))) as pool:
-            futures = {pool.submit(_run_one, t): t for t in territories}
+            futures = {pool.submit(_run_one_timed, t): t for t in territories}
             for f in as_completed(futures):
                 t = futures[f]
                 try:
@@ -1568,7 +1565,7 @@ def main():
     else:
         for t in territories:
             try:
-                processed.append(_run_one(t))
+                processed.append(_run_one_timed(t))
             except Exception as exc:
                 import traceback as _tb
 
@@ -1636,6 +1633,20 @@ def main():
     audit_dir = AUDIT_OUTPUT_ROOT / args.snapshot_date
     _write_run_audit(audit_dir, audit_payload)
     print(f"Director live extract audit: {_display_path(audit_dir)}")
+
+    _write_run_manifest(
+        BUNDLE_OUTPUT_ROOT / args.snapshot_date / "manifest.json",
+        processed=processed,
+        failures=failures,
+        durations=_territory_durations,
+        snapshot_date=args.snapshot_date,
+        started_at=_run_started_at,
+        finished_at=_utc_now_iso(),
+        query_telemetry_totals=query_totals,
+    )
+    print(
+        f"Run manifest: {_display_path(BUNDLE_OUTPUT_ROOT / args.snapshot_date / 'manifest.json')}"
+    )
 
     if failures:
         print(f"\n{len(failures)} failure(s):")

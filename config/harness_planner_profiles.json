@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-29",
+  "max_steps_default": 5,
+  "scoring": {
+    "missing_evidence_weight": 10,
+    "candidate_script_boost": 6,
+    "memory_sequence_boost": 4,
+    "memory_success_route_boost": 3,
+    "memory_success_evidence_boost": 2,
+    "memory_success_tag_boost": 2,
+    "memory_success_full_match_boost": 6,
+    "memory_failure_penalty": 5,
+    "memory_incomplete_penalty": 2,
+    "repeated_failure_penalty": 2,
+    "duplicate_evidence_penalty": 5,
+    "unnecessary_live_penalty": 1
+  },
+  "operation_defaults": {
+    "review_dashboard": {
+      "lane_order": [
+        "live_inventory",
+        "patch_guardrails",
+        "export_audits"
+      ],
+      "required_evidence": [
+        "dashboard_json",
+        "dataset_metadata",
+        "xmd",
+        "contract_lint_report",
+        "audit_report"
+      ]
+    },
+    "mutate_dashboard": {
+      "lane_order": [
+        "live_inventory",
+        "patch_guardrails",
+        "export_audits",
+        "wave_data_validations"
+      ],
+      "required_evidence": [
+        "dashboard_json",
+        "dataset_metadata",
+        "xmd",
+        "contract_lint_report",
+        "audit_report"
+      ]
+    },
+    "export_assets": {
+      "lane_order": [
+        "live_inventory"
+      ],
+      "required_evidence": [
+        "dashboard_json",
+        "dataset_metadata",
+        "xmd"
+      ]
+    },
+    "validate_truth": {
+      "lane_order": [
+        "salesforce_data_profiles",
+        "wave_data_validations",
+        "live_inventory",
+        "export_audits"
+      ],
+      "required_evidence": [
+        "salesforce_profile_report",
+        "dataset_validation_report",
+        "dashboard_json",
+        "audit_report"
+      ]
+    },
+    "understand_metric": {
+      "lane_order": [
+        "salesforce_data_profiles",
+        "wave_data_validations",
+        "live_inventory",
+        "export_audits"
+      ],
+      "required_evidence": [
+        "salesforce_profile_report",
+        "dataset_validation_report"
+      ]
+    }
+  }
+}

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sales_Director_Book__c</fullName>
+    <description>Derived MD-1 territory/book segment for Sales Director monthly reporting and Pipeline Inspection filtering. Mirrors the validated D1 MD-1 preset mapping from 2026-04-09.</description>
+    <externalId>false</externalId>
+    <formula>IF(
+    AND(
+        ISPICKVAL(Account_Unit_Group__c, "SC Asia"),
+        TEXT(Account.Region__c) = "APAC"
+    ),
+    "APAC",
+    IF(
+        AND(
+            ISPICKVAL(Account_Unit_Group__c, "SC EMEA"),
+            TEXT(Account.Region__c) = "Central Europe"
+        ),
+        "Central Europe",
+        IF(
+            AND(
+                ISPICKVAL(Account_Unit_Group__c, "SC EMEA"),
+                TEXT(Account.Region__c) = "Southwestern Europe"
+            ),
+            "Southern Europe",
+            IF(
+                AND(
+                    ISPICKVAL(Account_Unit_Group__c, "SC EMEA"),
+                    TEXT(Account.Region__c) = "United Kingdom &amp; Ireland"
+                ),
+                "UK &amp; Ireland",
+                IF(
+                    AND(
+                        ISPICKVAL(Account_Unit_Group__c, "SC EMEA"),
+                        TEXT(Account.Region__c) = "Northern Europe"
+                    ),
+                    "NL &amp; Nordics",
+                    IF(
+                        AND(
+                            ISPICKVAL(Account_Unit_Group__c, "SC EMEA"),
+                            TEXT(Account.Region__c) = "Middle East &amp; Africa"
+                        ),
+                        "Middle East &amp; Africa",
+                        IF(
+                            AND(
+                                ISPICKVAL(Account_Unit_Group__c, "SC North America"),
+                                TEXT(Account.Region__c) = "North America",
+                                TEXT(Account.BillingCountryCode) = "CA"
+                            ),
+                            "Canada",
+                            IF(
+                                AND(
+                                    ISPICKVAL(Account_Unit_Group__c, "SC North America"),
+                                    TEXT(Account.Region__c) = "North America",
+                                    TEXT(Account.BillingCountryCode) &lt;&gt; "CA",
+                                    OR(
+                                        TEXT(Account.Industry) = "Asset Management",
+                                        TEXT(Account.Industry) = "Bank",
+                                        TEXT(Account.Industry) = "Wealth Management",
+                                        TEXT(Account.Industry) = "Asset Servicer",
+                                        TEXT(Account.Industry) = "Other"
+                                    )
+                                ),
+                                "NA Asset Management",
+                                IF(
+                                    AND(
+                                        ISPICKVAL(Account_Unit_Group__c, "SC North America"),
+                                        TEXT(Account.Region__c) = "North America",
+                                        TEXT(Account.BillingCountryCode) &lt;&gt; "CA",
+                                        OR(
+                                            TEXT(Account.Industry) = "Pension",
+                                            TEXT(Account.Industry) = "Insurance"
+                                        )
+                                    ),
+                                    "Pension &amp; Insurance",
+                                    "Unmapped"
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+    )
+)</formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <inlineHelpText>Derived MD-1 book segment from existing region, country, account unit group, and industry fields for dashboard and Pipeline Inspection filtering.</inlineHelpText>
+    <label>Sales Director Book</label>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

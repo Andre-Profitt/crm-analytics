@@ -461,6 +461,16 @@ def read_director_info(wb) -> tuple[str, str]:
     return title, ""
 
 
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "unknown"
+
+
+def _sidecar_claim_ids(director: str, fields: list[str]) -> dict[str, str]:
+    slug = _slugify(director)
+    return {field: f"deck.{slug}.{field}" for field in fields}
+
+
 # ── Helpers ──
 
 
@@ -1226,7 +1236,6 @@ def _fetch_quarter_enrichment(
 
             close = str(deal.get("CloseDate") or "")[:10]
             last_act = str(deal.get("LastActivityDate") or "")[:10]
-            last_mod = str(deal.get("LastModifiedDate") or "")[:10]
             try:
                 days_to_close = (
                     (date.fromisoformat(close) - _runtime_today()).days
@@ -1464,7 +1473,6 @@ def slide_q2_forward_look(
                 "Commit": 3,
                 "Closed": 4,
             }
-            stg_rank = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "8": 8}
             cutoff = (_runtime_today() - timedelta(days=30)).isoformat()
 
             if "Forecast Category History" in _wb.sheetnames:
@@ -2898,6 +2906,7 @@ def slide_renewals(prs, renewals):
     # Sort annual view by close date ascending
     annual = sorted(renewals, key=lambda r: str(r.get("Close Date", "")))
     total_acv = sum(_acv(r) for r in annual)
+    _fy_label = f"FY{FQ['fy'] % 100:02d}" if FQ else "FY26"
 
     # Count by quarter for the subtitle
     def _qtr(r):
@@ -2929,7 +2938,6 @@ def slide_renewals(prs, renewals):
             ),
         )
     else:
-        _fy_label = f"FY{FQ['fy'] % 100:02d}" if FQ else "FY26"
         _set_ph(slide, 144, f"Renewals {_fy_label}: none this cycle")
     if annual:
         _set_ph(
@@ -4000,6 +4008,26 @@ def build_deck(
         return float(r.get("ACV Unweighted (EUR)") or r.get("ACV (EUR)") or 0)
 
     approval_summary = summarize_approval_rows(approvals)
+    sidecar_metric_fields = [
+        "open_land_deals",
+        "open_land_arr",
+        "open_land_arr_wtd",
+        "q2_open_deals",
+        "q2_open_arr",
+        "q3_open_deals",
+        "q3_open_arr",
+        "q1_land_wins",
+        "q1_land_wins_arr",
+        "q1_land_lost",
+        "q1_land_lost_arr",
+        "q2_renewals",
+        "q2_renewals_acv",
+        "q3_renewals",
+        "q3_renewals_acv",
+        "approved_2026",
+        "conditionally_approved",
+        "missing_stage3",
+    ]
 
     sidecar = {
         "director": director,
@@ -4024,6 +4052,12 @@ def build_deck(
         "approved_2026": approval_summary["approved_2026"],
         "conditionally_approved": approval_summary["conditionally_approved"],
         "missing_stage3": approval_summary["missing_stage3"],
+        "claim_contract": {
+            "schema_version": "1",
+            "rule": "Every numeric sidecar field must cite a claim_id.",
+            "claim_id_prefix": f"deck.{_slugify(director)}",
+        },
+        "claim_ids": _sidecar_claim_ids(director, sidecar_metric_fields),
     }
     sidecar_path = output_path.with_suffix(".json")
     sidecar_path.write_text(_json.dumps(sidecar, indent=2))

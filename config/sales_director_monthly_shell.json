@@ -1,0 +1,756 @@
+{
+  "template_version": "2026-04-11",
+  "template_name": "Sales Director Monthly",
+  "deck_grade_standard_path": "docs/specs/2026-04-11-sales-director-deck-grade-standard.md",
+  "agenda_title": "Monthly Agenda",
+  "agenda_subtitle": "Fixed operating sequence for every MD-1 report",
+  "production_rules": {
+    "canonical_shell_required": true,
+    "generated_shell_publish_safe": false,
+    "population_mode": "structured-fill-only"
+  },
+  "presentation_standard": {
+    "message_title_required_on_populated_deck": true,
+    "one_question_per_slide": true,
+    "prefer_visual_evidence_over_bullets": true,
+    "required_fields_per_slide": [
+      "management_question",
+      "visual_family",
+      "action_seam",
+      "title_rewrite_rule",
+      "density_limit",
+      "anti_patterns"
+    ]
+  },
+  "coverage_standard": {
+    "support_levels": [
+      "strong",
+      "qualified",
+      "placeholder"
+    ],
+    "minimum_fields_per_slide": [
+      "support_level",
+      "source_tabs",
+      "source_fields",
+      "metric_rules",
+      "known_gaps"
+    ]
+  },
+  "slides": [
+    {
+      "id": "executive-summary",
+      "title": "Executive Summary",
+      "subtitle": "Operating position and leadership implications",
+      "layout": "4 x content w/ gradient line",
+      "management_question": "What is this director's operating position this month, what is the main risk, and what is the one leadership action?",
+      "visual_family": "four-card-kpi-strip",
+      "action_seam": "Name the single leadership action and top risk in plain language.",
+      "title_rewrite_rule": "Rewrite as a full-sentence takeaway that states the operating position and next action while keeping ARR, ACV, and horizon explicit.",
+      "density_limit": {
+        "max_cards": 4,
+        "max_body_lines_per_card": 3,
+        "max_footer_notes": 1
+      },
+      "anti_patterns": [
+        "Do not mix ARR and ACV in the same metric.",
+        "Do not bury the top action in a paragraph.",
+        "Do not show unlabeled pipeline numbers."
+      ],
+      "required_slots": [
+        "headline_pipeline_arr_all_open",
+        "headline_pipeline_arr_fy26",
+        "headline_pipeline_arr_q2",
+        "headline_renewal_acv",
+        "top_risk",
+        "top_action"
+      ],
+      "cards": [
+        {
+          "label": "All Open Pipeline",
+          "metric_hint": "Validated EUR ARR",
+          "body": "Insert the validated all-open pipeline ARR in EUR and keep the horizon explicit."
+        },
+        {
+          "label": "FY26 Active Pipeline",
+          "metric_hint": "Validated EUR ARR",
+          "body": "Insert FY26 close-date ARR in EUR and exclude Omitted from the active headline."
+        },
+        {
+          "label": "Q2 Active Pipeline",
+          "metric_hint": "Validated EUR ARR",
+          "body": "Insert current-quarter active ARR in EUR and state if quarter coverage is thin."
+        },
+        {
+          "label": "Open Renewal Book",
+          "metric_hint": "Validated EUR ACV",
+          "body": "Insert open renewal ACV in EUR; reserve the title or subtitle for the top action and risk."
+        }
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Scorecard", "Renewals & Retention"],
+        "source_fields": [
+          "Pipeline ARR — All Open (any close date)",
+          "Pipeline ARR — FY26 Close Dates Only (excl. Omitted)",
+          "Pipeline ARR — Q2 2026 Close Dates Only (excl. Omitted)",
+          "renewals.summary_metrics.open_acv"
+        ],
+        "metric_rules": [
+          "Pipeline metrics remain ARR in EUR converted.",
+          "Renewals remain ACV in EUR converted.",
+          "Top risk and top action must be grounded in validated director facts."
+        ],
+        "known_gaps": [
+          "Top risk and top action are synthesized leadership readouts, not raw workbook fields."
+        ]
+      }
+    },
+    {
+      "id": "q1-review",
+      "title": "Q1 Promised vs Delivered",
+      "subtitle": "Use director-scoped actuals; qualify the baseline if promise is ambiguous",
+      "layout": "4 x content w/ gradient line",
+      "management_question": "What did the book deliver in Q1, what was lost, what slipped, and how safe is the promise baseline?",
+      "visual_family": "four-card-outcome-strip",
+      "action_seam": "Explain whether the main issue is losses, slips, or baseline ambiguity and what follow-up is needed.",
+      "title_rewrite_rule": "Rewrite as a takeaway about delivery versus slip while explicitly qualifying the promise baseline if it is not director-safe.",
+      "density_limit": {
+        "max_cards": 4,
+        "max_body_lines_per_card": 3
+      },
+      "anti_patterns": [
+        "Do not label workbook-global forecast references as a clean director commitment.",
+        "Do not overstate precision in the promise baseline.",
+        "Do not hide slipped deals behind a generic miss statement."
+      ],
+      "required_slots": [
+        "q1_won_count",
+        "q1_won_arr",
+        "q1_lost_count",
+        "q1_lost_arr",
+        "q1_slipped_count",
+        "q1_slipped_arr",
+        "q1_promise_baseline_qualification"
+      ],
+      "cards": [
+        {
+          "label": "Won in Q1",
+          "metric_hint": "Count + EUR ARR",
+          "body": "Show won count and ARR delivered in quarter."
+        },
+        {
+          "label": "Lost in Q1",
+          "metric_hint": "Count + EUR ARR",
+          "body": "Show lost count and ARR; keep reasons factual."
+        },
+        {
+          "label": "Slipped out of Q1",
+          "metric_hint": "Count + EUR ARR",
+          "body": "Use director-scoped slipped count and ARR from validated cache history."
+        },
+        {
+          "label": "Promise Baseline",
+          "metric_hint": "Qualified statement",
+          "body": "State what was promised only if the baseline is director-safe; otherwise call the ambiguity explicitly."
+        }
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Q1 Review", "Won-Lost", "Pipeline Detail"],
+        "source_fields": [
+          "q1_review.actuals",
+          "q1_review.pushed_deals",
+          "q1_review.promise_baseline",
+          "q1_review.scope_warning"
+        ],
+        "metric_rules": [
+          "Use director-scoped won, lost, and slipped actuals.",
+          "Promise baseline must remain qualified before it is used as commitment language."
+        ],
+        "known_gaps": [
+          "Workbook Q1 forecast blocks are global reference and not clean director commitments."
+        ]
+      }
+    },
+    {
+      "id": "quarterly-pipeline",
+      "title": "Quarterly Pipeline and Forecast",
+      "subtitle": "Display-quarter active view, forecast mix, and omitted separation",
+      "layout": "4 x content w/ gradient line",
+      "management_question": "What does the operating quarter actually look like by forecast category, and if the current quarter is empty what is the explicit forward-quarter fallback?",
+      "visual_family": "forecast-mix-strip",
+      "action_seam": "Make explicit whether the displayed quarter is adequately supported or exposed and which forecast categories carry the pressure.",
+      "title_rewrite_rule": "Rewrite as a takeaway about displayed-quarter strength or weakness, keeping Commit, Best Case, Pipeline, and Omitted semantically explicit and disclosing any fallback.",
+      "density_limit": {
+        "max_cards": 4,
+        "max_body_lines_per_card": 3
+      },
+      "anti_patterns": [
+        "Do not collapse Omitted into active pipeline.",
+        "Do not show a single unlabeled quarter number.",
+        "Do not hide a forward-quarter fallback."
+      ],
+      "required_slots": [
+        "headline_pipeline_arr_q2",
+        "q2_commit_arr",
+        "q2_best_case_arr",
+        "q2_omitted_arr",
+        "quarterly_pipeline_label",
+        "quarterly_pipeline_title",
+        "quarterly_pipeline_display_reason",
+        "quarterly_pipeline_footnote"
+      ],
+      "cards": [
+        {
+          "label": "Quarter Active Pipeline",
+          "metric_hint": "Validated EUR ARR",
+          "body": "Insert active displayed-quarter ARR in EUR."
+        },
+        {
+          "label": "Commit",
+          "metric_hint": "Validated EUR ARR",
+          "body": "Insert displayed-quarter Commit ARR from the validated outlook."
+        },
+        {
+          "label": "Best Case",
+          "metric_hint": "Validated EUR ARR",
+          "body": "Insert displayed-quarter Best Case ARR from the validated outlook."
+        },
+        {
+          "label": "Omitted",
+          "metric_hint": "Validated EUR ARR",
+          "body": "Keep omitted ARR visible and separate from the active headline."
+        }
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Scorecard", "Q2 Outlook", "Pipeline Detail"],
+        "source_fields": [
+          "Pipeline ARR — Q2 2026 Close Dates Only (excl. Omitted)",
+          "q2_outlook.by_category.Commit",
+          "q2_outlook.by_category.Best Case",
+          "q2_outlook.by_category.Omitted",
+          "pipeline_detail.records.Close Date",
+          "pipeline_detail.records.Forecast Category"
+        ],
+        "metric_rules": [
+          "Use ARR in EUR converted for all quarterly pipeline cards.",
+          "Keep Omitted visible and separate from active headline pipeline.",
+          "If current-quarter in-scope pipeline is zero, the slide may fall forward to next-quarter outlook only with explicit footnote disclosure."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "pipeline-coverage-intel",
+      "title": "Quarterly Opportunity Intel and Coverage Proxy",
+      "subtitle": "Qualified coverage read, top Q2 opportunities, and hygiene pressure",
+      "layout": "3 x content w/ gradient line",
+      "management_question": "Which deals and hygiene issues most affect the quarter, and how concentrated is the execution burden?",
+      "visual_family": "hero-watchlist-plus-controls",
+      "action_seam": "Identify the few deals or reps that need intervention and keep coverage explicitly qualified while targets are missing.",
+      "title_rewrite_rule": "Rewrite as a takeaway on concentration, risk, or thinness, but keep the word proxy or another clear qualifier until target-based coverage exists.",
+      "density_limit": {
+        "max_cards": 3,
+        "max_watchlist_rows": 6,
+        "max_secondary_watchlist_rows": 3
+      },
+      "anti_patterns": [
+        "Do not claim true coverage versus target because quota is not integrated.",
+        "Do not dump all-open opportunities when Q2 active opportunities are available.",
+        "Do not mix competitive loss themes with unrelated hygiene issues in the same sentence."
+      ],
+      "required_slots": [
+        "pipeline_coverage_statement",
+        "weighted_pipeline_arr",
+        "top_opportunities",
+        "stale_arr",
+        "aging_arr",
+        "data_quality_backlog",
+        "competitive_loss_watchlist"
+      ],
+      "cards": [
+        {
+          "label": "Coverage Position",
+          "metric_hint": "Summary statement",
+          "body": "State whether Q2 coverage is healthy, thin, or concentrated, anchored in validated ARR."
+        },
+        {
+          "label": "Top Opportunities",
+          "metric_hint": "Largest validated deals",
+          "body": "List the most material current opportunities with ARR, stage, and next step."
+        },
+        {
+          "label": "Hygiene and Intel",
+          "metric_hint": "Risk pressure",
+          "body": "Summarize stale ARR, aging ARR, data-quality backlog, and competitor signals."
+        }
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Pipeline Detail", "Q2 Outlook", "Scorecard", "Won-Lost", "Data Quality"],
+        "source_fields": [
+          "pipeline_detail.top_opportunities",
+          "q2_outlook.top_q2_active_opportunities",
+          "Weighted Pipeline (probability-adj)",
+          "Stale 30d+ (ARR)",
+          "Aging 365+ (ARR)",
+          "data_quality.total",
+          "won_lost.lost"
+        ],
+        "metric_rules": [
+          "Coverage must be qualified because quota and targets are not available in the workbook contract.",
+          "Top opportunities should prefer current-quarter active deals where available."
+        ],
+        "known_gaps": [
+          "Coverage is a proxy until quota and target inputs are integrated."
+        ]
+      }
+    },
+    {
+      "id": "commercial-approval-overview",
+      "title": "Commercial Approval Overview",
+      "subtitle": "Stage 3+ control view for approvals and exceptions",
+      "layout": "4 x content w/ gradient line",
+      "management_question": "Is approval governance under control, and how large is the exposure still pending or missing?",
+      "visual_family": "governance-kpi-strip",
+      "action_seam": "State whether approval governance is controlled and quantify the exception backlog leadership must clear.",
+      "title_rewrite_rule": "Rewrite as a governance takeaway that combines approval control state with the size of the missing-approval exposure.",
+      "density_limit": {
+        "max_cards": 4,
+        "max_body_lines_per_card": 3
+      },
+      "anti_patterns": [
+        "Do not bury missing approval candidates in a generic summary.",
+        "Do not mix no-approval-needed deals into the main exception story.",
+        "Do not omit ARR context for approval exposure."
+      ],
+      "required_slots": [
+        "approval_rate_stage3_plus",
+        "approved_deal_count",
+        "approved_arr",
+        "pending_missing_approval_count",
+        "pending_missing_approval_arr",
+        "missing_approval_candidate_count"
+      ],
+      "cards": [
+        {
+          "label": "Approval Rate",
+          "metric_hint": "Stage 3+ %",
+          "body": "Insert validated approval rate for stage 3+ opportunities."
+        },
+        {
+          "label": "Approved",
+          "metric_hint": "Deals + EUR ARR",
+          "body": "Show approved deal count and ARR."
+        },
+        {
+          "label": "Pending or Missing",
+          "metric_hint": "Deals + EUR ARR",
+          "body": "Show the backlog still pending or missing approval."
+        },
+        {
+          "label": "Missing Candidates",
+          "metric_hint": "Stage 3+ count",
+          "body": "Show the count of stage 3+ land opportunities still missing approval."
+        }
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Scorecard", "Commercial Approval"],
+        "source_fields": [
+          "Approval Rate (stage 3+)",
+          "commercial_approval.summary",
+          "commercial_approval.missing_candidates"
+        ],
+        "metric_rules": [
+          "Approval metrics remain tied to stage 3+ land opportunities.",
+          "Use validated deal counts and ARR in EUR converted."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "missing-commercial-approvals",
+      "title": "Missing Commercial Approval Candidates",
+      "subtitle": "Land stage 3+ opportunities requiring immediate attention",
+      "layout": "Title and Content",
+      "management_question": "Which specific stage 3+ land deals require immediate action?",
+      "visual_family": "ranked-watchlist-table",
+      "action_seam": "Use the list to assign intervention on a small set of named deals.",
+      "title_rewrite_rule": "Rewrite as a message title that states the size and urgency of the approval backlog without losing the watchlist function.",
+      "density_limit": {
+        "max_watchlist_rows": 8,
+        "max_columns": 5
+      },
+      "anti_patterns": [
+        "Do not export a raw report table into the slide.",
+        "Do not sort by owner or alphabetically; sort by largest ARR first.",
+        "Do not infer approval state beyond the validated snapshot."
+      ],
+      "required_slots": [
+        "missing_approval_candidates"
+      ],
+      "body_guidance": [
+        "List candidates largest ARR first.",
+        "Include opportunity, ARR, owner, stage, and next required action.",
+        "Keep the list factual; do not infer approval status beyond the validated snapshot."
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Commercial Approval"],
+        "source_fields": [
+          "commercial_approval.missing_candidates"
+        ],
+        "metric_rules": [
+          "Sort largest ARR first.",
+          "Keep the list factual and operational."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "renewals-retention",
+      "title": "Renewals and Retention",
+      "subtitle": "Current-quarter renewal book, likelihood, and watchlist",
+      "layout": "3 x content w/ gradient line",
+      "management_question": "What renews this quarter, what is the ACV, and where does leadership need to intervene?",
+      "visual_family": "three-panel-renewal-watchlist",
+      "action_seam": "Call out the specific renewal watchlist requiring leadership attention this quarter.",
+      "title_rewrite_rule": "Rewrite as a renewal-risk takeaway while keeping ACV explicit and calling out sparse risk tagging when present.",
+      "density_limit": {
+        "max_cards": 3,
+        "max_watchlist_rows": 6
+      },
+      "anti_patterns": [
+        "Do not mix renewal ACV with new-business ARR.",
+        "Do not overclaim risk precision when risk tagging is sparse.",
+        "Do not bury the named renewal watchlist."
+      ],
+      "required_slots": [
+        "renewal_open_deal_count",
+        "renewal_open_acv",
+        "renewal_risk_bucket_summary",
+        "renewal_watchlist"
+      ],
+      "cards": [
+        {
+          "label": "Open Renewal Book",
+          "metric_hint": "Deals + EUR ACV",
+          "body": "Insert renewal deal count and ACV in EUR."
+        },
+        {
+          "label": "Likelihood and Risk",
+          "metric_hint": "Risk mix",
+          "body": "Summarize renewal risk distribution and call out sparse tagging if needed."
+        },
+        {
+          "label": "Watchlist",
+          "metric_hint": "Named renewals",
+          "body": "List the renewals that need active leadership follow-up this quarter."
+        }
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Renewals & Retention"],
+        "source_fields": [
+          "renewals.summary_metrics",
+          "renewals.risk_levels",
+          "renewals.q2_open_renewals"
+        ],
+        "metric_rules": [
+          "Renewal metrics remain ACV in EUR converted.",
+          "Use Q2 renewal watchlist where available."
+        ],
+        "known_gaps": [
+          "Renewal risk tagging may be sparse and should be called out explicitly."
+        ]
+      }
+    },
+    {
+      "id": "slipped-deals",
+      "title": "Slipped Deals and Follow-up",
+      "subtitle": "Use validated slipped deals first; add root-cause depth only when owner commentary exists",
+      "layout": "Title and Content",
+      "management_question": "Which deals slipped, how large is the slip, and what follow-up is required now?",
+      "visual_family": "ranked-watchlist-with-summary",
+      "action_seam": "Use the slide to assign owner follow-up and distinguish known facts from still-missing commentary.",
+      "title_rewrite_rule": "Rewrite as a takeaway about the size and nature of the slip; mention root cause only if the source evidence supports it.",
+      "density_limit": {
+        "max_watchlist_rows": 8,
+        "max_summary_sentences": 2
+      },
+      "anti_patterns": [
+        "Do not promise root-cause precision if owner commentary is missing.",
+        "Do not mix slips with overdue-close backlog as if they are the same control.",
+        "Do not hide the slipped ARR headline."
+      ],
+      "required_slots": [
+        "q1_slipped_count",
+        "q1_slipped_arr",
+        "slipped_deal_watchlist",
+        "slip_root_cause_summary"
+      ],
+      "body_guidance": [
+        "Lead with slipped count and slipped ARR.",
+        "List the largest slipped opportunities and the stated reason if available.",
+        "If root-cause commentary is incomplete, mark the gap and route to owner follow-up."
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Q1 Review", "Pipeline Detail"],
+        "source_fields": [
+          "q1_review.actuals",
+          "q1_review.pushed_deals",
+          "q1_review.forecast_movement_summary"
+        ],
+        "metric_rules": [
+          "Lead with validated slipped count and ARR.",
+          "Root-cause commentary must remain factual and qualified if owner commentary is missing."
+        ],
+        "known_gaps": [
+          "Owner commentary is still needed for full root-cause depth."
+        ]
+      }
+    },
+    {
+      "id": "salesforce-hygiene-activity",
+      "title": "Salesforce Hygiene and Activity Controls",
+      "subtitle": "Execution hygiene, activity pressure, and concentration risk",
+      "layout": "4 x content w/ gradient line",
+      "management_question": "Where is CRM discipline weak enough to threaten forecast trust or execution quality?",
+      "visual_family": "control-kpi-plus-watchlist",
+      "action_seam": "Identify which control gaps or reps require immediate management inspection.",
+      "title_rewrite_rule": "Rewrite as a control takeaway that names the dominant hygiene or activity risk and, where possible, the reps carrying it.",
+      "density_limit": {
+        "max_cards": 4,
+        "max_watchlist_rows": 5
+      },
+      "anti_patterns": [
+        "Do not turn this into narrative filler.",
+        "Do not show counts without explaining why they matter to forecast trust.",
+        "Do not hide rep concentration behind aggregate totals only."
+      ],
+      "required_slots": [
+        "no_activity_count",
+        "overdue_close_count",
+        "missing_next_step_count",
+        "total_data_quality_issues",
+        "top_issue_reps",
+        "rep_concentration_summary",
+        "top_risk_register_items"
+      ],
+      "cards": [
+        {
+          "label": "No Activity",
+          "metric_hint": "Open opp count",
+          "body": "Show the number of open opportunities with no recent activity and explain why that matters to forecast health."
+        },
+        {
+          "label": "Overdue Close",
+          "metric_hint": "Open opp count",
+          "body": "Show open opportunities past close date. Keep this operational and clearly separate from slip analysis."
+        },
+        {
+          "label": "Missing Next Step",
+          "metric_hint": "Open opp count",
+          "body": "Show the count of opportunities missing next step discipline in Salesforce."
+        },
+        {
+          "label": "Total Hygiene Load",
+          "metric_hint": "Issue-points",
+          "body": "Show total issue-points and use the slide narrative to call out the reps or books carrying the most control burden."
+        }
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Data Quality", "Rep Performance", "Risk Register", "Pipeline Detail"],
+        "source_fields": [
+          "data_quality.total",
+          "data_quality.top_issues",
+          "rep_performance.top_reps",
+          "risk_register.top_arr"
+        ],
+        "metric_rules": [
+          "Keep hygiene and activity controls operational, not narrative filler.",
+          "Rep concentration should be tied to actual pipeline and issue burden."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "missing-win-loss-reason",
+      "title": "Missing Win/Loss Reason",
+      "subtitle": "Outcome records missing reason hygiene, with explicit rule exceptions",
+      "layout": "Title and Content",
+      "management_question": "Which outcome records still lack decision-reason hygiene, after applying the 0 - No Opportunity exception?",
+      "visual_family": "control-exception-table",
+      "action_seam": "Use the exception list to force outcome hygiene on the highest-value missing-reason records.",
+      "title_rewrite_rule": "Rewrite as a control takeaway about outcome-quality risk while keeping the explicit no-opportunity exception visible.",
+      "density_limit": {
+        "max_watchlist_rows": 8,
+        "max_summary_sentences": 2
+      },
+      "anti_patterns": [
+        "Do not count 0 - No Opportunity rows as defects.",
+        "Do not bury the rule exception in appendix notes.",
+        "Do not show low-value rows before higher-value missing-reason records."
+      ],
+      "required_slots": [
+        "missing_win_loss_reason_count",
+        "missing_win_loss_reason_rows",
+        "missing_win_loss_reason_rule_note"
+      ],
+      "body_guidance": [
+        "Count opportunities missing win/loss reason.",
+        "Treat `0 - No Opportunity` with no reason as acceptable.",
+        "List the most material rows still missing outcome reason hygiene."
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Won-Lost"],
+        "source_fields": [
+          "won_lost.records"
+        ],
+        "metric_rules": [
+          "Treat `0 - No Opportunity` with no reason as acceptable.",
+          "All other blank-reason outcomes remain a control issue."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "overdue-close-open-opps",
+      "title": "Overdue Close Date Open Opportunities",
+      "subtitle": "Open pipeline past close date, sorted for operational action",
+      "layout": "Title and Content",
+      "management_question": "Which open opportunities are past close date, and where is overdue-close burden concentrated?",
+      "visual_family": "watchlist-plus-owner-summary",
+      "action_seam": "Use the watchlist and owner summary to decide which books or reps need inspection now.",
+      "title_rewrite_rule": "Rewrite as a control takeaway about overdue-close burden and where it is concentrated.",
+      "density_limit": {
+        "max_watchlist_rows": 8,
+        "max_owner_summary_rows": 5
+      },
+      "anti_patterns": [
+        "Do not sort the owner summary alphabetically.",
+        "Do not confuse overdue-close backlog with slipped-deal root cause.",
+        "Do not show overdue rows without ranking them for action."
+      ],
+      "required_slots": [
+        "overdue_close_count",
+        "overdue_close_watchlist",
+        "overdue_close_owner_summary"
+      ],
+      "body_guidance": [
+        "List overdue open opportunities largest ARR first.",
+        "Summarize which owners hold the largest overdue-close counts.",
+        "Sort owner summary by record count, not alphabetically."
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Pipeline Detail", "Data Quality"],
+        "source_fields": [
+          "pipeline_detail.records",
+          "data_quality.total.Overdue Close"
+        ],
+        "metric_rules": [
+          "Overdue open opportunities should be ranked largest ARR first.",
+          "Owner summary must sort by record count."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "churn-finance",
+      "title": "Churn Risk and Finance Inputs",
+      "subtitle": "Hold this slide as an explicit placeholder until Finance inputs are operationalized",
+      "layout": "Title and Content",
+      "management_question": "What Finance-owned churn input exists, what is missing, and who owns the feed?",
+      "visual_family": "placeholder-status",
+      "action_seam": "Escalate the source gap and identify the owner and next integration step.",
+      "title_rewrite_rule": "Rewrite only as a status takeaway about source readiness; do not present fabricated churn analysis.",
+      "density_limit": {
+        "max_summary_sentences": 3
+      },
+      "anti_patterns": [
+        "Do not fabricate churn numbers.",
+        "Do not imply Finance coverage exists when it does not.",
+        "Do not leave the owner or next step unstated if known."
+      ],
+      "required_slots": [
+        "finance_churn_inputs_status",
+        "finance_churn_owner",
+        "churn_placeholder_notes"
+      ],
+      "body_guidance": [
+        "State what Finance input is currently available and what is missing.",
+        "Name the owner or source for the churn reporting path when known.",
+        "Do not fabricate churn trend numbers."
+      ],
+      "data_contract": {
+        "support_level": "placeholder",
+        "source_tabs": ["Finance external input"],
+        "source_fields": [
+          "finance_churn_inputs_status",
+          "finance_churn_owner"
+        ],
+        "metric_rules": [
+          "Do not fabricate churn or finance trend numbers."
+        ],
+        "known_gaps": [
+          "Finance churn reporting is not yet integrated into the validated fact pack."
+        ]
+      }
+    },
+    {
+      "id": "appendix-notes",
+      "title": "Appendix and Factual Notes",
+      "subtitle": "Definitions, source lineage, and known limitations",
+      "layout": "Title and Content",
+      "management_question": "What definitions and caveats does leadership need to interpret the deck correctly?",
+      "visual_family": "appendix-notes",
+      "action_seam": "Make sure ARR versus ACV, omitted treatment, and source gaps are explicit enough to prevent misreadings.",
+      "title_rewrite_rule": "Keep appendix titles mostly neutral; only rewrite if a limitation is material enough to headline.",
+      "density_limit": {
+        "max_sections": 4,
+        "max_summary_sentences": 4
+      },
+      "anti_patterns": [
+        "Do not hide material caveats in tiny text.",
+        "Do not repeat the entire deck in note form.",
+        "Do not omit source-gap disclosures such as KYC or Q1 baseline ambiguity."
+      ],
+      "required_slots": [
+        "sources_lineage_summary",
+        "metric_definition_notes",
+        "data_quality_backlog",
+        "q1_promise_baseline_qualification",
+        "kyc_missing_status"
+      ],
+      "body_guidance": [
+        "Restate ARR versus ACV usage.",
+        "Note that Omitted remains excluded from active headline pipeline.",
+        "Document Q1 promise-baseline ambiguity and any data-quality limitations.",
+        "State the current status of the KYC-missing Salesforce source."
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Sources & Lineage", "Scorecard", "Q1 Review", "Data Quality"],
+        "source_fields": [
+          "sources_lineage_summary",
+          "metric_definition_notes",
+          "data_quality.total",
+          "q1_review.scope_warning",
+          "kyc_missing_status"
+        ],
+        "metric_rules": [
+          "Appendix notes should restate ARR versus ACV usage and known limitations."
+        ],
+        "known_gaps": [
+          "KYC-missing Salesforce source is not yet integrated."
+        ]
+      }
+    }
+  ]
+}

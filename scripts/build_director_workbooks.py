@@ -21,12 +21,12 @@ from pathlib import Path
 _SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPTS))
 
-import director_data_helpers as h
-from md1_presets import load_md1_preset_config, find_md1_preset
+import director_data_helpers as h  # noqa: E402
+from md1_presets import find_md1_preset, load_md1_preset_config  # noqa: E402
 
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils import get_column_letter
+from openpyxl import Workbook  # noqa: E402
+from openpyxl.styles import Alignment, Font, PatternFill  # noqa: E402
+from openpyxl.utils import get_column_letter  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -328,8 +328,6 @@ def build_scorecard(ws, cache: DirectorCache, director_name: str, territory: str
     pipeline = active_pipeline_rows(cache.open_pipeline)
     won_q = cache.won_this_quarter
     lost_q = cache.lost_this_quarter
-    won_q1 = cache.won_q1
-    lost_q1 = cache.lost_q1
     new_pipe = active_pipeline_rows(cache.new_pipeline)
 
     # — PIPELINE HEALTH —
@@ -535,7 +533,7 @@ PIPELINE_HEADERS = [
     "Approval",
     "Approval Status",
     "Next Step",
-    "Director Book",
+    "Territory Scope",
     "Region",
     "Industry",
 ]
@@ -577,7 +575,7 @@ def build_pipeline_detail(ws, cache: DirectorCache):
             "Yes" if r.get("Stage_20_Approval__c") else "No",
             safe_str(r.get("Approval_Status__c")),
             safe_str(r.get("NextStep"), max_len=200),
-            safe_str(r.get("Sales_Director_Book__c")),
+            safe_str(r.get("Account_Unit__c") or r.get("Account_Unit_Group__c")),
             safe_str(r.get("Sales_Region__c")),
             nested_get(r, "Account", "Industry", default=""),
         ]

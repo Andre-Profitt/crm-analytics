@@ -1,0 +1,179 @@
+{
+  "workbook_path": "/Users/test/Downloads/Metrics_and_KPIs_updated.xlsx",
+  "default_playwright_session": "default",
+  "items": [
+    {
+      "key": "executive_revenue_source_truth",
+      "priority": 1,
+      "enabled": true,
+      "builder": "scripts/build_source_truth_executive_revenue.py",
+      "audit_script": "scripts/audit_source_truth_executive_revenue.py",
+      "dashboard_labels": ["Executive Revenue Source Truth"],
+      "personas": ["Executive"],
+      "domains": ["1.4 Opportunity Management - Forecasting KPIs"],
+      "kpi_focus": [
+        "Forecast & Closed Won",
+        "Pipeline Value / Pipeline Coverage",
+        "Opportunity Win Rate (Close Rate)",
+        "Opportunity Stage Conversion Rate"
+      ],
+      "notes": "Source-truth executive forecast pilot built from live Opportunity data."
+    },
+    {
+      "key": "forecast_revenue_motions",
+      "priority": 2,
+      "enabled": true,
+      "builder": "build_forecast_revenue_motions.py",
+      "audit_script": "scripts/audit_forecast_revenue_motions.py",
+      "dashboard_labels": ["Forecast & Revenue Motions"],
+      "personas": ["Manager"],
+      "domains": ["1.4 Opportunity Management - Forecasting KPIs"],
+      "kpi_focus": [
+        "Forecast & Closed Won",
+        "Pipeline Value / Pipeline Coverage",
+        "Opportunity Win Rate (Close Rate)",
+        "Opportunity Stage Conversion Rate"
+      ],
+      "notes": "Manager revenue operating surface for forecast delivery, quality, and exception queues."
+    },
+    {
+      "key": "commercial_rhythm_control_tower",
+      "priority": 3,
+      "enabled": true,
+      "builder": "build_commercial_rhythm_control_tower.py",
+      "audit_script": "scripts/audit_commercial_rhythm_control_tower.py",
+      "dashboard_labels": ["Commercial Rhythm Control Tower"],
+      "personas": ["Executive", "Manager"],
+      "domains": [
+        "1.4 Opportunity Management - Forecasting KPIs",
+        "1.8 Renewals Management - KPIs",
+        "Commercial Operating Rhythm"
+      ],
+      "kpi_focus": [
+        "Ownership Alignment",
+        "Forecast Hygiene",
+        "Renewal Semantic Confidence",
+        "Handoff Quality"
+      ],
+      "notes": "Cross-suite operating control tower for ownership, handoff, process, and semantic-quality enforcement."
+    },
+    {
+      "key": "bdr_operating_system",
+      "priority": 2,
+      "enabled": true,
+      "builder": "build_bdr_operating_dashboards.py",
+      "audit_script": "scripts/audit_bdr_operating_system.py",
+      "dashboard_labels": ["BDR Manager", "BDR Rep Queue"],
+      "personas": ["Manager", "Individual"],
+      "domains": ["1.1 Lead Management - KPIs"],
+      "kpi_focus": [
+        "Lead Triage & Qualification - Response Time SLA",
+        "Contact Me to mtg Time",
+        "Sales Activity Tracking",
+        "Lead Win/Loss Ratio"
+      ],
+      "notes": "Queue-first BDR operating layer with manager and rep views."
+    },
+    {
+      "key": "lead_management",
+      "priority": 3,
+      "enabled": true,
+      "builder": "build_lead_management.py",
+      "audit_script": "scripts/audit_lead_management.py",
+      "dashboard_labels": ["Lead Management KPIs"],
+      "personas": ["Manager"],
+      "domains": ["1.1 Lead Management - KPIs", "1.2 Account Data Management - KPIs"],
+      "kpi_focus": [
+        "Lead Triage & Qualification - Response Time SLA",
+        "Contact Me to Opportunity Time",
+        "Contact Me Creation/Capture - Source Attribution"
+      ],
+      "notes": "Lead operations and conversion hygiene layer."
+    },
+    {
+      "key": "lead_funnel",
+      "priority": 4,
+      "enabled": true,
+      "builder": "build_lead_funnel.py",
+      "audit_script": "scripts/audit_lead_funnel.py",
+      "dashboard_labels": ["Lead Funnel"],
+      "personas": ["Executive", "Manager"],
+      "domains": ["1.1 Lead Management - KPIs"],
+      "kpi_focus": [
+        "# of leads created",
+        "# of leads disqualified",
+        "% of leads disqualified",
+        "# of leads qualified and converted"
+      ],
+      "notes": "Demand engine funnel layer."
+    },
+    {
+      "key": "customer_intelligence",
+      "priority": 5,
+      "enabled": true,
+      "builder": "build_customer_intelligence.py",
+      "audit_script": "scripts/audit_customer_intelligence.py",
+      "dashboard_labels": ["Customer Intelligence"],
+      "personas": ["Executive", "Manager"],
+      "domains": ["1.2 Account Data Management - KPIs", "1.7 Relationship Management - KPIs"],
+      "kpi_focus": [
+        "Customer Health Score - Adoption",
+        "Health Score Tracking - Monthly updates",
+        "Potential Termination Risk Management"
+      ],
+      "notes": "Customer health and account intelligence layer."
+    },
+    {
+      "key": "account_intelligence",
+      "priority": 6,
+      "enabled": true,
+      "builder": "build_account_intelligence.py",
+      "audit_script": "scripts/audit_account_intelligence.py",
+      "dashboard_labels": ["Account Intelligence KPIs"],
+      "personas": ["Manager"],
+      "domains": ["1.2 Account Data Management - KPIs", "1.3 Contact Management - KPIs"],
+      "kpi_focus": [
+        "Data Cleanup - Unit Group Population",
+        "KYC Status - Tracker",
+        "Contact Creation - Buying group coverage"
+      ],
+      "notes": "Account hygiene, coverage, and contact quality."
+    },
+    {
+      "key": "revenue_retention_health",
+      "priority": 7,
+      "enabled": true,
+      "builder": "build_revenue_retention_health.py",
+      "audit_script": "scripts/audit_revenue_retention_health.py",
+      "dashboard_labels": ["Revenue Retention & Health"],
+      "personas": ["Executive", "Manager"],
+      "domains": [
+        "1.7 Relationship Management - KPIs",
+        "1.8 Renewals Management - KPIs",
+        "1.10 Cancellation Management - KPIs"
+      ],
+      "kpi_focus": [
+        "Net Revenue Retention (NRR) - Tracking",
+        "Churn Rate - Monthly tracking",
+        "Renewals by month over year",
+        "Lost ARR By Quarter - with reason"
+      ],
+      "notes": "Retention, churn, renewal, and save-offer layer."
+    },
+    {
+      "key": "executive_product_mix_industry",
+      "priority": 8,
+      "enabled": true,
+      "builder": "build_executive_product_mix_industry.py",
+      "audit_script": "scripts/audit_executive_product_mix_industry.py",
+      "dashboard_labels": ["Executive Product Mix & Industry"],
+      "personas": ["Executive"],
+      "domains": ["1.14 Product/Pricing Management - KPIs"],
+      "kpi_focus": [
+        "SimCorp One Deals in Pipeline - Tracking",
+        "SaaS ARR by Quarter"
+      ],
+      "notes": "Executive GTM and product mix layer."
+    }
+  ]
+}

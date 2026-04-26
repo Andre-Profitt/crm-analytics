@@ -1,0 +1,90 @@
+[
+  {
+    "source_country": "United States",
+    "canonical_country": "United States",
+    "map_country_label": "United States of America",
+    "iso2": "US",
+    "iso3": "USA",
+    "map_supported": true
+  },
+  {
+    "source_country": "Korea, Republic of",
+    "canonical_country": "South Korea",
+    "map_country_label": "South Korea",
+    "iso2": "KR",
+    "iso3": "KOR",
+    "map_supported": true
+  },
+  {
+    "source_country": "Cote d'Ivoire",
+    "canonical_country": "Ivory Coast",
+    "map_country_label": "Ivory Coast",
+    "iso2": "CI",
+    "iso3": "CIV",
+    "map_supported": true
+  },
+  {
+    "source_country": "Brunei Darussalam",
+    "canonical_country": "Brunei",
+    "map_country_label": "Brunei",
+    "iso2": "BN",
+    "iso3": "BRN",
+    "map_supported": true
+  },
+  {
+    "source_country": "Hong Kong",
+    "canonical_country": "Hong Kong",
+    "map_country_label": "",
+    "iso2": "HK",
+    "iso3": "HKG",
+    "map_supported": false
+  },
+  {
+    "source_country": "Hong Kong SAR China",
+    "canonical_country": "Hong Kong",
+    "map_country_label": "",
+    "iso2": "HK",
+    "iso3": "HKG",
+    "map_supported": false
+  },
+  {
+    "source_country": "Singapore",
+    "canonical_country": "Singapore",
+    "map_country_label": "",
+    "iso2": "SG",
+    "iso3": "SGP",
+    "map_supported": false
+  },
+  {
+    "source_country": "Bahrain",
+    "canonical_country": "Bahrain",
+    "map_country_label": "",
+    "iso2": "BH",
+    "iso3": "BHR",
+    "map_supported": false
+  },
+  {
+    "source_country": "Liechtenstein",
+    "canonical_country": "Liechtenstein",
+    "map_country_label": "",
+    "iso2": "LI",
+    "iso3": "LIE",
+    "map_supported": false
+  },
+  {
+    "source_country": "Mauritius",
+    "canonical_country": "Mauritius",
+    "map_country_label": "",
+    "iso2": "MU",
+    "iso3": "MUS",
+    "map_supported": false
+  },
+  {
+    "source_country": "Monaco",
+    "canonical_country": "Monaco",
+    "map_country_label": "",
+    "iso2": "MC",
+    "iso3": "MCO",
+    "map_supported": false
+  }
+]

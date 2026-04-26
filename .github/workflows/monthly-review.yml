@@ -1,18 +1,38 @@
-name: Sales Director Monthly Review — Auto Build
+name: Sales Director Monthly Review — Source-Backed Auto Build
+
+# Track A cutover (2026-04-25): scheduled runs now invoke the source-backed
+# pipeline (scripts/run_source_backed_monthly_pipeline.py) with an explicit
+# snapshot date. The legacy lane (scripts/run_monthly_director_review.py)
+# is reachable only via workflow_dispatch with legacy_only=true.
+#
+# Snapshot date resolution policy:
+#   schedule  → last day of prior month (NOT "today"). Fires Apr 1 → snapshot = Mar 31.
+#   dispatch  → user-supplied input.snapshot_date is required; no implicit default.
+# This closes the GPT Pro hazard where running cron on a different day silently
+# shifted business scope.
 
 on:
   schedule:
-    # Runs at midnight UTC on the 1st of every month.
-    # Pulls the prior month's final state — all deals closed, all
-    # forecasts locked, all activity logged. Decks are ready by morning.
+    # 1st of every month at midnight UTC. Snapshot is computed as the last day
+    # of the prior month so the run captures month-end final state regardless
+    # of when the cron actually fires.
     - cron: "0 0 1 * *"
   workflow_dispatch:
-    # Manual trigger for ad-hoc rebuilds (e.g. mid-month refresh before a QBR)
     inputs:
-      date:
-        description: "Snapshot date (YYYY-MM-DD). Blank = today."
+      snapshot_date:
+        description: "Snapshot date (YYYY-MM-DD). REQUIRED — no implicit default."
+        required: true
+        type: string
+      run_id:
+        description: "Run ID label. Blank = auto (monthly-dispatch-<date>-<attempt>)."
         required: false
         default: ""
+        type: string
+      legacy_only:
+        description: "Fall back to legacy run_monthly_director_review path (off by default)."
+        required: false
+        default: false
+        type: boolean
 
 env:
   SF_TARGET_ORG: apro@simcorp.com
@@ -21,7 +41,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -45,60 +65,11 @@ jobs:
         run: |
           echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin --set-default --alias prod
 
-      - name: Determine snapshot date
-        id: date
-        run: |
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            echo "date=${{ github.event.inputs.date }}" >> $GITHUB_OUTPUT
-          else
-            echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run full pipeline (extract + analyze + decks + tie-out + obsidian)
-        run: |
-          python3 scripts/run_monthly_director_review.py \
-            --date ${{ steps.date.outputs.date }}
-
-      - name: Run data-quality audit
-        run: |
-          python3 scripts/audit_data_quality.py \
-            --date ${{ steps.date.outputs.date }}
-
-      - name: Run scope audit
-        run: |
-          python3 scripts/audit_deck_scope.py \
-            --date ${{ steps.date.outputs.date }}
-
-      - name: Verify tie-out clean
-        run: |
-          grep -q '"mismatches": 0' obsidian/Monthly/$(echo ${{ steps.date.outputs.date }} | cut -c1-7)/tie-out.md \
-            && echo "✓ Tie-out clean" \
-            || (echo "✗ Tie-out has mismatches — review before presenting" && exit 1)
-
-      - name: Upload decks as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sd-monthly-decks-${{ steps.date.outputs.date }}
-          path: |
-            output/simcorp_director_decks/${{ steps.date.outputs.date }}/land-only/*.pptx
-            output/sharepoint/*.xlsx
-          retention-days: 90
-
-      - name: Upload audit reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: sd-monthly-audits-${{ steps.date.outputs.date }}
-          path: |
-            output/data_quality/${{ steps.date.outputs.date }}/
-            obsidian/Monthly/
-          retention-days: 90
-
-      - name: Upload deliverables to SharePoint
+      - name: Authenticate to Azure (Microsoft Graph for SharePoint upload stage)
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          SNAPSHOT_DATE: ${{ steps.date.outputs.date }}
         run: |
           az login --service-principal \
             -u "$AZURE_CLIENT_ID" \
@@ -106,67 +77,82 @@ jobs:
             --tenant "$AZURE_TENANT_ID" \
             --output none
 
-          TOKEN=$(az account get-access-token \
-            --resource https://graph.microsoft.com \
-            --query accessToken -o tsv)
-
-          DRIVE_ID="b!NFdN4U0FoUmZxNNOBNAFO95fRH4lEKdPm1y4Rq_UXNSNhf32U6-8R7dL79jOAP15"
-
-          python3 - "$TOKEN" "$DRIVE_ID" "$SNAPSHOT_DATE" <<'PYEOF'
-          import sys, os, math, requests
-          from pathlib import Path
-          from datetime import datetime
-
-          token, drive_id, snap_date = sys.argv[1], sys.argv[2], sys.argv[3]
-          dt = datetime.strptime(snap_date[:10], "%Y-%m-%d")
-          quarter = f"Q{math.ceil(dt.month / 3)} {dt.year}"
-          folder = f"General/Book of Business/Sales Director Reporting/{quarter}"
-          base = "https://graph.microsoft.com/v1.0"
-          headers = {"Authorization": f"Bearer {token}"}
-
-          files_to_upload = []
-          decks_dir = Path(f"output/simcorp_director_decks/{snap_date}/land-only")
-          if decks_dir.exists():
-              files_to_upload.extend(sorted(decks_dir.glob("*.pptx")))
-          sp_dir = Path("output/sharepoint")
-          if sp_dir.exists():
-              files_to_upload.extend(sorted(sp_dir.glob("*.xlsx")))
-
-          for fp in files_to_upload:
-              if fp.name.startswith("~"):
-                  continue
-              upload_path = f"{folder}/{fp.name}"
-              url = f"{base}/drives/{drive_id}/root:/{upload_path}:/content"
-              size = fp.stat().st_size
-              if size < 4 * 1024 * 1024:
-                  with open(fp, "rb") as f:
-                      r = requests.put(url, headers={**headers, "Content-Type": "application/octet-stream"}, data=f)
-                  r.raise_for_status()
-                  print(f"  uploaded {fp.name} ({size:,} bytes)")
-              else:
-                  # Large file: create upload session
-                  session_url = f"{base}/drives/{drive_id}/root:/{upload_path}:/createUploadSession"
-                  sr = requests.post(session_url, headers=headers, json={"item": {"@microsoft.graph.conflictBehavior": "replace"}})
-                  sr.raise_for_status()
-                  upload_url = sr.json()["uploadUrl"]
-                  chunk = 10 * 1024 * 1024
-                  with open(fp, "rb") as f:
-                      offset = 0
-                      while offset < size:
-                          data = f.read(chunk)
-                          end = offset + len(data) - 1
-                          r = requests.put(upload_url, headers={"Content-Range": f"bytes {offset}-{end}/{size}"}, data=data)
-                          r.raise_for_status()
-                          offset += len(data)
-                  print(f"  uploaded {fp.name} ({size:,} bytes, chunked)")
-
-          print(f"SharePoint upload complete: {len(files_to_upload)} files -> {folder}")
-          PYEOF
-
-      - name: Commit updated vault + ledgers
+      - name: Resolve snapshot date
+        id: date
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add obsidian/ output/data_quality/history.json output/pipeline_logs/
-          git diff --cached --quiet || git commit -m "Monthly review build: ${{ steps.date.outputs.date }}"
-          git push || echo "Push failed — may need token permissions"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Cron path: snapshot = last day of prior month. NOT today.
+            SNAPSHOT_DATE=$(python3 -c "from datetime import date, timedelta; first_of_this_month = date.today().replace(day=1); print((first_of_this_month - timedelta(days=1)).isoformat())")
+          else
+            SNAPSHOT_DATE="${{ inputs.snapshot_date }}"
+          fi
+          if [ -z "$SNAPSHOT_DATE" ]; then
+            echo "::error::snapshot_date must be provided (workflow_dispatch) or computed (schedule)"
+            exit 1
+          fi
+          echo "snapshot_date=$SNAPSHOT_DATE" >> $GITHUB_OUTPUT
+          echo "Resolved snapshot date: $SNAPSHOT_DATE"
+
+      - name: Resolve run id
+        id: runid
+        run: |
+          if [ -n "${{ inputs.run_id }}" ]; then
+            RUN_ID="${{ inputs.run_id }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            RUN_ID="monthly-cron-${{ steps.date.outputs.snapshot_date }}-${{ github.run_attempt }}"
+          else
+            RUN_ID="monthly-dispatch-${{ steps.date.outputs.snapshot_date }}-${{ github.run_attempt }}"
+          fi
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "Resolved run id: $RUN_ID"
+
+      - name: Run source-backed monthly pipeline
+        if: ${{ inputs.legacy_only != 'true' }}
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          python3 scripts/run_source_backed_monthly_pipeline.py \
+            --snapshot-date "${{ steps.date.outputs.snapshot_date }}" \
+            --run-id "${{ steps.runid.outputs.run_id }}"
+
+      - name: Run legacy lane (fallback only)
+        if: ${{ inputs.legacy_only == 'true' }}
+        run: |
+          echo "::warning::Running LEGACY lane via run_monthly_director_review.py — only valid for explicit fallback dispatches."
+          python3 scripts/run_monthly_director_review.py \
+            --date "${{ steps.date.outputs.snapshot_date }}"
+          python3 scripts/audit_data_quality.py \
+            --date "${{ steps.date.outputs.snapshot_date }}"
+          python3 scripts/audit_deck_scope.py \
+            --date "${{ steps.date.outputs.snapshot_date }}"
+          grep -q '"mismatches": 0' obsidian/Monthly/$(echo "${{ steps.date.outputs.snapshot_date }}" | cut -c1-7)/tie-out.md \
+            && echo "✓ Legacy tie-out clean" \
+            || (echo "✗ Legacy tie-out has mismatches" && exit 1)
+
+      - name: Upload source-backed run artifacts
+        if: ${{ inputs.legacy_only != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sd-source-backed-${{ steps.date.outputs.snapshot_date }}-${{ steps.runid.outputs.run_id }}
+          path: |
+            output/source_backed_monthly_pipeline_runs/${{ steps.date.outputs.snapshot_date }}/${{ steps.runid.outputs.run_id }}/
+            output/monthly_review_release_packets/${{ steps.date.outputs.snapshot_date }}/${{ steps.runid.outputs.run_id }}/
+            output/source_backed_decks/${{ steps.date.outputs.snapshot_date }}/${{ steps.runid.outputs.run_id }}/
+            output/monthly_director_bundles_from_sources/${{ steps.date.outputs.snapshot_date }}/${{ steps.runid.outputs.run_id }}/
+            output/thinkcell_source_from_bundles/${{ steps.date.outputs.snapshot_date }}/${{ steps.runid.outputs.run_id }}/
+            output/source_backed_release_bundles/${{ steps.date.outputs.snapshot_date }}/${{ steps.runid.outputs.run_id }}/
+          retention-days: 90
+
+      - name: Upload legacy lane artifacts (fallback only)
+        if: ${{ inputs.legacy_only == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sd-legacy-${{ steps.date.outputs.snapshot_date }}
+          path: |
+            output/simcorp_director_decks/${{ steps.date.outputs.snapshot_date }}/land-only/*.pptx
+            output/sharepoint/*.xlsx
+            output/data_quality/${{ steps.date.outputs.snapshot_date }}/
+            obsidian/Monthly/
+          retention-days: 90

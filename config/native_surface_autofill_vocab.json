@@ -1,0 +1,834 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-27",
+  "report_field_aliases": [
+    {
+      "builder_label": "Manager",
+      "target_api_name": "OWNER_MANAGER",
+      "target_label": "Opportunity Owner: Manager",
+      "confidence": "high",
+      "source": "live_report_type_metadata"
+    },
+    {
+      "builder_label": "Owner",
+      "target_api_name": "FULL_NAME",
+      "target_label": "Opportunity Owner",
+      "confidence": "high",
+      "source": "live_report_type_metadata"
+    },
+    {
+      "builder_label": "Account",
+      "target_api_name": "ACCOUNT_NAME",
+      "target_label": "Account Name",
+      "confidence": "high",
+      "source": "live_report_type_metadata"
+    },
+    {
+      "builder_label": "Renewal Date",
+      "target_api_name": "Account.Gain_Annual_Renewal_Date__c",
+      "target_label": "DM Software Annual Renewal Date",
+      "confidence": "high",
+      "source": "live_report_type_metadata"
+    },
+    {
+      "builder_label": "Product Family",
+      "target_api_name": "Opportunity.APTS_RH_Product_Family__c",
+      "target_label": "Product Family",
+      "confidence": "high",
+      "source": "live_report_type_metadata"
+    },
+    {
+      "builder_label": "renewal_period",
+      "target_api_name": "Account.Gain_Renewal_Period__c",
+      "target_label": "DM Software Renewal Period",
+      "confidence": "high",
+      "source": "live_report_type_metadata"
+    },
+    {
+      "builder_label": "product_family",
+      "target_api_name": "Opportunity.APTS_RH_Product_Family__c",
+      "target_label": "Product Family",
+      "confidence": "high",
+      "source": "live_report_type_metadata"
+    },
+    {
+      "builder_label": "Risk Band",
+      "target_api_name": "Opportunity.Risk_Assessment_Level__c",
+      "target_label": "Risk Assessment Level",
+      "confidence": "medium",
+      "source": "semantic_alias"
+    },
+    {
+      "builder_label": "risk_band",
+      "target_api_name": "Opportunity.Risk_Assessment_Level__c",
+      "target_label": "Risk Assessment Level",
+      "confidence": "medium",
+      "source": "semantic_alias"
+    }
+  ],
+  "report_filter_templates": [
+    {
+      "builder_label": "renewal_period",
+      "default_operator": "equals",
+      "value_mode": "manual"
+    },
+    {
+      "builder_label": "owner",
+      "default_operator": "equals",
+      "value_mode": "manual"
+    },
+    {
+      "builder_label": "product_family",
+      "default_operator": "equals",
+      "value_mode": "manual"
+    },
+    {
+      "builder_label": "risk_band",
+      "default_operator": "equals",
+      "value_mode": "manual"
+    }
+  ],
+  "report_sort_templates": [
+    {
+      "builder_label": "Owner",
+      "default_sort_order": "Asc",
+      "target_api_name": "FULL_NAME",
+      "target_label": "Opportunity Owner",
+      "confidence": "high",
+      "source": "semantic_alias"
+    },
+    {
+      "builder_label": "Action Queue: Handoff Quality",
+      "default_sort_order": "Desc",
+      "confidence": "medium",
+      "source": "semantic_intent"
+    }
+  ],
+  "dashboard_component_aliases": [
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "Actual Forecast & Closed Won",
+      "report_id": "00OTb000008TZaTMAW",
+      "report_label": "Forecast & Closed Won",
+      "confidence": "high",
+      "source": "live_dashboard_baseline"
+    },
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "Variance Driver: Pipeline Coverage",
+      "report_id": "00OTb000008TZc5MAG",
+      "report_label": "Pipeline Coverage by Stage",
+      "confidence": "high",
+      "source": "live_dashboard_baseline"
+    },
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "Action Queue: Close-Date Risk",
+      "report_id": "00OTb000008TaBZMA0",
+      "report_label": "Overdue Close Date — Open Opps",
+      "confidence": "medium",
+      "source": "live_report_inventory"
+    }
+  ],
+  "dashboard_component_property_aliases": [
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "Actual Forecast & Closed Won",
+      "report_id": "00OTb000008TZaTMAW",
+      "component_label": "Actual Forecast & Closed Won",
+      "confidence": "high",
+      "source": "live_dashboard_component:01ZTb00000DoGYLMA3",
+      "properties": {
+        "aggregates": [
+          {
+            "name": "s!Opportunity.APTS_Forecast_ARR__c.CONVERT"
+          }
+        ],
+        "autoSelectColumns": false,
+        "drillUrl": null,
+        "filterColumns": [],
+        "groupings": [
+          {
+            "inheritedReportSort": null,
+            "name": "FORECAST_CATEGORY",
+            "sortAggregate": null,
+            "sortOrder": null
+          }
+        ],
+        "maxRows": null,
+        "reportFormat": "SUMMARY",
+        "sort": null,
+        "useReportChart": true,
+        "visualizationProperties": {
+          "combineSmallGroups": false,
+          "decimalPrecision": null,
+          "displayUnits": "auto",
+          "legendPosition": "Right",
+          "showPercentages": false,
+          "showValues": true,
+          "sortLegendValues": false
+        },
+        "visualizationType": "Funnel"
+      }
+    },
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "Variance Driver: Pipeline Coverage",
+      "report_id": "00OTb000008TZc5MAG",
+      "component_label": "Variance Driver: Pipeline Coverage",
+      "confidence": "high",
+      "source": "live_dashboard_component:01ZTb00000DoGYLMA3",
+      "properties": {
+        "aggregates": [
+          {
+            "name": "s!Opportunity.APTS_Forecast_ARR__c"
+          }
+        ],
+        "autoSelectColumns": false,
+        "drillUrl": null,
+        "filterColumns": [],
+        "groupings": [
+          {
+            "inheritedReportSort": null,
+            "name": "STAGE_NAME",
+            "sortAggregate": null,
+            "sortOrder": "Asc"
+          }
+        ],
+        "maxRows": null,
+        "reportFormat": "SUMMARY",
+        "sort": null,
+        "useReportChart": false,
+        "visualizationProperties": {
+          "axisRange": {
+            "max": null,
+            "min": null,
+            "rangeType": "auto"
+          },
+          "decimalPrecision": -1,
+          "displayUnits": "auto",
+          "groupByType": "grouped",
+          "legendPosition": "Right",
+          "referenceLineColors": [],
+          "referenceLineValues": [],
+          "showChatterPhotos": false,
+          "showValues": true,
+          "sortLegendValues": false
+        },
+        "visualizationType": "Bar"
+      }
+    },
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "Action Queue: Close-Date Risk",
+      "report_id": "00OTb000008TaBZMA0",
+      "component_label": "Overdue Close Date — Open Opps",
+      "confidence": "high",
+      "source": "live_dashboard_component:01ZTb00000E1e50MAB",
+      "properties": {
+        "aggregates": [
+          {
+            "name": "RowCount"
+          }
+        ],
+        "autoSelectColumns": false,
+        "drillUrl": null,
+        "filterColumns": [],
+        "groupings": [
+          {
+            "inheritedReportSort": null,
+            "name": "FULL_NAME",
+            "sortAggregate": null,
+            "sortOrder": "Asc"
+          }
+        ],
+        "maxRows": null,
+        "reportFormat": "TABULAR",
+        "sort": null,
+        "useReportChart": false,
+        "useReportTableSetting": false,
+        "visualizationProperties": {
+          "breakPoints": [],
+          "decimalPrecision": -1,
+          "displayUnits": "auto",
+          "flexTableType": "summary",
+          "showChatterPhotos": false,
+          "tableColumns": [
+            {
+              "column": "FULL_NAME",
+              "showSubTotal": false,
+              "showTotal": false,
+              "type": "grouping"
+            },
+            {
+              "column": "RowCount",
+              "showSubTotal": false,
+              "showTotal": false,
+              "type": "aggregate"
+            }
+          ]
+        },
+        "visualizationType": "FlexTable"
+      }
+    }
+  ],
+  "dashboard_filter_aliases": [
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "fiscal_period",
+      "confidence": "high",
+      "source": "live_dashboard_filter:01ZTb00000DNFBlMAP",
+      "filter": {
+        "dataType": "string",
+        "errorMessage": null,
+        "id": "0IBTb0000003pqrOAA",
+        "name": "Fiscal Period",
+        "options": [
+          {
+            "alias": "Q1-2026",
+            "endValue": null,
+            "id": "0ICTb0000006MBSOA2",
+            "operation": "equals",
+            "startValue": null,
+            "value": "Q1-2026"
+          },
+          {
+            "alias": "Q2-2026",
+            "endValue": null,
+            "id": "0ICTb0000006MBTOA2",
+            "operation": "equals",
+            "startValue": null,
+            "value": "Q2-2026"
+          },
+          {
+            "alias": "Q3-2026",
+            "endValue": null,
+            "id": "0ICTb0000006MBUOA2",
+            "operation": "equals",
+            "startValue": null,
+            "value": "Q3-2026"
+          },
+          {
+            "alias": "Q4-2026",
+            "endValue": null,
+            "id": "0ICTb0000006MBVOA2",
+            "operation": "equals",
+            "startValue": null,
+            "value": "Q4-2026"
+          }
+        ],
+        "selectedOption": null
+      }
+    },
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "manager",
+      "confidence": "medium",
+      "source": "live_dashboard_filter:01ZTb00000DNFBlMAP",
+      "filter": {
+        "dataType": "string",
+        "errorMessage": null,
+        "id": "0IBTb0000003pqnOAA",
+        "name": "Team / Opportunity Owner",
+        "options": [
+          {
+            "alias": "NA Sales Managers",
+            "endValue": null,
+            "id": "0ICTb0000006MAjOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "MacNeil,Sankavi,Colin Tigh,Matt Gray,Severs,Kletz,McCarthy,Foster,Lapham,Benjamin,Langille,Perkins,Norman,Anthony Le,Kimberly,Scott,Malarney,Anni,Wise,Terry"
+          },
+          {
+            "alias": "NA Sales AM",
+            "endValue": null,
+            "id": "0ICTb0000006MAkOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "McCarthy,MacNeil,Foster,Lapham,Griffiths,Anthony Le,Kimberly,Sankavi,Perkins,Malarney,Kaufman,Iragorri"
+          },
+          {
+            "alias": "NA Sales Pension",
+            "endValue": null,
+            "id": "0ICTb0000006MAlOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Kletz,Norman,brunsell,monzur"
+          },
+          {
+            "alias": "NA Sales Insurance",
+            "endValue": null,
+            "id": "0ICTb0000006MAmOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "kaufman,Wise,rousseau,steinhaus"
+          },
+          {
+            "alias": "NA Sales Canada",
+            "endValue": null,
+            "id": "0ICTb0000006MAnOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Steinhaus,Terry,Almeida,Langille"
+          },
+          {
+            "alias": "NA Customer Success",
+            "endValue": null,
+            "id": "0ICTb0000006MAoOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Ntwali,Young,Yeomans,Marlin,Halahel,Bush,Nina"
+          },
+          {
+            "alias": "Justin Wolfe",
+            "endValue": null,
+            "id": "0ICTb0000006MApOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Justin Wolfe"
+          },
+          {
+            "alias": "Prentice Ng",
+            "endValue": null,
+            "id": "0ICTb0000006MAqOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Prentice Ng"
+          },
+          {
+            "alias": "Adam Balukonis",
+            "endValue": null,
+            "id": "0ICTb0000006MArOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Adam Balukonis"
+          },
+          {
+            "alias": "Violeta Rangel",
+            "endValue": null,
+            "id": "0ICTb0000006MAsOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Violeta Rangel"
+          },
+          {
+            "alias": "Christopher Brady",
+            "endValue": null,
+            "id": "0ICTb0000006MAtOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Christopher Brady"
+          },
+          {
+            "alias": "Jorden Dougherty",
+            "endValue": null,
+            "id": "0ICTb0000006MAuOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Jorden Dougherty"
+          },
+          {
+            "alias": "Terry Dyra",
+            "endValue": null,
+            "id": "0ICTb0000006MAvOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Terry Dyra"
+          },
+          {
+            "alias": "Nina Ponjavic",
+            "endValue": null,
+            "id": "0ICTb0000006MAwOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Nina Ponjavic"
+          },
+          {
+            "alias": "Serge Valente",
+            "endValue": null,
+            "id": "0ICTb0000006MAxOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Serge Valente"
+          },
+          {
+            "alias": "Shabnam Sorkhi",
+            "endValue": null,
+            "id": "0ICTb0000006MAyOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Shabnam Sorkhi"
+          },
+          {
+            "alias": "Brendan Voege",
+            "endValue": null,
+            "id": "0ICTb0000006MAzOAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Brendan Voege"
+          },
+          {
+            "alias": "Ikhtiar Kazi",
+            "endValue": null,
+            "id": "0ICTb0000006MB0OAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Ikhtiar Kazi"
+          },
+          {
+            "alias": "Matt Charette",
+            "endValue": null,
+            "id": "0ICTb0000006MB1OAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Matt Charette"
+          },
+          {
+            "alias": "Mark Sollecitto",
+            "endValue": null,
+            "id": "0ICTb0000006MB2OAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Mark Sollecitto"
+          },
+          {
+            "alias": "Shana Davis",
+            "endValue": null,
+            "id": "0ICTb0000006MB3OAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Shana Davis"
+          },
+          {
+            "alias": "Steve Yeomans",
+            "endValue": null,
+            "id": "0ICTb0000006MB4OAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Steve Yeomans"
+          },
+          {
+            "alias": "Thierry Kelvin Ntwali",
+            "endValue": null,
+            "id": "0ICTb0000006MB5OAM",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Thierry Kelvin Ntwali"
+          },
+          {
+            "alias": "Sara Norman",
+            "endValue": null,
+            "id": "0ICTb0000006wCbOAI",
+            "operation": "contains",
+            "startValue": null,
+            "value": "Norman"
+          }
+        ],
+        "selectedOption": null
+      }
+    }
+  ],
+  "dashboard_filter_templates": [
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "fiscal_period",
+      "confidence": "high",
+      "source": "live_filter_options_analysis",
+      "filter": {
+        "name": "Close Date",
+        "options": [
+          {
+            "alias": "Q1-2026",
+            "operation": "between",
+            "startValue": "01.02.2026",
+            "endValue": "30.04.2026",
+            "value": null
+          },
+          {
+            "alias": "Q2-2026",
+            "operation": "between",
+            "startValue": "01.05.2026",
+            "endValue": "31.07.2026",
+            "value": null
+          },
+          {
+            "alias": "Q3-2026",
+            "operation": "between",
+            "startValue": "01.08.2026",
+            "endValue": "31.10.2026",
+            "value": null
+          },
+          {
+            "alias": "Q4-2026",
+            "operation": "between",
+            "startValue": "01.11.2026",
+            "endValue": "31.01.2027",
+            "value": null
+          }
+        ],
+        "selectedOption": null
+      },
+      "analysis": {
+        "filter_columns": [
+          {
+            "reportId": "00OTb000008TZaTMAW",
+            "name": "CLOSE_DATE"
+          },
+          {
+            "reportId": "00OTb000008TZc5MAG",
+            "name": "CLOSE_DATE"
+          },
+          {
+            "reportId": "00OTb000008TaBZMA0",
+            "name": "CLOSE_DATE"
+          }
+        ]
+      }
+    },
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "manager",
+      "confidence": "high",
+      "source": "live_filter_options_analysis",
+      "filter": {
+        "name": "Opportunity Owner",
+        "options": [
+          {
+            "alias": "NA Sales Managers",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "MacNeil,Sankavi,Colin Tigh,Matt Gray,Severs,Kletz,McCarthy,Foster,Lapham,Benjamin,Langille,Perkins,Norman,Anthony Le,Kimberly,Scott,Malarney,Anni,Wise,Terry"
+          },
+          {
+            "alias": "NA Sales AM",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "McCarthy,MacNeil,Foster,Lapham,Griffiths,Anthony Le,Kimberly,Sankavi,Perkins,Malarney,Kaufman,Iragorri"
+          },
+          {
+            "alias": "NA Sales Pension",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Kletz,Norman,brunsell,monzur"
+          },
+          {
+            "alias": "NA Sales Insurance",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "kaufman,Wise,rousseau,steinhaus"
+          },
+          {
+            "alias": "NA Sales Canada",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Steinhaus,Terry,Almeida,Langille"
+          },
+          {
+            "alias": "NA Customer Success",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Ntwali,Young,Yeomans,Marlin,Halahel,Bush,Nina"
+          },
+          {
+            "alias": "Justin Wolfe",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Justin Wolfe"
+          },
+          {
+            "alias": "Prentice Ng",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Prentice Ng"
+          },
+          {
+            "alias": "Adam Balukonis",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Adam Balukonis"
+          },
+          {
+            "alias": "Violeta Rangel",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Violeta Rangel"
+          },
+          {
+            "alias": "Christopher Brady",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Christopher Brady"
+          },
+          {
+            "alias": "Jorden Dougherty",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Jorden Dougherty"
+          },
+          {
+            "alias": "Terry Dyra",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Terry Dyra"
+          },
+          {
+            "alias": "Nina Ponjavic",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Nina Ponjavic"
+          },
+          {
+            "alias": "Serge Valente",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Serge Valente"
+          },
+          {
+            "alias": "Shabnam Sorkhi",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Shabnam Sorkhi"
+          },
+          {
+            "alias": "Brendan Voege",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Brendan Voege"
+          },
+          {
+            "alias": "Ikhtiar Kazi",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Ikhtiar Kazi"
+          },
+          {
+            "alias": "Matt Charette",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Matt Charette"
+          },
+          {
+            "alias": "Mark Sollecitto",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Mark Sollecitto"
+          },
+          {
+            "alias": "Shana Davis",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Shana Davis"
+          },
+          {
+            "alias": "Steve Yeomans",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Steve Yeomans"
+          },
+          {
+            "alias": "Thierry Kelvin Ntwali",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Thierry Kelvin Ntwali"
+          },
+          {
+            "alias": "Sara Norman",
+            "operation": "contains",
+            "startValue": null,
+            "endValue": null,
+            "value": "Norman"
+          }
+        ],
+        "selectedOption": null
+      },
+      "analysis": {
+        "filter_columns": [
+          {
+            "reportId": "00OTb000008TaBZMA0",
+            "name": "FULL_NAME"
+          }
+        ]
+      }
+    },
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "source_label": "forecast_category",
+      "confidence": "high",
+      "source": "live_filter_options_analysis",
+      "filter": {
+        "name": "Forecast Category",
+        "options": [
+          {
+            "alias": "Pipeline",
+            "operation": "equals",
+            "startValue": null,
+            "endValue": null,
+            "value": "Pipeline"
+          },
+          {
+            "alias": "Best Case",
+            "operation": "equals",
+            "startValue": null,
+            "endValue": null,
+            "value": "Best Case"
+          },
+          {
+            "alias": "Commit",
+            "operation": "equals",
+            "startValue": null,
+            "endValue": null,
+            "value": "Commit"
+          },
+          {
+            "alias": "Won",
+            "operation": "equals",
+            "startValue": null,
+            "endValue": null,
+            "value": "Won"
+          }
+        ],
+        "selectedOption": null
+      },
+      "analysis": {
+        "filter_columns": [
+          {
+            "reportId": "00OTb000008TZaTMAW",
+            "name": "FORECAST_CATEGORY"
+          }
+        ]
+      }
+    }
+  ],
+  "dashboard_baseline_aliases": [
+    {
+      "package_developer_name": "manager_revenue_lightweight_native_dashb",
+      "dashboard_id": "01ZTb00000CyYpVMAV",
+      "dashboard_label": "Operational Work Done",
+      "confidence": "medium",
+      "source": "live_clone_probe"
+    }
+  ]
+}

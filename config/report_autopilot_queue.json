@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-31",
+  "items": [
+    {
+      "key": "manager_renewal_follow_up",
+      "priority": 10,
+      "enabled": true,
+      "query": "Manager owner list report for high risk renewals needing follow-up this week",
+      "notes": "Uses the safe report workflow with live-read autofill and report apply dry-run classification."
+    }
+  ]
+}

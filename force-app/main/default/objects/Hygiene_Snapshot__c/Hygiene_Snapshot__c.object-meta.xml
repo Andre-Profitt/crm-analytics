@@ -1,0 +1,22 @@
+        <?xml version="1.0" encoding="UTF-8"?>
+        <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+          <label>Hygiene Snapshot</label>
+          <pluralLabel>Hygiene Snapshots</pluralLabel>
+          <description>Aggregate data-quality / hygiene count per (run_date, metric_key). Each row drives a KPI tile or trend line on the Sales Ops dashboard.</description>
+          <sharingModel>ReadWrite</sharingModel>
+          <deploymentStatus>Deployed</deploymentStatus>
+          <enableActivities>false</enableActivities>
+          <enableHistory>false</enableHistory>
+          <enableReports>true</enableReports>
+          <enableSearch>false</enableSearch>
+          <enableFeeds>false</enableFeeds>
+          <enableBulkApi>true</enableBulkApi>
+          <enableSharing>true</enableSharing>
+          <enableStreamingApi>true</enableStreamingApi>
+          <nameField>
+  <label>Auto Number</label>
+  <type>AutoNumber</type>
+  <displayFormat>HYG-{0000000}</displayFormat>
+  <trackHistory>false</trackHistory>
+</nameField>
+        </CustomObject>

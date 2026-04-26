@@ -1,0 +1,211 @@
+{
+  "source": "Sales Handbook V4.pptx",
+  "source_path": "/Users/test/Downloads/Sales Handbook V4.pptx",
+  "stage_model": [
+    {
+      "stage": 1,
+      "label": "Prospecting",
+      "primary_owner": ["BDR", "Sales Manager"],
+      "focus": [
+        "high engagement prospects",
+        "current systems identified",
+        "need identified",
+        "investment considerations identified"
+      ]
+    },
+    {
+      "stage": 2,
+      "label": "Discovery",
+      "primary_owner": ["Sales Manager"],
+      "focus": [
+        "active meetings",
+        "decision process visible",
+        "expected timeline",
+        "PAIC complete",
+        "decision makers identified",
+        "scope and operating model identified",
+        "price guidance provided"
+      ]
+    },
+    {
+      "stage": 3,
+      "label": "Engagement",
+      "primary_owner": ["Sales Manager"],
+      "focus": [
+        "buying process confirmed",
+        "business case forming",
+        "timeline confirmed",
+        "budget / investment evident",
+        "TAS assessment complete",
+        "relationship map built",
+        "shortlist trajectory"
+      ]
+    },
+    {
+      "stage": 4,
+      "label": "Shortlisted",
+      "primary_owner": ["Sales Manager"],
+      "focus": [
+        "competitive position established",
+        "preferred trajectory",
+        "close plan emerging"
+      ]
+    },
+    {
+      "stage": 5,
+      "label": "Preferred",
+      "primary_owner": ["Sales Manager"],
+      "focus": [
+        "preferred vendor status",
+        "close plan created",
+        "legal and commercial workshops aligned"
+      ]
+    },
+    {
+      "stage": 6,
+      "label": "Contracting",
+      "primary_owner": ["Sales Manager", "Deal Desk"],
+      "focus": [
+        "redlines received",
+        "final price agreed",
+        "contract aligned",
+        "implementation terms aligned"
+      ]
+    },
+    {
+      "stage": 7,
+      "label": "Opt-out",
+      "primary_owner": ["Commercial", "Customer Success"],
+      "focus": [
+        "termination path",
+        "eligibility review",
+        "service termination"
+      ]
+    },
+    {
+      "stage": 8,
+      "label": "Won",
+      "primary_owner": ["Sales Manager", "Delivery", "Customer Success"],
+      "focus": [
+        "signed",
+        "won in Salesforce",
+        "handover complete",
+        "delivery and CSM transition"
+      ]
+    }
+  ],
+  "qualification_frameworks": {
+    "PAIC": ["Priority", "Authority", "Impact", "Critical Timeline"],
+    "TAS": [
+      "target account prioritization",
+      "operating model understanding",
+      "stakeholder engagement",
+      "solution alignment"
+    ],
+    "deal_review": [
+      "commercial approval",
+      "margin review",
+      "deal services design",
+      "test and improve"
+    ]
+  },
+  "forecast_rules": {
+    "questions": ["How much?", "When?"],
+    "owner_accountability": true,
+    "manager_accountability": [
+      "Managing Directors",
+      "Sales Directors",
+      "Heads of Customer Success"
+    ],
+    "forecast_category_can_override_stage_default": true
+  },
+  "dashboard_roles": {
+    "sales_manager": {
+      "primary_dashboard": "Forecast & Revenue Motions",
+      "must_answer": [
+        "forecast confidence",
+        "promotion pressure",
+        "commit protection",
+        "omitted cleanup",
+        "owner and manager pressure",
+        "deal review candidates"
+      ]
+    },
+    "csm_manager": {
+      "primary_dashboard": "Revenue Retention & Health",
+      "must_answer": [
+        "renewal risk",
+        "churn risk",
+        "health and adoption",
+        "expansion headroom",
+        "QBR cadence",
+        "save plan pressure"
+      ]
+    }
+  },
+  "motion_ownership": {
+    "Land": {
+      "primary_persona": "Sales",
+      "secondary_personas": ["Marketing", "BDR"]
+    },
+    "Expand": {
+      "primary_persona": "CX",
+      "secondary_personas": ["Sales", "Services"]
+    },
+    "Renewal": {
+      "primary_persona": "CX",
+      "secondary_personas": ["Services"]
+    },
+    "Contraction": {
+      "primary_persona": "CX",
+      "secondary_personas": ["Services"]
+    },
+    "Churn": {
+      "primary_persona": "CX",
+      "secondary_personas": ["Services"]
+    }
+  },
+  "operating_cadence": {
+    "executive": "weekly_to_monthly",
+    "sales_manager": "weekly",
+    "csm_manager": "weekly_to_monthly",
+    "individual": "daily"
+  },
+  "shared_drill_targets": [
+    "Account 360 & History",
+    "Opportunity Detail",
+    "Renewal Detail"
+  ],
+  "canonical_join_keys": {
+    "user": "OwnerId",
+    "account_owner": "Account.OwnerId",
+    "manager": "ManagerId"
+  },
+  "persona_classification": {
+    "required_signals": [
+      "UserRole.Name",
+      "Title",
+      "Division",
+      "Department",
+      "ManagerId"
+    ],
+    "do_not_use_alone": [
+      "OwnerName",
+      "ManagerName",
+      "Title",
+      "UserRole.Name"
+    ]
+  },
+  "preferred_manager_drill_path": [
+    "ManagerName",
+    "OwnerName",
+    "OpportunityName"
+  ],
+  "preferred_manager_filters": [
+    "UnitGroup",
+    "FYLabel",
+    "SalesRegion",
+    "CloseQuarter",
+    "ManagerName"
+  ]
+}

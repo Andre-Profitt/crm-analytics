@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+  <fullName>Run_Date__c</fullName>
+  <label>Run Date</label>
+  <type>Date</type>
+  <externalId>false</externalId>
+  <required>true</required>
+  <trackTrending>false</trackTrending>
+
+</CustomField>
