@@ -47,8 +47,20 @@ SCHEMA_VERSION = "monthly_platform.source_distribution_diff.v1"
 
 
 def _comparisons_by_source_key(audit: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Index per-source distribution payloads by source_key.
+
+    ``status == "no_policy"`` entries are excluded: those sources are not
+    opted into Track D, so including them would inflate
+    ``compared_source_count`` / ``new_source_count`` / ``dropped_source_count``
+    with sources that have no Track D semantics on either side. The diff is
+    intended to surface like-for-like changes for opted-in sources only.
+    """
     block = audit.get("distribution_comparison") or {}
-    return {c["source_key"]: c for c in block.get("comparisons", [])}
+    return {
+        c["source_key"]: c
+        for c in block.get("comparisons", [])
+        if c.get("status") != "no_policy"
+    }
 
 
 def _baseline_key_from_source_key(source_key: str) -> str:
@@ -98,6 +110,17 @@ def _diff_dimension(
         )
     seed_status_prior = (prior or {}).get("seed_status")
     seed_status_current = (current or {}).get("seed_status")
+    # Like-for-like only: a transition counts only when BOTH prior and
+    # current have a seed_status for this dimension AND they differ.
+    # New sources, dropped sources, and dimensions added/removed mid-cycle
+    # are surfaced via ``presence`` / ``new_categories`` / ``dropped_categories``
+    # — not as seed-status transitions, which would otherwise inflate
+    # ``seed_status_changed_count`` with non-transitions.
+    seed_status_changed = (
+        seed_status_prior is not None
+        and seed_status_current is not None
+        and seed_status_prior != seed_status_current
+    )
     return {
         "field": field,
         "semantic_name": semantic,
@@ -106,8 +129,7 @@ def _diff_dimension(
         "share_deltas": share_deltas,
         "seed_status_prior": seed_status_prior,
         "seed_status_current": seed_status_current,
-        "seed_status_changed": seed_status_prior != seed_status_current
-        and (seed_status_prior is not None or seed_status_current is not None),
+        "seed_status_changed": seed_status_changed,
     }
 
 

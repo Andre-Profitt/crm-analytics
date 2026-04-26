@@ -574,6 +574,152 @@ def test_diff_handles_audit_without_distribution_block():
     assert diff["summary"]["compared_source_count"] == 1
 
 
+def _no_policy_src(*, source_key: str) -> dict[str, Any]:
+    """Build a status=='no_policy' per-source payload (matches audit_distribution)."""
+    return {
+        "source_key": source_key,
+        "status": "no_policy",
+        "dimensions": [],
+        "slice_sentinels": [],
+        "seed_present": False,
+        "row_count": 0,
+    }
+
+
+def test_diff_excludes_no_policy_sources_from_indexing():
+    """Regression for Codex P2: status=='no_policy' must not inflate diff counters.
+
+    A source that is not opted into Track D appears in the audit's
+    ``distribution_comparison.comparisons`` with ``status='no_policy'`` so the
+    audit summary can record ``no_policy_source_count``. The run-over-run diff,
+    however, only makes sense for opted-in sources — including ``no_policy``
+    rows would add noise to ``compared_source_count`` /
+    ``new_source_count`` / ``dropped_source_count`` without any signal.
+    """
+    opted_in = _src(
+        source_key="sd_pipeline_open.apac.current_quarter.Q2.OPTED",
+        row_count=10,
+        dim_shares={"StageName": {"3 - Engagement": 1.0}},
+    )
+    prior = _audit_with_distribution(
+        snapshot_date="2026-03-31",
+        run_id="prior",
+        sources=[
+            opted_in,
+            _no_policy_src(
+                source_key="sd_historical_trending.apac.current_quarter.Q2.NOPOL"
+            ),
+        ],
+    )
+    current = _audit_with_distribution(
+        snapshot_date="2026-04-30",
+        run_id="current",
+        sources=[
+            opted_in,
+            _no_policy_src(
+                source_key="sd_historical_trending.apac.current_quarter.Q2.NOPOL"
+            ),
+        ],
+    )
+
+    diff = diff_distribution_audits(prior=prior, current=current)
+
+    # Only the opted-in source should appear; the no_policy source must be
+    # filtered out of both prior_by_key and current_by_key indexes.
+    assert diff["summary"]["compared_source_count"] == 1
+    assert diff["summary"]["new_source_count"] == 0
+    assert diff["summary"]["dropped_source_count"] == 0
+    assert all(
+        c["source_key"] != "sd_historical_trending.apac.current_quarter.Q2.NOPOL"
+        for c in diff["comparisons"]
+    )
+
+
+def test_diff_excludes_no_policy_when_status_changes_across_runs():
+    """A source switching from opted-in to no_policy (contract removed) shows
+    as 'dropped_source' once, not as a confused 'both' diff with empty dims."""
+    prior = _audit_with_distribution(
+        snapshot_date="2026-03-31",
+        run_id="prior",
+        sources=[
+            _src(
+                source_key="sd_pipeline_open.apac.current_quarter.Q2.SWITCHING",
+                row_count=10,
+                dim_shares={"StageName": {"3 - Engagement": 1.0}},
+            ),
+        ],
+    )
+    current = _audit_with_distribution(
+        snapshot_date="2026-04-30",
+        run_id="current",
+        sources=[
+            _no_policy_src(
+                source_key="sd_pipeline_open.apac.current_quarter.Q2.SWITCHING"
+            ),
+        ],
+    )
+
+    diff = diff_distribution_audits(prior=prior, current=current)
+
+    assert diff["summary"]["compared_source_count"] == 1
+    assert diff["summary"]["dropped_source_count"] == 1
+    assert diff["summary"]["new_source_count"] == 0
+    assert diff["comparisons"][0]["presence"] == "dropped_source"
+
+
+def test_seed_status_changed_only_counts_like_for_like_dimensions():
+    """Regression for Codex P2: new/dropped sources must not spike the counter.
+
+    A new source has dimensions with seed_status='present' on the current side
+    but no prior side at all — the counter should NOT treat that as a
+    transition. Same for dropped sources and dimensions added/removed mid-cycle.
+    Only same-source-same-dimension prior→current changes count.
+    """
+    prior = _audit_with_distribution(
+        snapshot_date="2026-03-31",
+        run_id="prior",
+        sources=[
+            _src(
+                source_key="sd_pipeline_open.apac.current_quarter.Q2.STABLE",
+                row_count=10,
+                dim_shares={"StageName": {"3 - Engagement": 1.0}},
+                seed_status_by_dim={"StageName": "present"},
+            ),
+        ],
+    )
+    current = _audit_with_distribution(
+        snapshot_date="2026-04-30",
+        run_id="current",
+        sources=[
+            _src(
+                source_key="sd_pipeline_open.apac.current_quarter.Q2.STABLE",
+                row_count=10,
+                dim_shares={"StageName": {"3 - Engagement": 1.0}},
+                seed_status_by_dim={"StageName": "present"},
+            ),
+            _src(  # NEW source — has seed_status='present' but no prior side
+                source_key="sd_pipeline_open.canada.current_quarter.Q2.NEW",
+                row_count=5,
+                dim_shares={"StageName": {"4 - Shortlisted": 1.0}},
+                seed_status_by_dim={"StageName": "present"},
+            ),
+        ],
+    )
+
+    diff = diff_distribution_audits(prior=prior, current=current)
+
+    # New source contributes 1 to new_source_count but 0 to seed_status_changed
+    # because there is no prior dimension to compare against.
+    assert diff["summary"]["new_source_count"] == 1
+    assert diff["summary"]["seed_status_changed_count"] == 0
+    new_source_dim = next(
+        c["dimensions"][0] for c in diff["comparisons"] if c["presence"] == "new_source"
+    )
+    assert new_source_dim["seed_status_prior"] is None
+    assert new_source_dim["seed_status_current"] == "present"
+    assert new_source_dim["seed_status_changed"] is False
+
+
 def test_diff_is_pure_does_not_mutate_inputs():
     prior = _audit_with_distribution(
         snapshot_date="2026-03-31",
