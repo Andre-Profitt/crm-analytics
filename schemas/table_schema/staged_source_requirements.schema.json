@@ -3,6 +3,7 @@
   "name": "staged_source_requirements",
   "title": "Source requirements registry (staged tier)",
   "description": "Flattened, typed projection of config/monthly_source_requirements.json requirements[]. Anchored to the 2026-04-26 v20d ETL spine checkpoint.",
+  "missingValues": ["", "nan", "NaN", "<NA>"],
   "fields": [
     {
       "name": "requirement_id",
