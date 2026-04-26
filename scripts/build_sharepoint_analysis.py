@@ -129,6 +129,12 @@ def _resolve_runtime_period_context(
         "fy_short": str(analysis_year)[-2:],
         "forecast_year_start": f"{analysis_year}-01-01",
         "forecast_year_end": f"{analysis_year}-12-31",
+        # Calendar-quarter titles for the analysis year. Read by SharePoint
+        # workbook templates that label each quarter sheet (e.g., "Q1 2026").
+        "q1_title": f"Q1 {analysis_year}",
+        "q2_title": f"Q2 {analysis_year}",
+        "q3_title": f"Q3 {analysis_year}",
+        "q4_title": f"Q4 {analysis_year}",
         "prior_quarter_label": period.prior_quarter.label,
         "prior_quarter_title": period.prior_quarter.title,
         "prior_quarter_start": period.prior_quarter.start_date,
@@ -175,13 +181,19 @@ def _historical_trending_contract() -> object:
 
 
 def _is_q1_of_analysis_year(value) -> bool:
+    """True iff ``value`` falls in calendar Q1 (Jan 1 – Mar 31) of the analysis year.
+
+    This used to compare against ``prior_quarter_start/end`` which only matches
+    "calendar Q1" when the analysis date sits in Q2; in Q3/Q4 it silently
+    classified Q1 deals as zero. The SharePoint analysis labels the column
+    literally ``q1_won_count`` (a fixed calendar quarter), so the comparison
+    must be against the analysis year's Q1 boundaries directly.
+    """
     token = str(value or "")[:10]
-    return (
-        bool(token)
-        and RUNTIME_PERIOD["prior_quarter_start"]
-        <= token
-        <= RUNTIME_PERIOD["prior_quarter_end"]
-    )
+    if not token:
+        return False
+    analysis_year = RUNTIME_PERIOD["analysis_year"]
+    return f"{analysis_year}-01-01" <= token <= f"{analysis_year}-03-31"
 
 
 def _is_in_current_quarter(value) -> bool:
