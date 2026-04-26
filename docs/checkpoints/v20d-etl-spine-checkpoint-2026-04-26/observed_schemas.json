@@ -1,0 +1,532 @@
+{
+  "marts/director_source_health.parquet": {
+    "columns": [
+      {
+        "name": "snapshot_date",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "run_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "director",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "ok_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "warning_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "blocked_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "total_row_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "total_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      }
+    ],
+    "row_count": 10
+  },
+  "marts/source_run_summary.parquet": {
+    "columns": [
+      {
+        "name": "snapshot_date",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "run_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "generated_at",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "status",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "selected_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "ok_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "warning_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "blocked_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "high_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "medium_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "baseline_drift_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "baseline_high_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "baseline_matched_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "baseline_missing_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "distribution_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "distribution_high_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "distribution_matched_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "distribution_missing_seed_source_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "distribution_missing_seed_dimension_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      }
+    ],
+    "row_count": 1
+  },
+  "raw/salesforce_extract_plan.parquet": {
+    "columns": [
+      {
+        "name": "snapshot_date",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "run_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "requirement_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_system",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_type",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "salesforce_object",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "dataset",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "output_grain",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "scope",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "territory",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "director",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "region",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "period_role",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "quarter_label",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_label",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "status",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      }
+    ],
+    "row_count": 55
+  },
+  "raw/source_quality_audit.parquet": {
+    "columns": [
+      {
+        "name": "snapshot_date",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "run_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_key",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "status",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "requirement_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "dataset",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_type",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "salesforce_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "label",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "territory",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "director",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "period_role",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "quarter_label",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "row_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "row_count_status",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "required_field_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "required_fields_present_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "missing_required_fields_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "high_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "medium_finding_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "quality_hash",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      }
+    ],
+    "row_count": 55
+  },
+  "staged/distribution_findings.parquet": {
+    "columns": [
+      {
+        "name": "snapshot_date",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "run_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "track",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "severity",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "issue",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "evidence",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "owner",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      }
+    ],
+    "row_count": 0
+  },
+  "staged/source_quality_findings.parquet": {
+    "columns": [
+      {
+        "name": "snapshot_date",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "run_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "track",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "severity",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "issue",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "evidence",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "owner",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      }
+    ],
+    "row_count": 1
+  },
+  "staged/source_requirements.parquet": {
+    "columns": [
+      {
+        "name": "requirement_id",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "enabled",
+        "nullable": "YES",
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "owner",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_system",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "source_type",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "dataset",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "output_grain",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "scope",
+        "nullable": "YES",
+        "type": "VARCHAR"
+      },
+      {
+        "name": "allow_zero",
+        "nullable": "YES",
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "min_rows",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "max_rows",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "has_distribution_policy",
+        "nullable": "YES",
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "distribution_dimension_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "slice_sentinel_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      },
+      {
+        "name": "fallback_policy_present",
+        "nullable": "YES",
+        "type": "BOOLEAN"
+      },
+      {
+        "name": "tag_count",
+        "nullable": "YES",
+        "type": "BIGINT"
+      }
+    ],
+    "row_count": 4
+  }
+}

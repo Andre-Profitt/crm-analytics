@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "expected": 55,
+      "name": "raw_salesforce_extract_plan vs source_requirement_plan.items",
+      "notes": "",
+      "observed": 55,
+      "status": "pass"
+    },
+    {
+      "expected": 55,
+      "name": "raw_source_quality_audit vs audit.sources",
+      "notes": "",
+      "observed": 55,
+      "status": "pass"
+    },
+    {
+      "expected": 4,
+      "name": "staged_source_requirements vs registry.requirements",
+      "notes": "",
+      "observed": 4,
+      "status": "pass"
+    },
+    {
+      "expected": 1,
+      "name": "staged_source_quality_findings vs non-distribution findings",
+      "notes": "Track B + Track C findings + any 'unknown' track = audit.findings minus Track D distribution_*",
+      "observed": 1,
+      "status": "pass"
+    },
+    {
+      "expected": 0,
+      "name": "staged_distribution_findings vs distribution_* findings",
+      "notes": "",
+      "observed": 0,
+      "status": "pass"
+    },
+    {
+      "expected": 1,
+      "name": "all-track findings vs audit.findings",
+      "notes": "Sum of staged finding tables must equal audit.findings length",
+      "observed": 1,
+      "status": "pass"
+    },
+    {
+      "expected": 10,
+      "name": "mart_director_source_health rows == distinct directors in audit",
+      "notes": "",
+      "observed": 10,
+      "status": "pass"
+    },
+    {
+      "expected": 1,
+      "name": "mart_source_run_summary rows == 1",
+      "notes": "One row per (snapshot, run_id)",
+      "observed": 1,
+      "status": "pass"
+    }
+  ],
+  "generated_at": "2026-04-26T18:21:19.451061+00:00",
+  "run_id": "live-all-sources-pipeline-open-v20c",
+  "schema_version": "monthly_platform.source_backed_warehouse_parity_report.v1",
+  "snapshot_date": "2026-04-30",
+  "status": "pass"
+}
