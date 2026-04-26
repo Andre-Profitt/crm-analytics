@@ -1,0 +1,180 @@
+{
+  "$schema": "https://specs.frictionlessdata.io/table-schema/",
+  "name": "raw_source_quality_audit",
+  "title": "Source quality audit (per-source row, raw tier)",
+  "description": "Direct Parquet mirror of source_extract_quality_audit.json sources[]. Anchored to the 2026-04-26 v20d ETL spine checkpoint.",
+  "fields": [
+    {
+      "name": "snapshot_date",
+      "type": "string",
+      "format": "default",
+      "constraints": {
+        "required": true,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    {
+      "name": "run_id",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "source_key",
+      "type": "string",
+      "description": "<requirement_id>.<territory>.<period_role>.<quarter_label>.<salesforce_id>",
+      "constraints": {
+        "required": true,
+        "minLength": 1,
+        "unique": true
+      }
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": ["ok", "warning", "blocked"]
+      }
+    },
+    {
+      "name": "requirement_id",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "dataset",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "source_type",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "salesforce_report",
+          "salesforce_list_view",
+          "salesforce_soql_probe"
+        ]
+      }
+    },
+    {
+      "name": "salesforce_id",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "label",
+      "type": "string"
+    },
+    {
+      "name": "territory",
+      "type": "string"
+    },
+    {
+      "name": "director",
+      "type": "string"
+    },
+    {
+      "name": "period_role",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": ["prior_quarter", "current_quarter", "forward_quarter"]
+      }
+    },
+    {
+      "name": "quarter_label",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "pattern": "^Q[1-4]$"
+      }
+    },
+    {
+      "name": "row_count",
+      "type": "integer",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "row_count_status",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": ["ok", "warning", "blocked"]
+      }
+    },
+    {
+      "name": "required_field_count",
+      "type": "integer",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "required_fields_present_count",
+      "type": "integer",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "missing_required_fields_count",
+      "type": "integer",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "finding_count",
+      "type": "integer",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "high_finding_count",
+      "type": "integer",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "medium_finding_count",
+      "type": "integer",
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
+    },
+    {
+      "name": "quality_hash",
+      "type": "string",
+      "description": "SHA-256 of the per-source quality payload.",
+      "constraints": {
+        "required": true,
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    }
+  ]
+}

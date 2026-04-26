@@ -11,6 +11,10 @@ duckdb>=1.1.0
 pydantic>=2.7.0
 PyYAML>=6.0.0
 
+# Track I — dataframe contracts (Pandera runtime + Frictionless portable schemas)
+pandera[pandas]>=0.20.0
+frictionless>=5.18
+
 # Excel Output
 openpyxl>=3.1.0
 

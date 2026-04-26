@@ -1,0 +1,26 @@
+[
+  {
+    "snapshot_date": "2026-04-30",
+    "run_id": "live-all-sources-pipeline-open-v20c",
+    "source_key": "sd_pipeline_open.apac.current_quarter.Q2.00BTb00000LJNODMA5",
+    "status": "???",
+    "requirement_id": "sd_pipeline_open",
+    "dataset": "pipeline_open",
+    "source_type": "salesforce_list_view",
+    "salesforce_id": "00BTb00000LJNODMA5",
+    "label": "SD Monthly Pipeline Open APAC FY26",
+    "territory": "APAC",
+    "director": "Jesper Tyrer",
+    "period_role": "current_quarter",
+    "quarter_label": "Q2",
+    "row_count": 13,
+    "row_count_status": "ok",
+    "required_field_count": 11,
+    "required_fields_present_count": 11,
+    "missing_required_fields_count": 0,
+    "finding_count": 0,
+    "high_finding_count": 0,
+    "medium_finding_count": 0,
+    "quality_hash": "f753a2405f7e5467338be80628fdd844cb8ff96c78085737c14e698e749d420b"
+  }
+]
