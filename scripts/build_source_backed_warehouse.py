@@ -86,7 +86,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--requirements",
         type=Path,
-        default=REPO_ROOT / "config" / "monthly_source_requirements.json",
+        default=None,
+        help=(
+            "Override path to monthly_source_requirements.json. "
+            "Default: <repo_root>/config/monthly_source_requirements.json, "
+            "where ``<repo_root>`` is whatever ``--repo-root`` resolves to "
+            "(NOT the module-level constant) so an out-of-tree invocation "
+            "uses the requirements that ship with that tree."
+        ),
     )
     parser.add_argument(
         "--source-plan",
@@ -116,7 +123,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     plan_path = args.source_plan or paths.source_plan_path
     audit_path = args.source_quality_audit or paths.source_quality_audit_path
-    registry_path = args.requirements
+    # Resolve ``--requirements`` against the parsed ``--repo-root`` rather
+    # than the module-level ``REPO_ROOT``. Without this an out-of-tree
+    # invocation would read the contract registry from THIS tree.
+    registry_path = args.requirements or (
+        args.repo_root / "config" / "monthly_source_requirements.json"
+    )
 
     try:
         plan = _load_json(plan_path)

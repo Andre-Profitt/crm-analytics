@@ -322,6 +322,67 @@ def test_round_trip_handles_empty_tables(warehouse_paths, sample_plan, sample_re
     assert _read_parquet_columns(path) == distribution_table.columns
 
 
+def test_empty_tables_preserve_typed_schema_not_all_varchar(
+    warehouse_paths, sample_plan, sample_registry
+):
+    """Codex P2 regression: empty-table writer used to ``CAST NULL AS VARCHAR``
+    for every column, collapsing BIGINT counts and BOOLEAN flags to strings.
+
+    Materialize an empty audit and assert that BIGINT-typed columns
+    (e.g. ``row_count`` in ``raw_source_quality_audit``) and BOOLEAN-typed
+    columns (e.g. ``enabled`` in ``staged_source_requirements``) keep
+    their declared types in the resulting Parquet schema.
+    """
+    empty_audit = {
+        "schema_version": "monthly_platform.source_extract_quality_audit.v1",
+        "snapshot_date": "2026-04-30",
+        "run_id": "empty-types",
+        "generated_at": "2026-04-26T00:00:00+00:00",
+        "status": "ok",
+        "summary": {"source_count": 0},
+        "sources": [],
+        "findings": [],
+    }
+    build_warehouse(
+        paths=warehouse_paths,
+        plan=sample_plan,
+        audit=empty_audit,
+        registry=sample_registry,
+    )
+
+    # raw_source_quality_audit: row_count + the count columns must be BIGINT,
+    # not VARCHAR.
+    raw_path = warehouse_paths.root / "raw" / "source_quality_audit.parquet"
+    schema = _read_parquet_schema(raw_path)
+    assert schema["row_count"] == "BIGINT"
+    assert schema["finding_count"] == "BIGINT"
+    assert schema["high_finding_count"] == "BIGINT"
+    # source_key, status, etc. stay VARCHAR.
+    assert schema["source_key"] == "VARCHAR"
+
+    # staged_source_requirements: enabled / has_distribution_policy must
+    # be BOOLEAN, the *_count columns BIGINT.
+    staged_path = warehouse_paths.root / "staged" / "source_requirements.parquet"
+    schema = _read_parquet_schema(staged_path)
+    assert schema["enabled"] == "BOOLEAN"
+    assert schema["has_distribution_policy"] == "BOOLEAN"
+    assert schema["allow_zero"] == "BOOLEAN"
+    assert schema["min_rows"] == "BIGINT"
+    assert schema["distribution_dimension_count"] == "BIGINT"
+    assert schema["requirement_id"] == "VARCHAR"
+
+
+def _read_parquet_schema(path: Path) -> dict[str, str]:
+    """Read the column-name → DuckDB-type map from a Parquet file."""
+    con = duckdb.connect()
+    try:
+        rows = con.execute(f"DESCRIBE SELECT * FROM read_parquet('{path}')").fetchall()
+    finally:
+        con.close()
+    # DESCRIBE columns: column_name, column_type, null, key, default, extra
+    return {row[0]: row[1] for row in rows}
+
+
 # ---------------------------------------------------------------------------
 # 3. Manifest
 # ---------------------------------------------------------------------------

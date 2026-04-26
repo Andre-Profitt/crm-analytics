@@ -425,36 +425,110 @@ def build_mart_source_run_summary(audit: dict[str, Any]) -> list[dict[str, Any]]
 # ---------------------------------------------------------------------------
 
 
+# Sparse per-table type override maps. Columns NOT listed default to
+# ``VARCHAR``. The writer uses these to construct correctly-typed empty
+# Parquet tables — without them, downstream readers see every column as
+# string and any later concat with non-empty runs explodes on type
+# mismatch. (Counters as strings are also lossy for any aggregation.)
+RAW_SOURCE_QUALITY_AUDIT_TYPES: dict[str, str] = {
+    "row_count": "BIGINT",
+    "required_field_count": "BIGINT",
+    "required_fields_present_count": "BIGINT",
+    "missing_required_fields_count": "BIGINT",
+    "finding_count": "BIGINT",
+    "high_finding_count": "BIGINT",
+    "medium_finding_count": "BIGINT",
+}
+STAGED_SOURCE_REQUIREMENTS_TYPES: dict[str, str] = {
+    "enabled": "BOOLEAN",
+    "allow_zero": "BOOLEAN",
+    "min_rows": "BIGINT",
+    "max_rows": "BIGINT",
+    "has_distribution_policy": "BOOLEAN",
+    "distribution_dimension_count": "BIGINT",
+    "slice_sentinel_count": "BIGINT",
+    "fallback_policy_present": "BOOLEAN",
+    "tag_count": "BIGINT",
+}
+MART_DIRECTOR_SOURCE_HEALTH_TYPES: dict[str, str] = {
+    "source_count": "BIGINT",
+    "ok_source_count": "BIGINT",
+    "warning_source_count": "BIGINT",
+    "blocked_source_count": "BIGINT",
+    "total_row_count": "BIGINT",
+    "total_finding_count": "BIGINT",
+}
+MART_SOURCE_RUN_SUMMARY_TYPES: dict[str, str] = {
+    "selected_source_count": "BIGINT",
+    "source_count": "BIGINT",
+    "ok_source_count": "BIGINT",
+    "warning_source_count": "BIGINT",
+    "blocked_source_count": "BIGINT",
+    "finding_count": "BIGINT",
+    "high_finding_count": "BIGINT",
+    "medium_finding_count": "BIGINT",
+    "baseline_drift_finding_count": "BIGINT",
+    "baseline_high_finding_count": "BIGINT",
+    "baseline_matched_source_count": "BIGINT",
+    "baseline_missing_source_count": "BIGINT",
+    "distribution_finding_count": "BIGINT",
+    "distribution_high_finding_count": "BIGINT",
+    "distribution_matched_source_count": "BIGINT",
+    "distribution_missing_seed_source_count": "BIGINT",
+    "distribution_missing_seed_dimension_count": "BIGINT",
+}
+
+
 TABLE_BUILDERS = {
     "raw_salesforce_extract_plan": (
         build_raw_salesforce_extract_plan,
         RAW_EXTRACT_PLAN_COLUMNS,
+        {},  # all VARCHAR
     ),
     "raw_source_quality_audit": (
         build_raw_source_quality_audit,
         RAW_SOURCE_QUALITY_AUDIT_COLUMNS,
+        RAW_SOURCE_QUALITY_AUDIT_TYPES,
     ),
     "staged_source_requirements": (
         build_staged_source_requirements,
         STAGED_SOURCE_REQUIREMENTS_COLUMNS,
+        STAGED_SOURCE_REQUIREMENTS_TYPES,
     ),
     "staged_source_quality_findings": (
         build_staged_source_quality_findings,
         STAGED_FINDING_COLUMNS,
+        {},  # all VARCHAR
     ),
     "staged_distribution_findings": (
         build_staged_distribution_findings,
         STAGED_FINDING_COLUMNS,
+        {},  # all VARCHAR
     ),
     "mart_director_source_health": (
         build_mart_director_source_health,
         MART_DIRECTOR_SOURCE_HEALTH_COLUMNS,
+        MART_DIRECTOR_SOURCE_HEALTH_TYPES,
     ),
     "mart_source_run_summary": (
         build_mart_source_run_summary,
         MART_SOURCE_RUN_SUMMARY_COLUMNS,
+        MART_SOURCE_RUN_SUMMARY_TYPES,
     ),
 }
+
+
+def column_duckdb_type(table_id: str, column: str) -> str:
+    """Return the DuckDB type for ``column`` in ``table_id``; default ``VARCHAR``.
+
+    Used by the writer when materializing an empty table so the Parquet
+    schema preserves the typed contract rather than collapsing every
+    column to string.
+    """
+    if table_id not in TABLE_BUILDERS:
+        return "VARCHAR"
+    _builder, _columns, types = TABLE_BUILDERS[table_id]
+    return types.get(column, "VARCHAR")
 
 
 def track_finding_distribution(audit: dict[str, Any]) -> Counter[str]:

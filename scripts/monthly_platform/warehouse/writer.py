@@ -86,27 +86,39 @@ def _write_parquet(
     *,
     rows: list[dict[str, Any]],
     columns: list[str],
+    types: dict[str, str],
     path: Path,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Always materialize even an empty table so downstream readers don't have
-    # to special-case missing files. DuckDB will infer column types from the
-    # provided rows; for an empty input we register a typed VARCHAR table so
-    # COPY succeeds with the documented column order.
+    # Always materialize even an empty table so downstream readers don't
+    # have to special-case missing files. The empty case used to ``CAST
+    # NULL AS VARCHAR`` for every column — that collapsed BIGINT/BOOLEAN
+    # columns to strings, breaking type-aware concat with non-empty runs
+    # of the same table later. We now use the per-column types declared
+    # in ``marts.TABLE_BUILDERS`` so the Parquet schema matches the
+    # populated case exactly.
     con = duckdb.connect()
     try:
         if rows:
             # Normalize each row to dict aligned to ``columns`` so DuckDB sees a
-            # uniform schema, then register as a polars-free relation.
+            # uniform schema, then cast through the declared types. PyArrow's
+            # type inference is fine for non-empty cases, but explicit casting
+            # guarantees BIGINT counts and BOOLEAN flags survive the round-trip
+            # rather than landing as INT64/INT32 / int8 by inference.
             normalized = [{col: row.get(col) for col in columns} for row in rows]
-            relation = con.from_arrow(_records_to_arrow(normalized, columns))
-            relation.to_parquet(str(path))
+            con.register("__rows_arrow", _records_to_arrow(normalized, columns))
+            select_clause = ", ".join(
+                f'CAST("{col}" AS {types.get(col, "VARCHAR")}) AS "{col}"'
+                for col in columns
+            )
+            con.execute(
+                f"CREATE TEMP TABLE __typed AS SELECT {select_clause} FROM __rows_arrow;"
+            )
+            con.execute(f"COPY __typed TO '{path}' (FORMAT 'parquet');")
         else:
-            # Build a typed-but-empty table by selecting CAST(NULL ...) and
-            # filtering it out. This works on DuckDB without literal-list
-            # parsing surprises.
             select_cols = ", ".join(
-                f'CAST(NULL AS VARCHAR) AS "{col}"' for col in columns
+                f'CAST(NULL AS {types.get(col, "VARCHAR")}) AS "{col}"'
+                for col in columns
             )
             con.execute(
                 f"CREATE TEMP TABLE __empty AS SELECT {select_cols} WHERE FALSE;"
@@ -132,10 +144,11 @@ def write_table(
     *,
     rows: list[dict[str, Any]],
     columns: list[str],
+    types: dict[str, str] | None = None,
     path: Path,
 ) -> WarehouseTable:
     """Write one table to Parquet and return its manifest entry."""
-    _write_parquet(rows=rows, columns=columns, path=path)
+    _write_parquet(rows=rows, columns=columns, types=types or {}, path=path)
     return WarehouseTable(
         table_id="",  # caller sets this
         relative_path="",
@@ -168,7 +181,7 @@ def build_warehouse(
         run_id=paths.run_id,
         warehouse_root=str(paths.root),
     )
-    for table_id, (builder, columns) in TABLE_BUILDERS.items():
+    for table_id, (builder, columns, types) in TABLE_BUILDERS.items():
         if table_id == "raw_salesforce_extract_plan":
             rows = builder(plan=plan, run_id=paths.run_id)
         elif table_id == "staged_source_requirements":
@@ -176,7 +189,7 @@ def build_warehouse(
         else:
             rows = builder(audit)
         path = paths.table_path(table_id)
-        entry = write_table(rows=rows, columns=columns, path=path)
+        entry = write_table(rows=rows, columns=columns, types=types, path=path)
         manifest.tables.append(
             WarehouseTable(
                 table_id=table_id,
