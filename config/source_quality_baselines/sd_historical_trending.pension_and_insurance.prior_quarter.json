@@ -1,0 +1,74 @@
+{
+  "baseline_key": "sd_historical_trending.pension_and_insurance.prior_quarter",
+  "notes": "",
+  "null_rates": {
+    "ARR": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Account Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Close Date": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Opportunity Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Stage": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    }
+  },
+  "period_role": "prior_quarter",
+  "policy": {
+    "null_rate_abs_delta": 0.05,
+    "null_rate_drift_action": "info",
+    "row_count_drift_action": "info",
+    "row_count_high_factor": 2.0,
+    "row_count_low_factor": 0.5
+  },
+  "promoted_at": "2026-04-26T01:56:11.367262+00:00",
+  "promoted_from": [
+    {
+      "quarter_label": "Q1",
+      "row_count": 52,
+      "run_id": "live-all-sources-pipeline-open-v20c",
+      "salesforce_id": "00OTb000008gYQTMA2",
+      "snapshot_date": "2026-04-30"
+    }
+  ],
+  "requirement_id": "sd_historical_trending",
+  "row_count": {
+    "allow_zero": true,
+    "expected_max": null,
+    "expected_min": null,
+    "max_observed": 52,
+    "median": 52.0,
+    "min_observed": 52,
+    "p05": 52.0,
+    "p95": 52.0,
+    "sample_count": 1
+  },
+  "schema_version": "monthly_platform.source_quality_baseline.v1",
+  "stage_mix_seed": null,
+  "territory": "Pension & Insurance"
+}

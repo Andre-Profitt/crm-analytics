@@ -1,0 +1,74 @@
+{
+  "baseline_key": "sd_pipeline_inspection.na_asset_management.current_quarter",
+  "notes": "",
+  "null_rates": {
+    "APTS_Forecast_ARR__c": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "CloseDate": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "ForecastCategoryName": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "Name": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    },
+    "StageName": {
+      "baseline_pct": 0.0,
+      "max_pct": 0.05,
+      "samples": [
+        0.0
+      ]
+    }
+  },
+  "period_role": "current_quarter",
+  "policy": {
+    "null_rate_abs_delta": 0.05,
+    "null_rate_drift_action": "info",
+    "row_count_drift_action": "info",
+    "row_count_high_factor": 2.0,
+    "row_count_low_factor": 0.5
+  },
+  "promoted_at": "2026-04-26T01:56:11.367452+00:00",
+  "promoted_from": [
+    {
+      "quarter_label": "Q2",
+      "row_count": 21,
+      "run_id": "live-all-sources-pipeline-open-v20c",
+      "salesforce_id": "00BTb00000LJQPJMA5",
+      "snapshot_date": "2026-04-30"
+    }
+  ],
+  "requirement_id": "sd_pipeline_inspection",
+  "row_count": {
+    "allow_zero": true,
+    "expected_max": null,
+    "expected_min": null,
+    "max_observed": 21,
+    "median": 21.0,
+    "min_observed": 21,
+    "p05": 21.0,
+    "p95": 21.0,
+    "sample_count": 1
+  },
+  "schema_version": "monthly_platform.source_quality_baseline.v1",
+  "stage_mix_seed": null,
+  "territory": "NA Asset Management"
+}

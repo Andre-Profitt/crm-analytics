@@ -1,0 +1,38 @@
+{
+  "baseline_key": "sd_historical_trending.apac.forward_quarter",
+  "notes": "",
+  "null_rates": {},
+  "period_role": "forward_quarter",
+  "policy": {
+    "null_rate_abs_delta": 0.05,
+    "null_rate_drift_action": "info",
+    "row_count_drift_action": "info",
+    "row_count_high_factor": 2.0,
+    "row_count_low_factor": 0.5
+  },
+  "promoted_at": "2026-04-26T01:56:11.366852+00:00",
+  "promoted_from": [
+    {
+      "quarter_label": "Q3",
+      "row_count": 0,
+      "run_id": "live-all-sources-pipeline-open-v20c",
+      "salesforce_id": "00OTb000008jXo1MAE",
+      "snapshot_date": "2026-04-30"
+    }
+  ],
+  "requirement_id": "sd_historical_trending",
+  "row_count": {
+    "allow_zero": true,
+    "expected_max": null,
+    "expected_min": null,
+    "max_observed": 0,
+    "median": 0.0,
+    "min_observed": 0,
+    "p05": 0.0,
+    "p95": 0.0,
+    "sample_count": 1
+  },
+  "schema_version": "monthly_platform.source_quality_baseline.v1",
+  "stage_mix_seed": null,
+  "territory": "APAC"
+}

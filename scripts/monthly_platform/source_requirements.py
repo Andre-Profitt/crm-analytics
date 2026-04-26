@@ -43,6 +43,7 @@ class SourcePathRule(ContractModel):
 
 
 QualityAction = Literal["ok", "warning", "fallback", "blocked"]
+BaselineDriftAction = Literal["ok", "info", "warning", "blocked"]
 
 
 def action_to_severity(action: QualityAction) -> Literal["high", "medium"] | None:
@@ -54,6 +55,24 @@ def action_to_severity(action: QualityAction) -> Literal["high", "medium"] | Non
         return "high"
     if action in ("warning", "fallback"):
         return "medium"
+    return None
+
+
+def baseline_drift_action_to_severity(
+    action: BaselineDriftAction,
+) -> Literal["high", "medium", "info"] | None:
+    """Map a baseline drift action policy to a finding severity.
+
+    Track C: baseline drift is read-only first. ``info`` is the default so a
+    drift finding surfaces in audits without blocking releases. Contracts must
+    explicitly opt up to ``warning``/``blocked`` once thresholds are calibrated.
+    """
+    if action == "blocked":
+        return "high"
+    if action == "warning":
+        return "medium"
+    if action == "info":
+        return "info"
     return None
 
 
@@ -81,6 +100,11 @@ class RowCountPolicy(ContractModel):
     # extraction is legitimate (e.g. "territory_has_no_forward_pipeline").
     # Propagated into finding evidence; not auto-evaluated yet (Track C/D).
     expected_empty_conditions: list[str] = Field(default_factory=list)
+    # Track C: optional contract-level override for baseline drift severity.
+    # When set, the baseline comparator uses this in place of the per-baseline
+    # `policy.row_count_drift_action` declared in the baseline JSON. Default
+    # ``None`` means "follow the baseline file's policy" (read-only / info).
+    baseline_drift_action: BaselineDriftAction | None = None
 
     @field_validator("min_rows")
     @classmethod
