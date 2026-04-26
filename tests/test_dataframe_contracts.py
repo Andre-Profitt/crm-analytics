@@ -1261,3 +1261,188 @@ def test_health_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
     assert report.status == "pass", [
         f"{f.message}: {f.evidence}" for f in report.findings
     ]
+# ===========================================================================
+# Slice 7 (final): mart_source_run_summary
+# ===========================================================================
+
+
+SUMMARY_FIXTURE_DIR = (
+    REPO_ROOT
+    / "tests"
+    / "fixtures"
+    / "bad_extracts"
+    / "mart_source_run_summary"
+)
+SUMMARY_TABLE_ID = "mart_source_run_summary"
+
+SUMMARY_COLUMNS = [
+    "snapshot_date",
+    "run_id",
+    "generated_at",
+    "status",
+    "selected_source_count",
+    "source_count",
+    "ok_source_count",
+    "warning_source_count",
+    "blocked_source_count",
+    "finding_count",
+    "high_finding_count",
+    "medium_finding_count",
+    "baseline_drift_finding_count",
+    "baseline_high_finding_count",
+    "baseline_matched_source_count",
+    "baseline_missing_source_count",
+    "distribution_finding_count",
+    "distribution_high_finding_count",
+    "distribution_matched_source_count",
+    "distribution_missing_seed_source_count",
+    "distribution_missing_seed_dimension_count",
+]
+
+
+def _load_summary_fixture(name: str) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = json.loads(
+        (SUMMARY_FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8")
+    )
+    df = pd.DataFrame(rows)
+    df = df.reindex(columns=[c for c in SUMMARY_COLUMNS if c in df.columns])
+    int_cols = [c for c in SUMMARY_COLUMNS if c.endswith("_count")]
+    for c in int_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("Int64")
+    return df
+
+
+def _summary_parquet_from_fixture(name: str, tmp_path: Path) -> Path:
+    df = _load_summary_fixture(name)
+    parquet_path = tmp_path / f"{name}.parquet"
+    df.to_parquet(parquet_path, index=False)
+    return parquet_path
+
+
+def test_summary_pandera_accepts_good_fixture():
+    df = _load_summary_fixture("good")
+    report = validate_pandera(table_id=SUMMARY_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_summary_pandera_rejects_duplicate_run():
+    df = _load_summary_fixture("duplicate_run")
+    report = validate_pandera(table_id=SUMMARY_TABLE_ID, df=df)
+    assert report.status == "fail"
+
+
+@pytest.mark.parametrize(
+    "fixture,expected_substring",
+    [
+        ("buckets_exceed_source_count", "source_count"),
+        ("high_medium_exceed_finding_count", "finding_count"),
+        ("baseline_high_exceeds_drift", "baseline"),
+        ("distribution_high_exceeds_total", "distribution"),
+    ],
+)
+def test_summary_pandera_rejects_wide_row_violation(fixture, expected_substring):
+    df = _load_summary_fixture(fixture)
+    report = validate_pandera(table_id=SUMMARY_TABLE_ID, df=df)
+    assert report.status == "fail"
+    assert any(
+        expected_substring in f"{f.message} {f.evidence}" for f in report.findings
+    ), [(f.message, f.evidence) for f in report.findings]
+
+
+@pytest.mark.parametrize(
+    "fixture,expected_substring",
+    [
+        ("unknown_status", "status"),
+        ("negative_finding_count", "finding_count"),
+        ("bad_generated_at", "generated_at"),
+    ],
+)
+def test_summary_pandera_rejects_negative_control(fixture, expected_substring):
+    df = _load_summary_fixture(fixture)
+    report = validate_pandera(table_id=SUMMARY_TABLE_ID, df=df)
+    assert report.status == "fail"
+    assert any(
+        expected_substring in f"{f.message} {f.evidence}" for f in report.findings
+    ), [(f.message, f.evidence) for f in report.findings]
+
+
+def test_summary_pandera_rejects_missing_distribution_count():
+    df = _load_summary_fixture("missing_distribution_count")
+    report = validate_pandera(table_id=SUMMARY_TABLE_ID, df=df)
+    assert report.status == "fail"
+
+
+def test_summary_frictionless_accepts_good_fixture(tmp_path: Path):
+    parquet_path = _summary_parquet_from_fixture("good", tmp_path)
+    report = validate_frictionless(
+        table_id=SUMMARY_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_summary_frictionless_rejects_unknown_status(tmp_path: Path):
+    parquet_path = _summary_parquet_from_fixture("unknown_status", tmp_path)
+    report = validate_frictionless(
+        table_id=SUMMARY_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "fail"
+
+
+def test_summary_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
+    """Live evidence: v20c run produces exactly 1 summary row."""
+    audit_path = (
+        REPO_ROOT
+        / "output"
+        / "monthly_salesforce_sources"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "audits"
+        / "source_extract_quality_audit.json"
+    )
+    if not audit_path.exists():
+        pytest.skip("v20c live evidence not on disk")
+
+    rc = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "build_source_backed_warehouse.py"),
+            "--snapshot-date",
+            "2026-04-30",
+            "--run-id",
+            "live-all-sources-pipeline-open-v20c",
+            "--warehouse-root",
+            str(tmp_path / "wh"),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert rc.returncode == 0, rc.stderr or rc.stdout
+
+    parquet_path = (
+        tmp_path
+        / "wh"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "marts"
+        / "source_run_summary.parquet"
+    )
+    con = duckdb.connect()
+    try:
+        df = con.execute(f"SELECT * FROM read_parquet('{parquet_path}')").df()
+    finally:
+        con.close()
+    assert len(df) == 1, f"expected exactly 1 summary row, got {len(df)}"
+    report = validate_pandera(table_id=SUMMARY_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
