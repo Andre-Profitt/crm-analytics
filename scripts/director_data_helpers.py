@@ -169,7 +169,7 @@ OPP_FIELDS = (
     "ForecastCategoryName, Probability, Type, APTS_Opportunity_Sub_Type__c, "
     "PushCount, AgeInDays, LastStageChangeInDays, "
     "LastActivityDate, LastActivityInDays, "
-    "Sales_Director_Book__c, Sales_Region__c, Account_Unit_Group__c, "
+    "Sales_Region__c, Account_Unit_Group__c, Account_Unit__c, "
     "Stage_20_Approval__c, Stage_20_Approval_Date__c, Approval_Status__c, "
     "Risk_Assessment_Level__c, Risk_Assessment_Comment__c, NextStep, "
     "CreatedDate, Calculated_Close_Date__c, "

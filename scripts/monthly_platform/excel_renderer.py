@@ -18,6 +18,11 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 if TYPE_CHECKING:
     from .models import DirectorBundle
 
+try:
+    from .intelligence import as_rows, build_deal_risk_table
+except ImportError:  # pragma: no cover
+    from scripts.monthly_platform.intelligence import as_rows, build_deal_risk_table
+
 HEADER_FILL = PatternFill(start_color="083EA7", end_color="083EA7", fill_type="solid")
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
 DATA_FONT = Font(size=9)
@@ -480,6 +485,74 @@ def render_bundle_to_excel(bundle: DirectorBundle, output_path: Path) -> None:
         eur_cols={8},
     )
 
+    # -- Close Date History --
+    close_date_sorted = sorted(
+        ds.close_date_events, key=lambda c: c.created_date, reverse=True
+    )
+    _add_sheet(
+        wb,
+        "Close Date History",
+        [
+            "Account",
+            "Opportunity",
+            "Owner",
+            "Stage (live)",
+            "Old Close",
+            "New Close",
+            "Changed On",
+            f"ARR Unweighted ({ccy})",
+            "Closed",
+        ],
+        [
+            [
+                c.account,
+                c.opportunity,
+                c.owner,
+                c.current_stage,
+                c.old_value,
+                c.new_value,
+                c.created_date,
+                c.arr_unweighted,
+                "Yes" if c.is_closed else "No",
+            ]
+            for c in close_date_sorted
+        ],
+        eur_cols={8},
+    )
+
+    # -- Deal Risk Index --
+    risk_rows = build_deal_risk_table(as_rows(bundle), limit=None)
+    _add_sheet(
+        wb,
+        "Deal Risk Index",
+        [
+            "Risk Score",
+            "Account",
+            "Opportunity",
+            "Owner",
+            "Stage",
+            "Forecast Category",
+            f"ARR Unweighted ({ccy})",
+            "Close Date",
+            "Risk Reasons",
+        ],
+        [
+            [
+                r["risk_score"],
+                r["account"],
+                r["opportunity"],
+                r["owner"],
+                r["stage"],
+                r["forecast_category"],
+                r["arr_unweighted"],
+                r["close_date"],
+                "; ".join(r["risk_reasons"]),
+            ]
+            for r in risk_rows
+        ],
+        eur_cols={7},
+    )
+
     # -- Summary (first tab, built last) --
     _build_summary(wb, bundle, fy, ccy, analysis_year)
 
@@ -579,6 +652,30 @@ def _build_summary(wb, bundle, fy, ccy, analysis_year):
                 "PI list view — forward quarter",
             )
         )
+    sheets_info.extend(
+        [
+            ("Activity Volume", len(ds.activity), "SOQL — tasks/events 90d"),
+            ("Commit Items", len(ds.commit_items), "SOQL — forecast category open items"),
+            ("Q1 Movement", len(ds.movement_prior), "SOQL — prior-quarter movement"),
+            ("Q2 Movement", len(ds.movement_current), "SOQL — current-quarter movement"),
+            ("Stage History", len(ds.stage_events), "SOQL — OpportunityFieldHistory StageName"),
+            (
+                "Forecast Category History",
+                len(ds.forecast_category_events),
+                "SOQL — OpportunityFieldHistory ForecastCategoryName",
+            ),
+            (
+                "Close Date History",
+                len(ds.close_date_events),
+                "SOQL — OpportunityFieldHistory CloseDate",
+            ),
+            (
+                "Deal Risk Index",
+                len(build_deal_risk_table(as_rows(bundle), limit=None)),
+                "Gold analytics — joined pipeline/activity/history risk score",
+            ),
+        ]
+    )
 
     for i, (sname, count, source) in enumerate(sheets_info, sheet_row + 1):
         ws[f"A{i}"] = sname

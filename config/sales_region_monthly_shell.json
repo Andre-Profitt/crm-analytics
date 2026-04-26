@@ -1,0 +1,503 @@
+{
+  "template_version": "2026-04-11",
+  "template_name": "Sales Region Monthly",
+  "agenda_title": "Regional Monthly Agenda",
+  "agenda_subtitle": "Fixed operating sequence for each top-level sales region",
+  "production_rules": {
+    "canonical_shell_required": true,
+    "generated_shell_publish_safe": false,
+    "population_mode": "structured-fill-only",
+    "forbidden_behaviors": [
+      "Do not redesign layout during monthly population.",
+      "Do not invent metrics or horizons not present in the validated fact pack.",
+      "Do not relabel ACV as ARR or hide Omitted inside active headline pipeline.",
+      "Do not present the Q1 promise baseline as a clean commitment number without qualification."
+    ]
+  },
+  "coverage_standard": {
+    "support_levels": [
+      "strong",
+      "qualified",
+      "placeholder"
+    ],
+    "minimum_fields_per_slide": [
+      "support_level",
+      "source_tabs",
+      "source_fields",
+      "metric_rules",
+      "known_gaps"
+    ]
+  },
+  "slides": [
+    {
+      "id": "executive-summary",
+      "title": "Regional Executive Summary",
+      "subtitle": "Headline position, leadership actions, and quarter focus",
+      "layout": "4 x content w/ gradient line",
+      "cards": [
+        {
+          "label": "All Open Pipeline",
+          "metric_hint": "All-open ARR in EUR",
+          "body": "Populate the full open-book ARR in EUR converted. Keep this separate from FY26 and Q2 so the headline does not overstate the near-term position."
+        },
+        {
+          "label": "FY26 Active Pipeline",
+          "metric_hint": "FY26 active ARR in EUR",
+          "body": "Populate FY26 active ARR in EUR converted, excluding Omitted from the active headline and stating that rule plainly."
+        },
+        {
+          "label": "Q2 Active Pipeline",
+          "metric_hint": "Q2 active ARR in EUR",
+          "body": "Populate current-quarter active ARR in EUR converted. Use this card to anchor whether coverage is healthy, thin, or concentrated."
+        },
+        {
+          "label": "Open Renewal Book",
+          "metric_hint": "Open renewal ACV in EUR",
+          "body": "Populate open renewal ACV in EUR converted. Renewals stay ACV, and the slide should identify the single leadership action on the renewal book."
+        }
+      ],
+      "required_slots": [
+        "headline_pipeline_arr_all_open",
+        "headline_pipeline_arr_fy26",
+        "headline_pipeline_arr_q2",
+        "headline_renewal_acv",
+        "top_risk",
+        "top_action"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Scorecard", "Renewals & Retention"],
+        "source_fields": [
+          "Pipeline ARR — All Open (any close date)",
+          "Pipeline ARR — FY26 Close Dates Only (excl. Omitted)",
+          "Pipeline ARR — Q2 2026 Close Dates Only (excl. Omitted)",
+          "renewals.summary_metrics.open_acv"
+        ],
+        "metric_rules": [
+          "Pipeline headline metrics remain ARR in EUR converted.",
+          "Renewals remain ACV in EUR converted.",
+          "Top risk and top action must be synthesized from validated facts, not invented."
+        ],
+        "known_gaps": [
+          "Leadership action is editorial and must be grounded in validated metrics rather than a raw workbook field."
+        ]
+      }
+    },
+    {
+      "id": "q1-review",
+      "title": "Q1 Promised vs Delivered",
+      "subtitle": "Regional actuals, slipped volume, and baseline qualification",
+      "layout": "4 x content w/ gradient line",
+      "cards": [
+        {
+          "label": "Won in Q1",
+          "metric_hint": "Won count and ARR",
+          "body": "Show regional won count and ARR delivered in quarter. This is the delivered outcome, not a forecast statement."
+        },
+        {
+          "label": "Lost in Q1",
+          "metric_hint": "Lost count and ARR",
+          "body": "Show regional lost count and ARR with a factual read on what was lost. Do not inflate this into a qualitative post-mortem."
+        },
+        {
+          "label": "Slipped out of Q1",
+          "metric_hint": "Slipped count and ARR",
+          "body": "Use validated slipped count and ARR aggregated across the region. This should be one of the main messages of the slide."
+        },
+        {
+          "label": "Promise Baseline",
+          "metric_hint": "Qualified baseline only",
+          "body": "Only state the regional promise baseline if it is forecast-safe. Otherwise qualify the ambiguity explicitly and do not present it as a clean commitment number."
+        }
+      ],
+      "required_slots": [
+        "q1_won_count",
+        "q1_won_arr",
+        "q1_lost_count",
+        "q1_lost_arr",
+        "q1_slipped_count",
+        "q1_slipped_arr",
+        "q1_promise_baseline_qualification"
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Q1 Review", "Won-Lost", "Pipeline Detail"],
+        "source_fields": [
+          "q1_review.actuals",
+          "q1_review.pushed_deals",
+          "q1_review.promise_baseline"
+        ],
+        "metric_rules": [
+          "Won, lost, and slipped are validated regional rollups from director-scoped actuals and pushed-deal populations.",
+          "Promise baseline must remain explicitly qualified."
+        ],
+        "known_gaps": [
+          "Promise baseline is aggregated from director-level pipeline inspection populations and is not a forecast-safe commitment number."
+        ]
+      }
+    },
+    {
+      "id": "quarterly-pipeline",
+      "title": "Quarterly Pipeline and Forecast",
+      "subtitle": "Display-quarter regional book, forecast mix, and omitted separation",
+      "layout": "4 x content w/ gradient line",
+      "cards": [
+        {
+          "label": "Quarter Active Pipeline",
+          "metric_hint": "Displayed-quarter active ARR in EUR",
+          "body": "Populate active displayed-quarter ARR in EUR converted. This is the near-term regional pipeline headline."
+        },
+        {
+          "label": "Commit",
+          "metric_hint": "Commit ARR in EUR",
+          "body": "Populate displayed-quarter Commit ARR and frame it as forecast mix, not the total quarter story."
+        },
+        {
+          "label": "Best Case",
+          "metric_hint": "Best Case ARR in EUR",
+          "body": "Populate displayed-quarter Best Case ARR and make clear how much of the quarter depends on conversion from Best Case."
+        },
+        {
+          "label": "Omitted",
+          "metric_hint": "Omitted ARR in EUR",
+          "body": "Keep Omitted ARR visible and clearly separated from the active headline so the region does not hide excluded exposure."
+        }
+      ],
+      "required_slots": [
+        "headline_pipeline_arr_q2",
+        "q2_commit_arr",
+        "q2_best_case_arr",
+        "q2_omitted_arr",
+        "quarterly_pipeline_label",
+        "quarterly_pipeline_title",
+        "quarterly_pipeline_display_reason",
+        "quarterly_pipeline_footnote"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Scorecard", "Q2 Outlook", "Pipeline Detail"],
+        "source_fields": [
+          "Pipeline ARR — Q2 2026 Close Dates Only (excl. Omitted)",
+          "q2_outlook.breakdown[Commit]",
+          "q2_outlook.breakdown[Best Case]",
+          "q2_outlook.breakdown[Omitted]",
+          "pipeline_detail.records.Close Date",
+          "pipeline_detail.records.Forecast Category"
+        ],
+        "metric_rules": [
+          "Use ARR in EUR converted for all four cards.",
+          "Keep Omitted separate from active headline pipeline.",
+          "If current-quarter in-scope regional pipeline is zero, the slide may fall forward to next-quarter outlook only with explicit footnote disclosure."
+        ],
+        "known_gaps": []
+      }
+    },
+    {
+      "id": "regional-book-breakdown",
+      "title": "Regional Book Breakdown",
+      "subtitle": "Subregions and MD-1 books inside the regional rollup",
+      "layout": "Title and Content",
+      "required_slots": [
+        "regional_component_books",
+        "largest_book_summary",
+        "weakest_book_summary"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Scorecard", "Territory Mapping"],
+        "source_fields": [
+          "component_books",
+          "territory_mapping.get_forecast_rollup_for_region"
+        ],
+        "metric_rules": [
+          "Regional book membership follows forecast hierarchy, not ad hoc grouping.",
+          "Middle East & Africa belongs under EMEA."
+        ],
+        "known_gaps": [
+          "This slide is a deterministic rollup and mapping view, not a direct single-tab workbook extract."
+        ]
+      },
+      "body_guidance": [
+        "List each component book in the rollup with the responsible MD-1.",
+        "Call out where concentration or underperformance sits inside the region.",
+        "Preserve the forecast hierarchy: ME&A belongs under EMEA, not APAC."
+      ]
+    },
+    {
+      "id": "pipeline-coverage-intel",
+      "title": "Pipeline Coverage and Opportunity Intel",
+      "subtitle": "Coverage statement, top regional opportunities, and hygiene pressure",
+      "layout": "3 x content w/ gradient line",
+      "cards": [
+        {
+          "label": "Coverage Position",
+          "metric_hint": "Coverage message",
+          "body": "State whether regional Q2 coverage is healthy, thin, or concentrated. The wording should sound like an executive readout, not a dashboard label."
+        },
+        {
+          "label": "Top Opportunities",
+          "metric_hint": "Largest validated deals",
+          "body": "List only the most material current opportunities with ARR, stage, and next step. Keep the list short and leadership-relevant."
+        },
+        {
+          "label": "Hygiene and Intel",
+          "metric_hint": "Risk pressure",
+          "body": "Summarize stale ARR, aging ARR, data-quality backlog, and competitor signals. Use this panel to explain why the quarter may be less healthy than headline pipeline suggests."
+        }
+      ],
+      "required_slots": [
+        "pipeline_coverage_statement",
+        "weighted_pipeline_arr",
+        "top_opportunities",
+        "stale_arr",
+        "aging_arr",
+        "data_quality_backlog",
+        "competitive_loss_watchlist",
+        "quarterly_pipeline_label",
+        "quarterly_pipeline_title",
+        "quarterly_pipeline_footnote"
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Pipeline Detail", "Q2 Outlook", "Scorecard", "Won-Lost", "Data Quality"],
+        "source_fields": [
+          "pipeline_detail.q2_active_opportunities",
+          "Weighted Pipeline (probability-adj)",
+          "Stale 30d+ (ARR)",
+          "Aging 365+ (ARR)",
+          "data_quality.total.Total Issues",
+          "won_lost.lost"
+        ],
+        "metric_rules": [
+          "Top opportunities on this slide must be quarter-filtered displayed-quarter active opportunities, not all-open long-dated deals.",
+          "Coverage statement is editorial but must be anchored to displayed-quarter active ARR and weighted pipeline."
+        ],
+        "known_gaps": [
+          "Competitive loss watchlist is limited to explicit external-competitor loss reasons present in top regional loss rows."
+        ]
+      }
+    },
+    {
+      "id": "commercial-approval-overview",
+      "title": "Commercial Approval Overview",
+      "subtitle": "Regional stage 3+ control view for approvals and exceptions",
+      "layout": "4 x content w/ gradient line",
+      "cards": [
+        {
+          "label": "Approval Rate",
+          "metric_hint": "Stage 3+ approval rate",
+          "body": "Insert the validated approval rate for stage 3+ opportunities and disclose the method if the denominator is approximate."
+        },
+        {
+          "label": "Approved",
+          "metric_hint": "Approved deals and ARR",
+          "body": "Show approved deal count and ARR so leadership can distinguish approved volume from the control backlog."
+        },
+        {
+          "label": "Pending or Missing",
+          "metric_hint": "Pending / missing backlog",
+          "body": "Show the backlog still pending or missing approval. Keep it operational and action-oriented."
+        },
+        {
+          "label": "Missing Candidates",
+          "metric_hint": "Stage 3+ candidate count",
+          "body": "Show the count of stage 3+ land opportunities still missing approval and set up the next slide as the action list."
+        }
+      ],
+      "required_slots": [
+        "approval_rate_stage3_plus",
+        "approved_deal_count",
+        "approved_arr",
+        "pending_missing_approval_count",
+        "pending_missing_approval_arr",
+        "missing_approval_candidate_count"
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Commercial Approval", "Scorecard"],
+        "source_fields": [
+          "commercial_approval.summary",
+          "commercial_approval.missing_candidates",
+          "Approval Rate (stage 3+)"
+        ],
+        "metric_rules": [
+          "Approved and pending exposure are ARR in EUR converted.",
+          "Approval rate method must be disclosed when denominator is approximate."
+        ],
+        "known_gaps": [
+          "Regional approval rate is currently a simple average of component-book approval-rate metrics, not a direct unified denominator."
+        ]
+      }
+    },
+    {
+      "id": "missing-commercial-approvals",
+      "title": "Missing Commercial Approval Candidates",
+      "subtitle": "Regional land stage 3+ opportunities requiring immediate attention",
+      "layout": "Title and Content",
+      "required_slots": [
+        "missing_approval_candidates"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Commercial Approval"],
+        "source_fields": [
+          "commercial_approval.missing_candidates"
+        ],
+        "metric_rules": [
+          "Candidates must be listed largest ARR first.",
+          "Only validated stage 3+ land opportunities missing approval belong here."
+        ],
+        "known_gaps": []
+      },
+      "body_guidance": [
+        "List candidates largest ARR first.",
+        "Include opportunity, ARR, owner, region or book, stage, and next required action.",
+        "Keep the list factual; do not infer approval status beyond the validated snapshot."
+      ]
+    },
+    {
+      "id": "renewals-retention",
+      "title": "Renewals and Retention",
+      "subtitle": "Current-quarter renewal book, likelihood, and watchlist",
+      "layout": "3 x content w/ gradient line",
+      "cards": [
+        {
+          "label": "Open Renewal Book",
+          "metric_hint": "Open renewals and ACV",
+          "body": "Insert regional renewal deal count and ACV in EUR converted. Keep this explicitly as ACV, not ARR."
+        },
+        {
+          "label": "Likelihood and Risk",
+          "metric_hint": "Risk mix",
+          "body": "Summarize renewal risk distribution and call out sparse tagging if needed. If tagging is weak, say that plainly."
+        },
+        {
+          "label": "Watchlist",
+          "metric_hint": "Named renewal watchlist",
+          "body": "List only the renewals that need active leadership follow-up this quarter, with owner and next checkpoint."
+        }
+      ],
+      "required_slots": [
+        "renewal_open_deal_count",
+        "renewal_open_acv",
+        "renewal_risk_bucket_summary",
+        "renewal_watchlist"
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Renewals & Retention"],
+        "source_fields": [
+          "renewals.summary_metrics.open_deal_count",
+          "renewals.summary_metrics.open_acv",
+          "renewals.summary_metrics.q2_open_deal_count",
+          "renewals.summary_metrics.q2_open_acv",
+          "renewals.risk_levels",
+          "renewals.q2_open_renewals"
+        ],
+        "metric_rules": [
+          "Renewal values remain ACV in EUR converted.",
+          "Watchlist should prioritize current-quarter renewals."
+        ],
+        "known_gaps": [
+          "Renewal risk tagging may be sparse; if so, the slide must say that plainly instead of overstating segmentation quality."
+        ]
+      }
+    },
+    {
+      "id": "slipped-deals",
+      "title": "Slipped Deals and Root Cause",
+      "subtitle": "Lead with validated slipped deals; expand commentary with book-level owner input",
+      "layout": "Title and Content",
+      "required_slots": [
+        "q1_slipped_count",
+        "q1_slipped_arr",
+        "slipped_deal_watchlist",
+        "slip_root_cause_summary"
+      ],
+      "data_contract": {
+        "support_level": "qualified",
+        "source_tabs": ["Q1 Review"],
+        "source_fields": [
+          "q1_review.actuals.slipped_count",
+          "q1_review.actuals.slipped_arr",
+          "q1_review.pushed_deals",
+          "q1_review.forecast_movement_summary"
+        ],
+        "metric_rules": [
+          "Lead with slipped count and slipped ARR.",
+          "Root-cause summary must distinguish validated reasons from owner follow-up needed."
+        ],
+        "known_gaps": [
+          "Owner-level root cause commentary may be incomplete and should be marked as follow-up instead of fabricated."
+        ]
+      },
+      "body_guidance": [
+        "Lead with slipped count and slipped ARR.",
+        "List the largest slipped opportunities and the stated reason if available.",
+        "If root-cause commentary is incomplete, mark the gap and route to book-owner follow-up."
+      ]
+    },
+    {
+      "id": "churn-finance",
+      "title": "Churn Risk and Finance Inputs",
+      "subtitle": "Hold as an explicit placeholder until Finance inputs are operationalized",
+      "layout": "Title and Content",
+      "required_slots": [
+        "finance_churn_inputs_status",
+        "finance_churn_owner",
+        "churn_placeholder_notes"
+      ],
+      "data_contract": {
+        "support_level": "placeholder",
+        "source_tabs": ["Finance external input"],
+        "source_fields": [
+          "finance_churn_inputs_status",
+          "finance_churn_owner"
+        ],
+        "metric_rules": [
+          "No churn metrics may be inferred from workbook data."
+        ],
+        "known_gaps": [
+          "Finance-owned churn trend inputs are not operationalized in the current workbook contract."
+        ]
+      },
+      "body_guidance": [
+        "State what Finance input is currently available and what is missing.",
+        "Name the owner or source for the churn reporting path when known.",
+        "Do not fabricate churn trend numbers."
+      ]
+    },
+    {
+      "id": "appendix-notes",
+      "title": "Appendix and Factual Notes",
+      "subtitle": "Definitions, source lineage, and known limitations",
+      "layout": "Title and Content",
+      "required_slots": [
+        "sources_lineage_summary",
+        "metric_definition_notes",
+        "data_quality_backlog",
+        "q1_promise_baseline_qualification"
+      ],
+      "data_contract": {
+        "support_level": "strong",
+        "source_tabs": ["Sources & Lineage", "Data Quality", "Scorecard", "Q1 Review"],
+        "source_fields": [
+          "sources_lineage_summary",
+          "metric_definition_notes",
+          "data_quality.total.Total Issues",
+          "q1_review.promise_baseline"
+        ],
+        "metric_rules": [
+          "Appendix notes must restate ARR vs ACV and omitted-stage rules.",
+          "Known limitations should be explicit rather than buried."
+        ],
+        "known_gaps": []
+      },
+      "body_guidance": [
+        "Restate ARR versus ACV usage.",
+        "Note that Omitted remains excluded from active headline pipeline.",
+        "Document forecast-hierarchy rules and any data-quality limitations."
+      ]
+    }
+  ]
+}

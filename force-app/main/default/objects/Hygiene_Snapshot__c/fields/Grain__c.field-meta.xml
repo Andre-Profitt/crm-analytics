@@ -1,0 +1,20 @@
+    <?xml version="1.0" encoding="UTF-8"?>
+    <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+      <fullName>Grain__c</fullName>
+      <label>Grain</label>
+      <type>Picklist</type>
+      <externalId>false</externalId>
+      <required>false</required>
+      <trackTrending>false</trackTrending>
+      <valueSet>
+  <valueSetDefinition>
+    <sorted>false</sorted>
+    <value><fullName>deal</fullName><default>false</default><label>deal</label></value>
+    <value><fullName>account</fullName><default>false</default><label>account</label></value>
+    <value><fullName>installation</fullName><default>false</default><label>installation</label></value>
+    <value><fullName>quote</fullName><default>false</default><label>quote</label></value>
+    <value><fullName>closed_deal</fullName><default>false</default><label>closed_deal</label></value>
+    <value><fullName>whitespace</fullName><default>false</default><label>whitespace</label></value>
+  </valueSetDefinition>
+</valueSet>
+    </CustomField>

@@ -1,0 +1,935 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-29",
+  "command_classes": {
+    "read_only": "Does not touch the live org. Safe for local inspection, export-audit review, and workbook intake.",
+    "live_read": "Reads from the live org but does not mutate assets.",
+    "mutating": "Changes live CRM Analytics assets or other org state and requires a reviewer/executor safety boundary."
+  },
+  "result_envelope": {
+    "required_keys": [
+      "status",
+      "tool",
+      "lane",
+      "command_class",
+      "messages",
+      "artifacts"
+    ],
+    "status_values": [
+      "ok",
+      "warn",
+      "error"
+    ],
+    "message_levels": [
+      "info",
+      "warn",
+      "error"
+    ]
+  },
+  "lanes": [
+    {
+      "id": "intelligence_control",
+      "label": "Intelligence Control",
+      "summary": "CLI-first resolver, router, reviewer, and executor commands above the direct harness surface."
+    },
+    {
+      "id": "patch_guardrails",
+      "label": "Patch Guardrails",
+      "summary": "Static local checks for Wave PATCH safety before any live mutation."
+    },
+    {
+      "id": "live_inventory",
+      "label": "Live Inventory",
+      "summary": "Read-only inventory, export, and portfolio-review scripts that inspect deployed dashboards."
+    },
+    {
+      "id": "dashboard_mutations",
+      "label": "Dashboard Mutations",
+      "summary": "Direct Wave PATCH or DELETE scripts that change deployed dashboards in the org."
+    },
+    {
+      "id": "export_audits",
+      "label": "Export Audits",
+      "summary": "Local audits that inspect exported dashboard JSON and score design, contract, or persona fit."
+    },
+    {
+      "id": "wave_data_validations",
+      "label": "Wave Data Validations",
+      "summary": "Hybrid or live validations that query Wave datasets or mix exported dashboards with live Salesforce evidence."
+    },
+    {
+      "id": "salesforce_data_profiles",
+      "label": "Salesforce Data Profiles",
+      "summary": "Live Salesforce profiling and semantic assessment scripts that shape dashboard requirements."
+    },
+    {
+      "id": "native_surface_authoring",
+      "label": "Native Surface Authoring",
+      "summary": "CLI bundles that turn builder-brain packages into native Salesforce report and dashboard authoring contracts."
+    },
+    {
+      "id": "local_intake",
+      "label": "Local Intake",
+      "summary": "Local-only intake and normalization scripts for workbook and KPI catalog inputs."
+    }
+  ],
+  "scripts": [
+    {
+      "path": "scripts/analytics_intelligence.py",
+      "lane": "intelligence_control",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Resolve, route, review, and execute typed CLI intelligence flows over the harness surface."
+    },
+    {
+      "path": "scripts/builder_brain.py",
+      "lane": "intelligence_control",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Retrieve exemplars, draft surfaces, critique revisions, and package execution handoffs for cross-surface analytics builds."
+    },
+    {
+      "path": "scripts/wave_patch_executor.py",
+      "lane": "intelligence_control",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Validates builder-brain CRMA patch payloads and compiles them into ordered Wave PATCH worklists."
+    },
+    {
+      "path": "scripts/builder_brain_handoff_targets.py",
+      "lane": "intelligence_control",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "stdout_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Validates and resolves builder-brain follow-up target ids for reports and dashboards."
+    },
+    {
+      "path": "scripts/run_memory.py",
+      "lane": "intelligence_control",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Stores and retrieves prior harness runs, artifacts, verdicts, and failure fingerprints."
+    },
+    {
+      "path": "scripts/ai_os_browser_cli.py",
+      "lane": "intelligence_control",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Reads the generated AI OS browser and collection indexes so operators can inspect recent collections and runs."
+    },
+    {
+      "path": "scripts/harness_planner.py",
+      "lane": "intelligence_control",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Builds evidence-first harness execution plans from business goals and registry metadata."
+    },
+    {
+      "path": "scripts/plan_evaluator.py",
+      "lane": "patch_guardrails",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Scores plan evidence and blocks under-evidenced dashboard mutations before executor handoff."
+    },
+    {
+      "path": "scripts/contract_lint.py",
+      "lane": "patch_guardrails",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Static Wave PATCH contract lint for raw or normalized dashboard JSON."
+    },
+    {
+      "path": "scripts/dashboard_portfolio_review.py",
+      "lane": "live_inventory",
+      "command_class": "live_read",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_and_artifacts",
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Fetches live dashboards and writes page-by-page portfolio review artifacts."
+    },
+    {
+      "path": "scripts/export_live_crma_assets.py",
+      "lane": "live_inventory",
+      "command_class": "live_read",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Exports live dashboard JSON plus referenced dataset metadata and XMD."
+    },
+    {
+      "path": "scripts/scan_record_actions.py",
+      "lane": "live_inventory",
+      "command_class": "live_read",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Scans deployed dashboards for comparison tables and ID-field readiness."
+    },
+    {
+      "path": "scripts/add_chart_subtitles.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Adds descriptive subtitles to deployed Gen 2 dashboards."
+    },
+    {
+      "path": "scripts/add_kpi_bullet_charts.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Adds grouped KPI bullet charts to deployed dashboards."
+    },
+    {
+      "path": "scripts/add_number_formatting.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Adds number formatting to deployed number widgets and axes."
+    },
+    {
+      "path": "scripts/add_table_formatting.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Adds conditional formatting rules to deployed comparison tables."
+    },
+    {
+      "path": "scripts/add_variance_indicators.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Adds YoY and QoQ variance indicators across deployed dashboards."
+    },
+    {
+      "path": "scripts/deploy_record_actions.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Deploys Salesforce record actions to eligible comparison tables."
+    },
+    {
+      "path": "scripts/enhance_finance_revops.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Enhances the Finance Revenue Operations dashboard in place."
+    },
+    {
+      "path": "scripts/fix_acc_navigate_links.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Repairs ACC Navigate dashboard links and layout."
+    },
+    {
+      "path": "scripts/fix_legacy_engagement_history_columnmaps.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Repairs incomplete columnMap objects on legacy dashboards."
+    },
+    {
+      "path": "scripts/fix_marketing_filter_wiring.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Repairs misclassified marketing filter widgets in live dashboards."
+    },
+    {
+      "path": "scripts/fix_pages_and_filters.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Renames pages and adds filter controls to selected live dashboards."
+    },
+    {
+      "path": "scripts/fix_surface_ml_datasets.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "medium",
+      "summary": "Surfaces orphaned ML datasets in existing dashboards."
+    },
+    {
+      "path": "scripts/reset_andre_dashboards.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_and_artifacts",
+      "requires_local_export": false,
+      "risk": "destructive",
+      "summary": "Backs up and deletes Andre-owned dashboards from the live org."
+    },
+    {
+      "path": "scripts/upgrade_executive_revenue_live.py",
+      "lane": "dashboard_mutations",
+      "command_class": "mutating",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_only",
+      "requires_local_export": false,
+      "risk": "high",
+      "summary": "Upgrades the live Executive Revenue and Forecast dashboard in place."
+    },
+    {
+      "path": "scripts/audit_account_intelligence.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported Account Intelligence dashboard snapshot."
+    },
+    {
+      "path": "scripts/audit_bdr_campaign_control.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported BDR campaign control dashboard snapshot."
+    },
+    {
+      "path": "scripts/audit_bdr_operating_system.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported BDR operating-system dashboard snapshot."
+    },
+    {
+      "path": "scripts/audit_commercial_rhythm_control_tower.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported Commercial Rhythm Control Tower snapshot."
+    },
+    {
+      "path": "scripts/audit_customer_intelligence.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported Customer Intelligence dashboard snapshot."
+    },
+    {
+      "path": "scripts/audit_executive_product_mix_industry.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported Executive Product Mix and Industry snapshot."
+    },
+    {
+      "path": "scripts/audit_forecast_revenue_motions.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported Forecast and Revenue Motions snapshot."
+    },
+    {
+      "path": "scripts/audit_lead_funnel.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported Lead Funnel snapshot."
+    },
+    {
+      "path": "scripts/audit_lead_management.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported Lead Management snapshot."
+    },
+    {
+      "path": "scripts/audit_revenue_retention_health.py",
+      "lane": "export_audits",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "none",
+      "summary": "Audits an exported Revenue Retention and Health snapshot."
+    },
+    {
+      "path": "scripts/audit_bdr_truth_layer.py",
+      "lane": "wave_data_validations",
+      "command_class": "live_read",
+      "live_system": "wave_api",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Queries the live BDR_Operating_Rhythm dataset to validate truth-layer integrity."
+    },
+    {
+      "path": "scripts/audit_source_truth_executive_revenue.py",
+      "lane": "wave_data_validations",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": true,
+      "risk": "low",
+      "summary": "Combines exported dashboard JSON with live opportunity evidence to validate source-truth revenue logic."
+    },
+    {
+      "path": "scripts/profile_bdr_activity_model.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles how BDR work is captured across Salesforce objects."
+    },
+    {
+      "path": "scripts/profile_bdr_field_readiness.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles BDR field readiness in the live Salesforce org."
+    },
+    {
+      "path": "scripts/profile_bdr_operating_state.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles the current BDR operating state from live Salesforce data."
+    },
+    {
+      "path": "scripts/profile_bdr_quote_product_signals.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles quote-line product evidence for the BDR universe."
+    },
+    {
+      "path": "scripts/profile_bdr_response_integrity.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles BDR response-time evidence and SLA measurability."
+    },
+    {
+      "path": "scripts/profile_renewal_outcomes.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles renewal outcomes from live Salesforce history."
+    },
+    {
+      "path": "scripts/profile_renewal_ownership.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles renewal ownership patterns from live Salesforce history."
+    },
+    {
+      "path": "scripts/profile_retention_owner_validation.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Validates retention semantics on selected live owners."
+    },
+    {
+      "path": "scripts/profile_retention_product_grain.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Determines the correct product grain for retention classification."
+    },
+    {
+      "path": "scripts/profile_retention_semantics.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles retention semantics from live Salesforce process data."
+    },
+    {
+      "path": "scripts/profile_role_structure.py",
+      "lane": "salesforce_data_profiles",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "artifacts_only",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Profiles commercial role structures from live Salesforce data."
+    },
+    {
+      "path": "scripts/salesforce_report_executor.py",
+      "lane": "native_surface_authoring",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Compiles builder-brain report packages into native Salesforce report authoring bundles."
+    },
+    {
+      "path": "scripts/salesforce_dashboard_executor.py",
+      "lane": "native_surface_authoring",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Compiles builder-brain dashboard packages into native Salesforce dashboard authoring bundles."
+    },
+    {
+      "path": "scripts/salesforce_dashboard_filter_automation.py",
+      "lane": "native_surface_authoring",
+      "command_class": "live_read",
+      "live_system": "salesforce_api",
+      "artifact_mode": "stdout_and_artifacts",
+      "supports_json_output": true,
+      "requires_local_export": false,
+      "risk": "low",
+      "summary": "Consumes native dashboard filter automation plans, opens the dashboard editor, and snapshots candidate browser refs for post-clone filter authoring."
+    },
+    {
+      "path": "scripts/extract_kpi_workbook.py",
+      "lane": "local_intake",
+      "command_class": "read_only",
+      "live_system": "none",
+      "artifact_mode": "stdout_and_artifacts",
+      "requires_local_export": false,
+      "risk": "none",
+      "summary": "Extracts a normalized KPI catalog from a workbook provided by ops."
+    }
+  ],
+  "excluded_scripts": [
+    {
+      "path": "scripts/ai_os_browser.py",
+      "reason": "Excluded because it is a shared helper module for AI OS browser/index generation, not a direct CLI harness."
+    },
+    {
+      "path": "scripts/audit_deck_scope.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/audit_sales_director_monthly_dashboard.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/audit_sales_director_preview.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/audit_sales_global_summary_preview.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/claude_office_etl.py",
+      "reason": "Skill / tooling installer (not a Wave harness)"
+    },
+    {
+      "path": "scripts/convert_decks_to_simcorp.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/dashboard_state_dump.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/director_data_helpers.py",
+      "reason": "Shared helper module (not a direct CLI harness)"
+    },
+    {
+      "path": "scripts/executor_policy.py",
+      "reason": "Excluded because it is a shared helper module for executor evaluation policy, bypass audits, and memory writeback, not a direct CLI harness."
+    },
+    {
+      "path": "scripts/export_powerpoint_pdf.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/extract_dashboard_to_excel.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/extract_director_data.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/extract_director_live.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/extract_director_workbook_snapshot.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/extract_historical_trending.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/extract_pipeline_inspection_snapshot.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/generate_obsidian_notes.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/install_repo_codex_skills.py",
+      "reason": "Skill / tooling installer (not a Wave harness)"
+    },
+    {
+      "path": "scripts/manage_opportunity_list_views.py",
+      "reason": "Salesforce list view / PI manager (operator helper, not a Wave harness)"
+    },
+    {
+      "path": "scripts/manage_pi_views.py",
+      "reason": "Salesforce list view / PI manager (operator helper, not a Wave harness)"
+    },
+    {
+      "path": "scripts/materialize_wave_patch_contract.py",
+      "reason": "Wave state management helper (read/merge, not a direct harness)"
+    },
+    {
+      "path": "scripts/md1_presets.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/merge_sales_director_overlay.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/merge_wave_module_states.py",
+      "reason": "Wave state management helper (read/merge, not a direct harness)"
+    },
+    {
+      "path": "scripts/native_surface_browser.py",
+      "reason": "Excluded because it is a shared helper module for native dashboard/report run review pages and AI OS browser indexes, not a direct CLI harness."
+    },
+    {
+      "path": "scripts/native_surface_io.py",
+      "reason": "Excluded because it is a shared helper module for native dashboard/report REST, session, and JSON IO helpers, not a direct CLI harness."
+    },
+    {
+      "path": "scripts/native_surface_policy.py",
+      "reason": "Excluded because it is a shared helper module for native dashboard/report evaluation gating and memory-context derivation, not a direct CLI harness."
+    },
+    {
+      "path": "scripts/package_claude_skills.py",
+      "reason": "Skill / tooling installer (not a Wave harness)"
+    },
+    {
+      "path": "scripts/phase1_5_patch_dashboard1.py",
+      "reason": "Phase migration / one-off patch script (legacy, kept for replay)"
+    },
+    {
+      "path": "scripts/phase1_5_patch_shape_probe.py",
+      "reason": "Phase migration / one-off patch script (legacy, kept for replay)"
+    },
+    {
+      "path": "scripts/phase2_5_core_patch.py",
+      "reason": "Phase migration / one-off patch script (legacy, kept for replay)"
+    },
+    {
+      "path": "scripts/phase2_5_shape_probe.py",
+      "reason": "Phase migration / one-off patch script (legacy, kept for replay)"
+    },
+    {
+      "path": "scripts/phase2_6_build.py",
+      "reason": "Phase migration / one-off patch script (legacy, kept for replay)"
+    },
+    {
+      "path": "scripts/phase2_6_post_probe.py",
+      "reason": "Phase migration / one-off patch script (legacy, kept for replay)"
+    },
+    {
+      "path": "scripts/phase2_7_build.py",
+      "reason": "Phase migration / one-off patch script (legacy, kept for replay)"
+    },
+    {
+      "path": "scripts/phase2_7_probe.py",
+      "reason": "Phase migration / one-off patch script (legacy, kept for replay)"
+    },
+    {
+      "path": "scripts/promote_sales_director_batch_canonical.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/report_surface_intelligence.py",
+      "reason": "Excluded because it is a shared helper module for report-fit scoring and report action-surface assessment, not a direct CLI harness."
+    },
+    {
+      "path": "scripts/run_dashboard_autopilot.py",
+      "reason": "Excluded from the supported direct API surface because it orchestrates legacy builder entries from queue config."
+    },
+    {
+      "path": "scripts/run_director_workbook_decks.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_focus_loop.py",
+      "reason": "Excluded because it wraps run_dashboard_autopilot.py and inherits its legacy-builder dependency."
+    },
+    {
+      "path": "scripts/run_monthly_director_review.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_report2_saql_refresh.py",
+      "reason": "Autopilot / report runner (orchestrator helper, not a direct Wave harness)"
+    },
+    {
+      "path": "scripts/run_report_autopilot.py",
+      "reason": "Autopilot / report runner (orchestrator helper, not a direct Wave harness)"
+    },
+    {
+      "path": "scripts/run_sales_director_canonical_shell_builder.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_sales_director_monthly_cadence.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_sales_director_monthly_master_builder.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_sales_director_monthly_report.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_sales_global_canonical_shell_builder.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_sales_global_summary_builder.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_sales_region_canonical_shell_builder.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/run_sales_region_monthly_builder.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_color_font_remap.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_crma_chart_sample.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_final_polish.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_full_deck_v2.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_full_deck_v3.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_hybrid_build.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_master_transplant.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_path_b_sample.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_polish.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_remove_bars.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_single_slide_sample.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/simcorp_single_slide_v2.py",
+      "reason": "SimCorp deck/template styling utility (branding, not a Wave harness)"
+    },
+    {
+      "path": "scripts/territory_mapping.py",
+      "reason": "Shared helper module (not a direct CLI harness)"
+    },
+    {
+      "path": "scripts/validate_d1_md1_presets.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/validate_sales_director_shell_contract.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/validate_sales_global_summary_shell_contract.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/validate_sales_region_shell_contract.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/validate_tie_out.py",
+      "reason": "Sales Director Monthly ETL / review pipeline (Excel + PowerPoint deck generation, not a Wave harness)"
+    },
+    {
+      "path": "scripts/wave_patch_policy.py",
+      "reason": "Excluded because it is a shared helper module for Wave PATCH evaluation gating and memory-context derivation, not a direct CLI harness."
+    }
+  ]
+}

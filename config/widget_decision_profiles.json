@@ -1,0 +1,169 @@
+{
+  "widget_types": {
+    "number": {
+      "best_for": ["headline metric", "current state"],
+      "avoid_for": ["trend", "composition", "multi-step explanation"]
+    },
+    "bullet": {
+      "best_for": ["actual vs target", "actual vs threshold", "attainment"],
+      "avoid_for": ["trend", "forecast ladder", "composition"]
+    },
+    "line": {
+      "best_for": ["trend", "trajectory", "forecast pacing", "scenario ladder"],
+      "avoid_for": ["rank only", "action queue"]
+    },
+    "waterfall": {
+      "best_for": ["bridge", "build-up", "variance decomposition"],
+      "avoid_for": ["trend", "non-additive comparisons"]
+    },
+    "hbar": {
+      "best_for": ["rank", "largest gap", "ordered comparison"],
+      "avoid_for": ["pattern over time", "queue-first action"]
+    },
+    "comparisontable": {
+      "best_for": ["diagnosis", "action", "exception queue", "compact matrix"],
+      "avoid_for": ["headline story only", "simple single-metric comparison"]
+    },
+    "heatmap": {
+      "best_for": ["density", "cross-axis concentration", "bottlenecks"],
+      "avoid_for": ["exact ranking", "single-series trend"]
+    },
+    "trellis": {
+      "best_for": ["same-shape comparison across a small set of slices"],
+      "avoid_for": ["too many panels", "executive summary by default", "rank-first questions"]
+    },
+    "treemap": {
+      "best_for": ["composition with many categories"],
+      "avoid_for": ["precise rank", "small-value comparison"]
+    },
+    "choropleth": {
+      "best_for": ["geographic pattern"],
+      "avoid_for": ["precise comparison without a companion rank view"]
+    }
+  },
+  "domains": {
+    "revenue": {
+      "preferred_widgets": ["number", "line", "waterfall", "hbar", "comparisontable", "bullet"],
+      "common_questions": {
+        "forecast_confidence_over_time": {
+          "recommended": "line",
+          "alternatives": ["timeline"],
+          "avoid": ["bullet", "treemap"]
+        },
+        "gap_by_region": {
+          "recommended": "hbar",
+          "alternatives": ["comparisontable"],
+          "avoid": ["trellis", "map_only"]
+        },
+        "why_we_miss_or_hit_plan": {
+          "recommended": "waterfall",
+          "alternatives": ["comparisontable"],
+          "avoid": ["line"]
+        },
+        "which_deals_need_intervention": {
+          "recommended": "comparisontable",
+          "alternatives": ["hbar"],
+          "avoid": ["treemap", "choropleth"]
+        }
+      }
+    },
+    "demand": {
+      "preferred_widgets": ["bullet", "funnel", "line", "heatmap", "comparisontable"],
+      "common_questions": {
+        "sla_vs_target": {
+          "recommended": "bullet",
+          "alternatives": ["number"],
+          "avoid": ["treemap"]
+        },
+        "funnel_conversion": {
+          "recommended": "funnel",
+          "alternatives": ["line"],
+          "avoid": ["bullet"]
+        },
+        "who_needs_work_now": {
+          "recommended": "comparisontable",
+          "alternatives": ["hbar"],
+          "avoid": ["trellis"]
+        }
+      }
+    },
+    "customer": {
+      "preferred_widgets": ["bullet", "heatmap", "comparisontable", "hbar", "line"],
+      "common_questions": {
+        "health_vs_target": {
+          "recommended": "bullet",
+          "alternatives": ["number"],
+          "avoid": ["treemap"]
+        },
+        "which_accounts_are_at_risk": {
+          "recommended": "comparisontable",
+          "alternatives": ["hbar"],
+          "avoid": ["map_only"]
+        }
+      }
+    },
+    "retention": {
+      "preferred_widgets": ["line", "waterfall", "bullet", "hbar", "comparisontable"],
+      "common_questions": {
+        "nrr_grr_vs_target": {
+          "recommended": "bullet",
+          "alternatives": ["line"],
+          "avoid": ["treemap"]
+        },
+        "renewal_risk_queue": {
+          "recommended": "comparisontable",
+          "alternatives": ["hbar"],
+          "avoid": ["choropleth"]
+        }
+      }
+    },
+    "product_gtm": {
+      "preferred_widgets": ["heatmap", "treemap", "hbar", "choropleth", "comparisontable"],
+      "common_questions": {
+        "product_mix_by_segment": {
+          "recommended": "heatmap",
+          "alternatives": ["treemap", "hbar"],
+          "avoid": ["bullet"]
+        },
+        "arr_by_country": {
+          "recommended": "choropleth",
+          "alternatives": ["hbar", "comparisontable"],
+          "avoid": ["choropleth_only"]
+        }
+      }
+    },
+    "productivity": {
+      "preferred_widgets": ["bullet", "line", "heatmap", "comparisontable", "hbar"],
+      "common_questions": {
+        "activity_vs_target": {
+          "recommended": "bullet",
+          "alternatives": ["line"],
+          "avoid": ["treemap"]
+        },
+        "cycle_time_bottleneck": {
+          "recommended": "heatmap",
+          "alternatives": ["hbar"],
+          "avoid": ["bullet"]
+        }
+      }
+    }
+  },
+  "personas": {
+    "executive": {
+      "prefer": ["number", "line", "waterfall", "hbar", "comparisontable"],
+      "avoid_default": ["trellis", "dense_table"]
+    },
+    "manager": {
+      "prefer": ["line", "hbar", "comparisontable", "heatmap", "bullet"],
+      "avoid_default": ["decorative_map"]
+    },
+    "individual": {
+      "prefer": ["comparisontable", "bullet", "number"],
+      "avoid_default": ["trellis", "composition_only"]
+    },
+    "analyst": {
+      "prefer": ["heatmap", "trellis", "line", "comparisontable", "treemap"],
+      "avoid_default": ["oversimplified_summary_only"]
+    }
+  }
+}

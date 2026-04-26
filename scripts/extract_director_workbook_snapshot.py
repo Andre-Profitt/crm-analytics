@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -179,24 +179,7 @@ def summarize_transition_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]
     return summary
 
 
-def resolve_director_book(cache_dir: Path, territory: str) -> str:
-    candidate_files = [
-        "soql_open_pipeline.json",
-        "soql_won_q1.json",
-        "soql_lost_q1.json",
-    ]
-    books: list[str] = []
-    for filename in candidate_files:
-        for row in load_json(cache_dir / filename):
-            book = as_text(row.get("Sales_Director_Book__c"))
-            if book:
-                books.append(book)
-    if books:
-        return Counter(books).most_common(1)[0][0]
-    return territory
-
-
-def filtered_q1_cache_section(cache_dir: Path, director_book: str) -> dict[str, Any]:
+def filtered_q1_cache_section(cache_dir: Path, territory: str) -> dict[str, Any]:
     won_rows = load_json(cache_dir / "soql_won_q1.json")
     lost_rows = load_json(cache_dir / "soql_lost_q1.json")
     open_rows = load_json(cache_dir / "soql_open_pipeline.json")
@@ -235,8 +218,6 @@ def filtered_q1_cache_section(cache_dir: Path, director_book: str) -> dict[str, 
     seen_ids: set[str] = set()
     for row in close_history:
         opp = row.get("Opportunity") or {}
-        if as_text(opp.get("Sales_Director_Book__c")) != director_book:
-            continue
         old_close = as_text(row.get("OldValue"))[:10]
         new_close = as_text(row.get("NewValue"))[:10]
         if not old_close.startswith(("2026-01", "2026-02", "2026-03")):
@@ -267,8 +248,6 @@ def filtered_q1_cache_section(cache_dir: Path, director_book: str) -> dict[str, 
     forecast_movements: list[dict[str, Any]] = []
     for row in forecast_history:
         opp = row.get("Opportunity") or {}
-        if as_text(opp.get("Sales_Director_Book__c")) != director_book:
-            continue
         forecast_movements.append(
             {
                 "Opportunity": as_text(opp.get("Name")),
@@ -305,7 +284,7 @@ def filtered_q1_cache_section(cache_dir: Path, director_book: str) -> dict[str, 
     )
 
     return {
-        "director_book": director_book,
+        "territory_scope": territory,
         "promise_baseline": promise_baseline,
         "promise_baseline_note": (
             "Derived from ForecastingFact Q1 joined to director-scoped open and Q1 closed opportunities. "
@@ -349,8 +328,7 @@ def parse_q1_review(
         ),
     }
     if cache_dir is not None:
-        director_book = resolve_director_book(cache_dir, territory)
-        cache_section = filtered_q1_cache_section(cache_dir, director_book)
+        cache_section = filtered_q1_cache_section(cache_dir, territory)
         payload.update(cache_section)
     else:
         payload.update(
@@ -1224,7 +1202,7 @@ def parse_live_q1_review(
             "Live workbook contract uses movement tabs rather than the retired "
             "Q1 review workbook blocks; promise baseline is unavailable here."
         ),
-        "director_book": "",
+        "territory_scope": "",
         "promise_baseline": [],
         "promise_baseline_note": "Not available in the live workbook contract.",
         "actuals": actuals,

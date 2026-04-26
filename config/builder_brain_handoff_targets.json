@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-27",
+  "targets": [
+    {
+      "source_surface_id": "commercial_rhythm_control_tower",
+      "target_surface_type": "salesforce_report",
+      "destination_type": "report",
+      "target_surface_id": "00OTb000008TZaTMAW",
+      "target_surface_label": "Forecast & Closed Won",
+      "target_destination_name": "00OTb000008TZaTMAW",
+      "preferred_search_terms": [
+        "Forecast Accuracy",
+        "Forecast & Closed Won"
+      ],
+      "notes": "Pinned on 2026-03-27 after live compare of the three duplicate Forecast & Closed Won reports in COO Run The Business. 00OTb000008TZaTMAW was the only copy with recent LastRunDate, the most recent LastViewedDate, and one live report filter."
+    }
+  ]
+}

@@ -6,6 +6,7 @@ from openpyxl import load_workbook
 import scripts.extract_director_live as extract_live
 from scripts.extract_director_live import (
     _build_pipeline_inspection_rows,
+    _filter_pi_records_to_territory_scope,
     _load_forward_quarter_pi_audit_fallback,
     _quarter_label,
     _resolve_forward_quarter_pi_source,
@@ -238,6 +239,30 @@ def test_build_pipeline_inspection_rows_can_filter_to_forward_quarter() -> None:
             "Yes",
         ]
     ]
+
+
+def test_filter_pi_records_to_territory_scope_uses_soql_where(monkeypatch) -> None:
+    records = [
+        {"id": "006KEEP", "fields": {"Name": {"value": "Keep"}}},
+        {"id": "006DROP", "fields": {"Name": {"value": "Drop"}}},
+    ]
+    seen_queries = []
+
+    def fake_run_soql(session, instance_url, query, label=""):
+        seen_queries.append((query, label))
+        assert "Account.Industry IN ('Asset Management','Wealth Management')" in query
+        return [{"Id": "006KEEP"}]
+
+    monkeypatch.setattr(extract_live, "run_soql", fake_run_soql)
+
+    assert _filter_pi_records_to_territory_scope(
+        object(),
+        "https://example.my.salesforce.com",
+        records,
+        "Account.Industry IN ('Asset Management','Wealth Management')",
+        label="NA Asset Management:pi",
+    ) == [records[0]]
+    assert seen_queries[0][1] == "NA Asset Management:pi:territory_scope"
 
 
 def test_write_run_audit_emits_json_and_summary(tmp_path: Path) -> None:

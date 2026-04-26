@@ -89,6 +89,7 @@ def test_workbook_parity_with_legacy_contract(tmp_path):
 
     from scripts.monthly_platform.models import (
         ApprovalDeal,
+        CloseDateEvent,
         CommitItem,
         MovementEvent,
         RenewalDeal,
@@ -190,6 +191,20 @@ def test_workbook_parity_with_legacy_contract(tmp_path):
                     is_won=False,
                 ),
             ],
+            close_date_events=[
+                CloseDateEvent(
+                    opportunity_id="006x",
+                    opportunity="Big Deal",
+                    account="Acme Corp",
+                    owner="Jane",
+                    current_stage="4 - Shortlisted",
+                    old_value="2026-03-15",
+                    new_value="2026-06-30",
+                    created_date="2026-03-20",
+                    arr_unweighted=500000,
+                    is_closed=False,
+                ),
+            ],
         ),
         dataset_counts={
             "pipeline_open": 1,
@@ -202,7 +217,7 @@ def test_workbook_parity_with_legacy_contract(tmp_path):
             "commit_items": 1,
             "stage_events": 1,
             "forecast_category_events": 0,
-            "close_date_events": 0,
+            "close_date_events": 1,
             "movement_prior": 1,
             "movement_current": 0,
             "snapshot_trend": 0,
@@ -226,6 +241,8 @@ def test_workbook_parity_with_legacy_contract(tmp_path):
         "Q2 Movement",
         "Stage History",
         "Forecast Category History",
+        "Close Date History",
+        "Deal Risk Index",
     ]
     for name in expected_sheets:
         assert name in wb.sheetnames, f"Missing sheet: {name}"
@@ -345,6 +362,28 @@ def test_workbook_parity_with_legacy_contract(tmp_path):
             "Changed On",
             "ARR Unweighted (EUR)",
         ],
+        "Close Date History": [
+            "Account",
+            "Opportunity",
+            "Owner",
+            "Stage (live)",
+            "Old Close",
+            "New Close",
+            "Changed On",
+            "ARR Unweighted (EUR)",
+            "Closed",
+        ],
+        "Deal Risk Index": [
+            "Risk Score",
+            "Account",
+            "Opportunity",
+            "Owner",
+            "Stage",
+            "Forecast Category",
+            "ARR Unweighted (EUR)",
+            "Close Date",
+            "Risk Reasons",
+        ],
     }
 
     for sheet_name, expected_hdrs in legacy_headers.items():
@@ -366,6 +405,13 @@ def test_workbook_parity_with_legacy_contract(tmp_path):
     ws = wb["Stage History"]
     assert ws.cell(2, 5).value == "3 - Engagement"
     assert ws.cell(2, 6).value == "4 - Shortlisted"
+
+    ws = wb["Close Date History"]
+    assert ws.cell(2, 5).value == "2026-03-15"
+    assert ws.cell(2, 6).value == "2026-06-30"
+
+    ws = wb["Deal Risk Index"]
+    assert ws.cell(1, 1).value == "Risk Score"
 
     ws = wb["Summary"]
     assert ws.cell(1, 1).value == "Jesper Tyrer (APAC)"

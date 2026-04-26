@@ -1,0 +1,177 @@
+{
+  "version": "2026-03-12",
+  "active_context": {
+    "program_id": "commercial_gtm_os",
+    "domain_id": "bdr",
+    "surface_set_id": "bdr_operating_system",
+    "dashboard_id": "bdr_rep_queue",
+    "active_context_file": "docs/context/ACTIVE_CONTEXT.md",
+    "evidence_index_file": "docs/context/EVIDENCE_INDEX.md"
+  },
+  "programs": [
+    {
+      "id": "commercial_gtm_os",
+      "name": "Commercial / GTM Operating System",
+      "domains": [
+        "bdr",
+        "sales_manager",
+        "csm_manager",
+        "account_360",
+        "product_gtm"
+      ]
+    }
+  ],
+  "domains": [
+    {
+      "id": "bdr",
+      "name": "BDR",
+      "cadence": "daily to weekly",
+      "surface_sets": [
+        "bdr_operating_system"
+      ],
+      "core_artifacts": [
+        "docs/generated/BDR_ELITE_OPERATING_SYSTEM_PLAN_2026-03-12.md",
+        "docs/generated/BDR_PROCESS_AND_DATA_STORY_2026-03-12.md",
+        "docs/generated/bdr_operating_state_2026-03-12/profile.md",
+        "docs/generated/bdr_field_readiness_2026-03-12/profile.md",
+        "docs/generated/bdr_activity_model_2026-03-12/profile.md"
+      ]
+    },
+    {
+      "id": "sales_manager",
+      "name": "Sales Manager",
+      "cadence": "weekly",
+      "surface_sets": [
+        "sales_manager_operating_system"
+      ]
+    },
+    {
+      "id": "csm_manager",
+      "name": "CSM Manager",
+      "cadence": "weekly to monthly",
+      "surface_sets": [
+        "csm_manager_operating_system"
+      ]
+    },
+    {
+      "id": "account_360",
+      "name": "Account 360",
+      "cadence": "cross-functional drill target",
+      "surface_sets": [
+        "account_history_system"
+      ]
+    },
+    {
+      "id": "product_gtm",
+      "name": "Product / GTM",
+      "cadence": "weekly to monthly",
+      "surface_sets": [
+        "product_gtm_system"
+      ]
+    }
+  ],
+  "surface_sets": [
+    {
+      "id": "bdr_operating_system",
+      "name": "BDR Operating System",
+      "domain_id": "bdr",
+      "dashboards": [
+        "bdr_manager",
+        "bdr_rep_queue",
+        "bdr_campaign_target_list_control"
+      ],
+      "shared_drill_target": "account_360_history",
+      "status": "active"
+    },
+    {
+      "id": "sales_manager_operating_system",
+      "name": "Sales Manager Operating System",
+      "domain_id": "sales_manager",
+      "dashboards": [
+        "forecast_revenue_motions"
+      ],
+      "status": "supporting"
+    },
+    {
+      "id": "csm_manager_operating_system",
+      "name": "CSM Manager Operating System",
+      "domain_id": "csm_manager",
+      "dashboards": [
+        "revenue_retention_health"
+      ],
+      "status": "supporting"
+    },
+    {
+      "id": "account_history_system",
+      "name": "Account History System",
+      "domain_id": "account_360",
+      "dashboards": [
+        "account_360_history"
+      ],
+      "status": "supporting"
+    },
+    {
+      "id": "product_gtm_system",
+      "name": "Product / GTM System",
+      "domain_id": "product_gtm",
+      "dashboards": [
+        "executive_product_mix_industry"
+      ],
+      "status": "supporting"
+    }
+  ],
+  "dashboards": [
+    {
+      "id": "bdr_manager",
+      "name": "BDR Manager",
+      "surface_set_id": "bdr_operating_system",
+      "live_url": "https://simcorp.lightning.force.com/analytics/dashboard/0FKTb0000000IzROAU",
+      "status": "supporting",
+      "latest_audit": "docs/generated/bdr_audit_2026-03-12_truth_layer/audit.md"
+    },
+    {
+      "id": "bdr_rep_queue",
+      "name": "BDR Rep Queue",
+      "surface_set_id": "bdr_operating_system",
+      "live_url": "https://simcorp.lightning.force.com/analytics/dashboard/0FKTb0000000J13OAE",
+      "status": "active",
+      "latest_audit": "docs/generated/bdr_audit_2026-03-12_rep_execution_push/audit.md"
+    },
+    {
+      "id": "bdr_campaign_target_list_control",
+      "name": "BDR Campaign & Target Control",
+      "surface_set_id": "bdr_operating_system",
+      "live_url": "https://simcorp.lightning.force.com/analytics/dashboard/0FKTb0000000JU5OAM",
+      "status": "supporting",
+      "latest_audit": "docs/generated/bdr_campaign_control_audit_2026-03-12_density_push/audit.json"
+    },
+    {
+      "id": "forecast_revenue_motions",
+      "name": "Forecast & Revenue Motions",
+      "surface_set_id": "sales_manager_operating_system",
+      "live_url": "https://simcorp.lightning.force.com/analytics/dashboard/0FKTb0000000JCLOA2",
+      "status": "supporting"
+    },
+    {
+      "id": "revenue_retention_health",
+      "name": "Revenue Retention & Health",
+      "surface_set_id": "csm_manager_operating_system",
+      "live_url": "https://simcorp.lightning.force.com/analytics/dashboard/0FKTb0000000J97OAE",
+      "status": "supporting"
+    },
+    {
+      "id": "account_360_history",
+      "name": "Account 360 & History",
+      "surface_set_id": "account_history_system",
+      "live_url": "https://simcorp.lightning.force.com/analytics/dashboard/0FKTb0000000JNdOAM",
+      "status": "supporting"
+    },
+    {
+      "id": "executive_product_mix_industry",
+      "name": "Executive Product Mix & Industry",
+      "surface_set_id": "product_gtm_system",
+      "live_url": "https://simcorp.lightning.force.com/analytics/dashboard/0FKTb0000000JAjOAM",
+      "status": "supporting"
+    }
+  ]
+}

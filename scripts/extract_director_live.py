@@ -118,6 +118,7 @@ def _utc_now_iso() -> str:
 # response-parsing code does not change.
 PIPELINE_FIELDS = """
     Id, Account.Name, Name, Owner.Name, StageName, CloseDate,
+    IsClosed, IsWon,
     convertCurrency(APTS_Opportunity_ARR__c) APTS_Opportunity_ARR__c,
     convertCurrency(APTS_Forecast_ARR__c) APTS_Forecast_ARR__c,
     ForecastCategoryName, Probability, PushCount, Type,
@@ -443,6 +444,55 @@ def fetch_pi(session, instance_url: str, lv_id: str, label: str = "") -> list[di
             }
         )
     return records
+
+
+def _ui_record_id(record: dict) -> str:
+    record_id = str(record.get("id") or "").strip()
+    if record_id:
+        return record_id
+    field = (record.get("fields") or {}).get("Id") or {}
+    return str(field.get("value") or "").strip()
+
+
+def _filter_pi_records_to_territory_scope(
+    session,
+    instance_url: str,
+    records: list[dict],
+    soql_where: str,
+    *,
+    label: str,
+) -> list[dict]:
+    """Apply the canonical territory SOQL scope after a PI/list-view fetch.
+
+    Salesforce UI list-view filters reject cross-account fields such as
+    Account.Industry, so NA AM/P&I need this guard to split a broad no-SDB
+    North America list view into the configured semantic scope.
+    """
+    if not records or not soql_where:
+        return records
+    ids_by_record = [(_ui_record_id(record), record) for record in records]
+    ids = [record_id for record_id, _record in ids_by_record if record_id]
+    if not ids:
+        return []
+
+    allowed: set[str] = set()
+    for start in range(0, len(ids), 200):
+        chunk = ids[start : start + 200]
+        id_clause = ",".join(f"'{item}'" for item in chunk)
+        query = (
+            "SELECT Id FROM Opportunity "
+            f"WHERE Id IN ({id_clause}) AND ({soql_where})"
+        )
+        allowed.update(
+            row["Id"]
+            for row in run_soql(
+                session,
+                instance_url,
+                query,
+                label=f"{label}:territory_scope",
+            )
+        )
+    return [record for record_id, record in ids_by_record if record_id in allowed]
 
 
 def _write_run_audit(output_dir: Path, payload: dict[str, Any]) -> None:
@@ -828,6 +878,13 @@ def extract_territory(
     # ── 5. Pipeline Inspection ──
     print("  PI view...", end=" ", flush=True)
     pi_raw = fetch_pi(session, instance_url, pi_lv, label=f"{territory}:pi")
+    pi_raw = _filter_pi_records_to_territory_scope(
+        session,
+        instance_url,
+        pi_raw,
+        where,
+        label=f"{territory}:pi",
+    )
     pi_rows = _build_pipeline_inspection_rows(
         pi_raw, analysis_year=int(period["analysis_year"]), corp_ccy=corp_ccy
     )
@@ -856,6 +913,13 @@ def extract_territory(
             session,
             instance_url,
             forward_pi_source["list_view_id"],
+            label=f"{territory}:pi_forward:{forward_pi_source['quarter_label']}",
+        )
+        forward_pi_raw = _filter_pi_records_to_territory_scope(
+            session,
+            instance_url,
+            forward_pi_raw,
+            where,
             label=f"{territory}:pi_forward:{forward_pi_source['quarter_label']}",
         )
         forward_pi_rows = _build_pipeline_inspection_rows(

@@ -87,7 +87,6 @@ def create_main_dataset(inst, tok):
         "APTS_Forecast_ARR__c, "
         "convertCurrency(APTS_Forecast_ARR__c) ConvertedARR, "
         "APTS_Forecast_ACV_AVG__c, "
-        "Expand_Forecast_ACV__c, Renewal_Forecast_ACV__c, "
         "Amount, Probability, AgeInDays, LastStageChangeInDays, "
         "Sales_Cycle_Duration__c, "
         "Stage_20_Approval__c, Stage_20_Approval_Date__c, "
@@ -125,8 +124,6 @@ def create_main_dataset(inst, tok):
         "ForecastARR",
         "ARR",
         "ForecastACV",
-        "ExpandForecastACV",
-        "RenewalForecastACV",
         "Amount",
         "Probability",
         "AgeInDays",
@@ -200,8 +197,6 @@ def create_main_dataset(inst, tok):
                 "ForecastARR": o.get("APTS_Forecast_ARR__c") or 0,
                 "ARR": o.get("ConvertedARR") or 0,
                 "ForecastACV": o.get("APTS_Forecast_ACV_AVG__c") or 0,
-                "ExpandForecastACV": o.get("Expand_Forecast_ACV__c") or 0,
-                "RenewalForecastACV": o.get("Renewal_Forecast_ACV__c") or 0,
                 "Amount": o.get("Amount") or 0,
                 "Probability": o.get("Probability") or 0,
                 "AgeInDays": o.get("AgeInDays") or 0,
@@ -334,8 +329,6 @@ def create_main_dataset(inst, tok):
         _measure("ForecastARR", "Forecast ARR (local)"),
         _measure("ARR", "ARR (EUR)"),
         _measure("ForecastACV", "Forecast ACV (local)"),
-        _measure("ExpandForecastACV", "Expand Forecast ACV"),
-        _measure("RenewalForecastACV", "Renewal Forecast ACV"),
         _measure("Amount", "Amount"),
         _measure("Probability", "Probability", scale=0, precision=3),
         _measure("AgeInDays", "Age (Days)", scale=0, precision=5),

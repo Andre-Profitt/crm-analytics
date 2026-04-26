@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-26",
+  "principles": [
+    "builder_brain_not_builder_sprawl",
+    "baseline_not_final",
+    "surface_fit_before_layout",
+    "queue_for_action_story_for_exec",
+    "critic_before_mutation"
+  ],
+  "build_modes": {
+    "reuse_existing": {
+      "description": "Use an already-live surface as the starting point with minimal structural change."
+    },
+    "refine_existing": {
+      "description": "Keep the live surface but improve narrative, layout, or drill quality."
+    },
+    "new_surface": {
+      "description": "Create a new asset because no current surface fits the ask cleanly."
+    },
+    "paired_handoff": {
+      "description": "Use two coordinated surfaces, usually an executive summary plus a follow-up/action surface."
+    }
+  },
+  "surface_adapters": {
+    "salesforce_report": {
+      "draft_shape": "report_spec",
+      "section_order": ["filters", "grouping", "columns", "handoff"],
+      "default_handoff_surface": "crma_dashboard",
+      "best_for": [
+        "owner accountability",
+        "follow-up lists",
+        "simple operational inspection"
+      ]
+    },
+    "salesforce_dashboard": {
+      "draft_shape": "native_dashboard_spec",
+      "section_order": ["headline_story", "supporting_breakdown", "linked_action"],
+      "default_handoff_surface": "salesforce_report",
+      "best_for": [
+        "lightweight native rollups",
+        "headline KPI snapshots"
+      ]
+    },
+    "crma_dashboard": {
+      "draft_shape": "crma_dashboard_spec",
+      "section_order": ["headline_story", "diagnostic_breakdown", "action_layer"],
+      "default_handoff_surface": "salesforce_report",
+      "best_for": [
+        "multi-dataset decision systems",
+        "diagnostic drill paths",
+        "manager operating queues"
+      ]
+    }
+  },
+  "persona_layouts": {
+    "executive": {
+      "section_order": ["headline_story", "diagnostic_breakdown", "action_handoff"],
+      "max_story_blocks": 3,
+      "requires_handoff": true
+    },
+    "manager": {
+      "section_order": ["control_bar", "performance_breakdown", "exceptions_queue"],
+      "max_story_blocks": 3,
+      "requires_queue": true
+    },
+    "individual": {
+      "section_order": ["my_book", "next_actions", "exceptions_queue"],
+      "max_story_blocks": 3,
+      "requires_queue": true
+    },
+    "analyst": {
+      "section_order": ["definition", "diagnostics", "validation"],
+      "max_story_blocks": 4,
+      "requires_handoff": false
+    }
+  },
+  "domain_filters": {
+    "revenue": ["fiscal_period", "region", "manager", "forecast_category"],
+    "demand": ["time_window", "team", "owner", "lead_source"],
+    "customer": ["region", "segment", "owner", "health_band"],
+    "retention": ["renewal_period", "owner", "product_family", "risk_band"],
+    "product_gtm": ["product_family", "industry", "segment", "country"],
+    "productivity": ["time_window", "team", "owner", "process_stage"]
+  },
+  "metric_roles": [
+    "headline_metric",
+    "driver_metric",
+    "risk_metric",
+    "action_metric"
+  ],
+  "critique_checks": {
+    "surface_fit": {
+      "severity": "warn",
+      "description": "The chosen surface should match the decision style and depth of the ask."
+    },
+    "excellence_pattern": {
+      "severity": "warn",
+      "description": "The draft should align with a proven local excellence pattern or exemplar."
+    },
+    "surface_visual_fit": {
+      "severity": "warn",
+      "description": "The visual grammar should match the chosen surface and audience."
+    },
+    "executive_story": {
+      "severity": "warn",
+      "description": "Executive surfaces should lead with a story, not a raw queue."
+    },
+    "manager_action_path": {
+      "severity": "error",
+      "description": "Manager and individual surfaces must end in a real action path or queue."
+    },
+    "page_sprawl": {
+      "severity": "warn",
+      "description": "The page model should stay within the expected budget for the selected surface pattern."
+    },
+    "metric_contract": {
+      "severity": "warn",
+      "description": "Metrics should be labeled as actual, target, forecast, variance, or risk."
+    },
+    "baseline_only": {
+      "severity": "warn",
+      "description": "A draft baseline still needs a critic pass before it is considered production-grade."
+    },
+    "paired_handoff": {
+      "severity": "warn",
+      "description": "Paired-handoff specs should name the secondary surface explicitly."
+    }
+  }
+}

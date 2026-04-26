@@ -1,0 +1,279 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-26",
+  "principles": [
+    "cli_first",
+    "resolve_before_generate",
+    "review_before_mutation",
+    "evidence_backed_semantics",
+    "specialized_agent_graph"
+  ],
+  "persona_aliases": {
+    "executive": ["executive", "exec", "leadership", "board"],
+    "manager": ["manager", "sales manager", "csm manager", "leader"],
+    "individual": ["individual", "rep", "seller", "owner", "ic"],
+    "analyst": ["analyst", "ops", "operations", "revops"]
+  },
+  "domain_aliases": {
+    "revenue": ["revenue", "forecast", "pipeline", "deal", "opportunity", "arr", "quota", "plan"],
+    "demand": ["lead", "bdr", "sdr", "demand", "qualification", "sla", "meeting"],
+    "customer": ["account", "customer", "health", "coverage", "contact"],
+    "retention": ["renewal", "retention", "churn", "nrr", "grr", "save"],
+    "product_gtm": ["product", "industry", "segment", "country", "whitespace", "mix", "gtm"],
+    "productivity": ["compliance", "activity", "productivity", "cadence", "bottleneck", "cycle"]
+  },
+  "motion_aliases": {
+    "Land": ["land", "new", "pipeline", "forecast"],
+    "Expand": ["expand", "upsell", "cross sell"],
+    "Renewal": ["renewal"],
+    "Contraction": ["contraction", "downgrade"],
+    "Churn": ["churn", "termination"]
+  },
+  "operation_modes": {
+    "understand_metric": {
+      "aliases": ["understand", "research", "baseline", "profile", "semantic", "truth", "metric"],
+      "lane_sequence": ["salesforce_data_profiles", "wave_data_validations"],
+      "review_gates": ["semantic_truth", "grain_fit", "ownership_model", "coverage_gaps"]
+    },
+    "review_dashboard": {
+      "aliases": ["review", "audit", "critic", "evaluate", "inspect"],
+      "lane_sequence": ["live_inventory", "export_audits", "patch_guardrails"],
+      "review_gates": ["decision_fit", "metric_contract", "visual_fit", "action_layer", "patch_contract"]
+    },
+    "mutate_dashboard": {
+      "aliases": ["fix", "patch", "deploy", "change", "upgrade", "wire", "rewrite"],
+      "lane_sequence": ["live_inventory", "patch_guardrails", "dashboard_mutations", "live_inventory"],
+      "review_gates": ["pre_export_snapshot", "metric_contract", "visual_fit", "action_layer", "patch_contract", "post_mutation_reexport"]
+    },
+    "export_assets": {
+      "aliases": ["export", "snapshot", "inventory"],
+      "lane_sequence": ["live_inventory"],
+      "review_gates": ["asset_scope", "artifact_capture"]
+    },
+    "validate_truth": {
+      "aliases": ["validate", "reconcile", "prove", "confirm"],
+      "lane_sequence": ["salesforce_data_profiles", "wave_data_validations", "export_audits"],
+      "review_gates": ["semantic_truth", "grain_fit", "metric_contract", "live_validation"]
+    }
+  },
+  "surface_types": {
+    "salesforce_report": {
+      "support_level": "future_lane",
+      "best_for": ["tabular accountability", "owner follow-up lists", "simple filtering on standard objects", "lightweight operational review"],
+      "avoid_for": ["multi-dataset analysis", "advanced interactions", "story-first executive synthesis"],
+      "review_gates": ["semantic_truth", "owner_accountability", "filter_vocabulary"]
+    },
+    "salesforce_dashboard": {
+      "support_level": "future_lane",
+      "best_for": ["lightweight native rollups", "standard KPI scorecards", "simple executive summaries"],
+      "avoid_for": ["complex drill paths", "predictive or multi-dataset analysis", "queue-first workflows"],
+      "review_gates": ["decision_fit", "metric_contract", "filter_vocabulary"]
+    },
+    "crma_dashboard": {
+      "support_level": "repo_native",
+      "best_for": ["multi-dataset operating systems", "cross-filter interactions", "action queues", "predictive and advanced analytic surfaces"],
+      "avoid_for": ["simple owner lists", "single-metric static scorecards"],
+      "review_gates": ["decision_fit", "metric_contract", "visual_fit", "action_layer", "patch_contract", "live_validation"]
+    },
+    "tableau_workbook": {
+      "support_level": "future_lane",
+      "best_for": ["polished executive narrative", "board-level storytelling", "broad comparative analysis", "high-design external presentation"],
+      "avoid_for": ["embedded CRM workflow", "row-level CRM action queues"],
+      "review_gates": ["decision_fit", "metric_contract", "visual_fit", "story_arc", "live_validation"]
+    },
+    "hybrid": {
+      "support_level": "cross_surface",
+      "best_for": ["exec summary plus manager drill", "report to dashboard handoff", "cross-tool operating layers"],
+      "avoid_for": ["single-surface-only asks"],
+      "review_gates": ["semantic_truth", "decision_fit", "action_layer", "live_validation"]
+    }
+  },
+  "routing_rules": [
+    {
+      "surface_type": "crma_dashboard",
+      "query_tokens": ["queue", "drill", "action", "intervention", "forecast", "cross-filter", "multi-dataset", "predictive"],
+      "persona_bias": ["manager", "individual"],
+      "question_bias": ["which_deals_need_intervention", "who_needs_work_now", "renewal_risk_queue", "which_accounts_are_at_risk", "cycle_time_bottleneck"],
+      "score": 4
+    },
+    {
+      "surface_type": "salesforce_report",
+      "query_tokens": ["report", "owner list", "follow-up", "tabular", "simple list", "accountability"],
+      "persona_bias": ["manager", "individual"],
+      "question_bias": ["which_deals_need_intervention", "who_needs_work_now", "renewal_risk_queue"],
+      "score": 3
+    },
+    {
+      "surface_type": "salesforce_dashboard",
+      "query_tokens": ["native dashboard", "simple summary", "kpi rollup", "headline"],
+      "persona_bias": ["executive"],
+      "score": 2
+    },
+    {
+      "surface_type": "tableau_workbook",
+      "query_tokens": ["tableau", "board", "narrative", "story", "presentation", "polished"],
+      "persona_bias": ["executive", "analyst"],
+      "score": 4
+    },
+    {
+      "surface_type": "hybrid",
+      "query_tokens": ["handoff", "hybrid", "exec and manager", "summary plus drill", "cross-tool"],
+      "persona_bias": ["executive", "manager"],
+      "score": 5
+    }
+  ],
+  "lane_entrypoints": {
+    "patch_guardrails": ["scripts/contract_lint.py"],
+    "live_inventory": ["scripts/export_live_crma_assets.py", "scripts/dashboard_portfolio_review.py", "scripts/scan_record_actions.py"],
+    "dashboard_mutations": ["scripts/deploy_record_actions.py", "scripts/upgrade_executive_revenue_live.py", "scripts/fix_marketing_filter_wiring.py"],
+    "export_audits": ["scripts/audit_forecast_revenue_motions.py", "scripts/audit_lead_management.py", "scripts/audit_account_intelligence.py"],
+    "wave_data_validations": ["scripts/audit_bdr_truth_layer.py", "scripts/audit_source_truth_executive_revenue.py"],
+    "salesforce_data_profiles": ["scripts/profile_role_structure.py", "scripts/profile_retention_semantics.py", "scripts/profile_bdr_operating_state.py", "scripts/profile_bdr_field_readiness.py", "scripts/profile_bdr_response_integrity.py", "scripts/profile_bdr_activity_model.py", "scripts/profile_bdr_quote_product_signals.py", "scripts/profile_retention_product_grain.py", "scripts/profile_renewal_outcomes.py", "scripts/profile_renewal_ownership.py", "scripts/profile_retention_owner_validation.py"],
+    "local_intake": ["scripts/extract_kpi_workbook.py"],
+    "intelligence_control": ["scripts/analytics_intelligence.py"]
+  },
+  "lane_review_profiles": {
+    "patch_guardrails": ["saql_contract", "columnmap_contract", "patch_contract"],
+    "live_inventory": ["asset_scope", "artifact_capture", "live_validation"],
+    "dashboard_mutations": ["pre_export_snapshot", "metric_contract", "visual_fit", "action_layer", "patch_contract", "post_mutation_reexport"],
+    "export_audits": ["decision_fit", "metric_contract", "visual_fit", "action_layer"],
+    "wave_data_validations": ["semantic_truth", "grain_fit", "live_validation"],
+    "salesforce_data_profiles": ["semantic_truth", "grain_fit", "ownership_model", "coverage_gaps"],
+    "local_intake": ["source_integrity", "semantic_truth"],
+    "intelligence_control": ["semantic_truth", "surface_routing", "execution_boundary"]
+  },
+  "review_gates": {
+    "decision_fit": {
+      "label": "Decision fit",
+      "description": "The surface must answer one business question for one persona with a clear next action.",
+      "refs": ["docs/dashboard_review_rubric.md", "docs/CONSULTANT_GRADE_CRMA_PLAYBOOK.md"]
+    },
+    "metric_contract": {
+      "label": "Metric contract",
+      "description": "Metrics must clearly identify actual, target, forecast, variance, or risk and reconcile to source logic.",
+      "refs": ["docs/dashboard_review_rubric.md", "docs/CONSULTANT_GRADE_CRMA_PLAYBOOK.md"]
+    },
+    "visual_fit": {
+      "label": "Visual fit",
+      "description": "Widget choice must match the business question and avoid decorative or generic layouts.",
+      "refs": ["config/widget_decision_profiles.json", "docs/dashboard_review_rubric.md"]
+    },
+    "action_layer": {
+      "label": "Action layer",
+      "description": "Manager and individual surfaces must end in a real drill path or action queue.",
+      "refs": ["docs/ACTION_LAYER_STANDARD.md"]
+    },
+    "patch_contract": {
+      "label": "PATCH contract",
+      "description": "Wave PATCH safety rules must be validated before mutation.",
+      "refs": ["scripts/contract_lint.py", "docs/harness_registry_contract.md"]
+    },
+    "semantic_truth": {
+      "label": "Semantic truth",
+      "description": "Metric meaning, ownership, and motion semantics must be resolved before design or mutation.",
+      "refs": ["config/commercial_operating_model.json", "config/sales_process_codification.json", "docs/CONSULTANT_GRADE_CRMA_PLAYBOOK.md"]
+    },
+    "grain_fit": {
+      "label": "Grain fit",
+      "description": "Dataset grain and drill path keys must support the requested analysis without semantic leakage.",
+      "refs": ["docs/CONSULTANT_GRADE_CRMA_PLAYBOOK.md"]
+    },
+    "ownership_model": {
+      "label": "Ownership model",
+      "description": "The correct persona and motion owner must be identified before KPI routing.",
+      "refs": ["config/commercial_operating_model.json", "config/sales_process_codification.json"]
+    },
+    "coverage_gaps": {
+      "label": "Coverage gaps",
+      "description": "Profiling should identify missing fields, sparse activity capture, or object coverage gaps.",
+      "refs": ["config/context_registry.json"]
+    },
+    "pre_export_snapshot": {
+      "label": "Pre-export snapshot",
+      "description": "Export live assets before any mutation so the reviewer can compare old and new state.",
+      "refs": ["scripts/export_live_crma_assets.py"]
+    },
+    "post_mutation_reexport": {
+      "label": "Post-mutation re-export",
+      "description": "Re-export and re-review the live asset after mutation.",
+      "refs": ["scripts/export_live_crma_assets.py", "docs/dashboard_review_rubric.md"]
+    },
+    "asset_scope": {
+      "label": "Asset scope",
+      "description": "The correct live labels, datasets, and folders must be included in the snapshot.",
+      "refs": ["scripts/export_live_crma_assets.py"]
+    },
+    "artifact_capture": {
+      "label": "Artifact capture",
+      "description": "Inventory and review commands should persist JSON, CSV, or markdown artifacts for later comparison.",
+      "refs": ["scripts/dashboard_portfolio_review.py", "scripts/export_live_crma_assets.py"]
+    },
+    "live_validation": {
+      "label": "Live validation",
+      "description": "Final confidence requires a fresh live read, not just local assumptions.",
+      "refs": ["scripts/export_live_crma_assets.py", "scripts/dashboard_portfolio_review.py"]
+    },
+    "owner_accountability": {
+      "label": "Owner accountability",
+      "description": "Reports must make ownership and follow-up explicit, not implied.",
+      "refs": ["docs/ACTION_LAYER_STANDARD.md"]
+    },
+    "filter_vocabulary": {
+      "label": "Filter vocabulary",
+      "description": "Use shared and clear filter vocabulary for fiscal scope, region, and owner hierarchy.",
+      "refs": ["docs/ACTION_LAYER_STANDARD.md", "config/sales_process_codification.json"]
+    },
+    "story_arc": {
+      "label": "Story arc",
+      "description": "Executive narrative surfaces need a deliberate finding-to-implication flow.",
+      "refs": ["docs/data-storytelling-framework.md", "docs/CONSULTANT_GRADE_CRMA_PLAYBOOK.md"]
+    },
+    "saql_contract": {
+      "label": "SAQL contract",
+      "description": "Field quoting, aggregation order, and query semantics must satisfy known Wave API constraints.",
+      "refs": ["AGENTS.md", "docs/saql-patterns.md"]
+    },
+    "columnmap_contract": {
+      "label": "columnMap contract",
+      "description": "Visualization columnMap requirements must be satisfied to avoid white-screen failures.",
+      "refs": ["AGENTS.md", "docs/columnmap-reference.md"]
+    },
+    "source_integrity": {
+      "label": "Source integrity",
+      "description": "Workbook or intake sources must be normalized without dropping KPI semantics.",
+      "refs": ["scripts/extract_kpi_workbook.py"]
+    },
+    "surface_routing": {
+      "label": "Surface routing",
+      "description": "The selected surface must match persona, cadence, and decision type instead of defaulting to a builder.",
+      "refs": ["config/analytics_intelligence_profiles.json"]
+    },
+    "execution_boundary": {
+      "label": "Execution boundary",
+      "description": "Mutating commands should stay behind an explicit executor boundary with typed risk metadata.",
+      "refs": ["config/harness_registry.json", "docs/harness_registry_contract.md"]
+    }
+  },
+  "agent_graph": [
+    {
+      "role": "planner",
+      "responsibility": "Understand the business ask and choose an operation mode."
+    },
+    {
+      "role": "semantic_specialist",
+      "responsibility": "Resolve persona, domain, motion, metric meaning, and source truth."
+    },
+    {
+      "role": "surface_specialist",
+      "responsibility": "Choose the right surface type and candidate assets."
+    },
+    {
+      "role": "critic",
+      "responsibility": "Apply review gates before any mutation or sign-off."
+    },
+    {
+      "role": "executor",
+      "responsibility": "Run only typed, registry-approved commands with risk checks."
+    }
+  ]
+}

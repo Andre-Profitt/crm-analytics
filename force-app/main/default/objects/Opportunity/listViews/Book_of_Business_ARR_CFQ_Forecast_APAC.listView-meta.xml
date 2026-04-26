@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Book_of_Business_ARR_CFQ_Forecast_APAC</fullName>
+    <columns>NAME</columns>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>STAGE_NAME</columns>
+    <columns>CLOSE_DATE</columns>
+    <columns>AMOUNT</columns>
+    <columns>Opportunity.APTS_Forecast_ARR__c</columns>
+    <columns>FORECAST_CATEGORY</columns>
+    <columns>Opportunity.ZIMIT__zOwner__c</columns>
+    <columns>NEXT_STEP</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>Opportunity.Account_Unit_Group__c</field>
+        <operation>equals</operation>
+        <value>SC Asia</value>
+    </filters>
+    <filters>
+        <field>Opportunity.Sales_Region__c</field>
+        <operation>contains</operation>
+        <value>APAC</value>
+    </filters>
+    <filters>
+        <field>STAGE_NAME</field>
+        <operation>equals</operation>
+        <value>1 - Prospecting,2 - Discovery,3 - Engagement,4 - Shortlisted,5 - Preferred,6 - Contracting,8 - Won,0 - Lost</value>
+    </filters>
+    <label>BoB ARR CFQ Forecast APAC</label>
+    <language>en_US</language>
+</ListView>

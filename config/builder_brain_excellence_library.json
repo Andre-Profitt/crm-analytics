@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "updated_on": "2026-03-26",
+  "patterns": {
+    "single_page_executive_truth": {
+      "primary_surface": "crma_dashboard",
+      "personas": ["executive"],
+      "preferred_page_model": ["Overview"],
+      "required_sections": ["headline_story", "diagnostic_breakdown"],
+      "max_pages": 1,
+      "requires_action_layer": false,
+      "requires_handoff": false,
+      "preferred_secondary_surface": null,
+      "why": [
+        "Executive truth surfaces should be scan-fast and avoid page sprawl.",
+        "One page is enough when the goal is source truth rather than workflow management."
+      ]
+    },
+    "manager_operating_system": {
+      "primary_surface": "crma_dashboard",
+      "personas": ["manager"],
+      "preferred_page_model": ["Summary", "Trend & Forecast", "Drivers & Segments", "Exceptions & Actions"],
+      "required_sections": ["headline_story", "diagnostic_breakdown", "action_layer"],
+      "max_pages": 4,
+      "requires_action_layer": true,
+      "requires_handoff": false,
+      "preferred_secondary_surface": "salesforce_report",
+      "why": [
+        "Managers need a compact decision arc from KPI signal to action queue.",
+        "The best local manager surfaces separate summary, trend, drivers, and exceptions cleanly."
+      ]
+    },
+    "cross_suite_control_tower": {
+      "primary_surface": "crma_dashboard",
+      "personas": ["executive", "manager"],
+      "preferred_page_model": ["Summary", "Ownership & Handoffs", "Process Quality"],
+      "required_sections": ["headline_story", "diagnostic_breakdown", "action_layer"],
+      "max_pages": 3,
+      "requires_action_layer": true,
+      "requires_handoff": true,
+      "preferred_secondary_surface": "salesforce_report",
+      "why": [
+        "Control towers should be compact and explicitly organized around ownership, handoffs, and process quality.",
+        "A control tower should hand off into a follow-up surface instead of becoming a giant all-in-one dashboard."
+      ]
+    },
+    "queue_first_rep_surface": {
+      "primary_surface": "crma_dashboard",
+      "personas": ["individual"],
+      "preferred_page_model": ["My Day", "Meetings & Follow-up", "Source & Segment", "Target Accounts"],
+      "required_sections": ["headline_story", "action_layer"],
+      "max_pages": 4,
+      "requires_action_layer": true,
+      "requires_handoff": false,
+      "preferred_secondary_surface": "salesforce_report",
+      "why": [
+        "Rep surfaces should begin with work-now context and keep the queue close to the user.",
+        "Follow-up and target-account pages are valid only when they directly reinforce the queue."
+      ]
+    },
+    "owner_accountability_report": {
+      "primary_surface": "salesforce_report",
+      "personas": ["manager", "individual"],
+      "preferred_page_model": ["Queue / Follow-up"],
+      "preferred_report_format": "tabular",
+      "required_sections": [],
+      "max_pages": 1,
+      "requires_action_layer": true,
+      "requires_handoff": true,
+      "preferred_secondary_surface": "crma_dashboard",
+      "why": [
+        "The best native reports in this environment are owner-accountability lists, not executive stories.",
+        "If the ask is follow-up or intervention, the report should stay tabular and hand off to richer diagnostics when needed."
+      ]
+    },
+    "executive_mix_snapshot": {
+      "primary_surface": "crma_dashboard",
+      "personas": ["executive"],
+      "preferred_page_model": ["Summary", "Industry Breakdown"],
+      "required_sections": ["headline_story", "diagnostic_breakdown"],
+      "max_pages": 2,
+      "requires_action_layer": false,
+      "requires_handoff": true,
+      "preferred_secondary_surface": "salesforce_report",
+      "why": [
+        "Executive mix surfaces should stay tight: one summary view and one decomposition view.",
+        "Deeper follow-up should happen in a linked report or manager surface rather than expanding the executive dashboard."
+      ]
+    }
+  },
+  "surface_exemplars": [
+    {
+      "id": "executive_revenue_source_truth",
+      "label": "Executive Revenue Source Truth",
+      "pattern_id": "single_page_executive_truth",
+      "primary_surface": "crma_dashboard",
+      "page_model": ["Overview"],
+      "why_excellent": [
+        "Single-page executive truth surface.",
+        "Source-truth framing avoids manager-style sprawl."
+      ]
+    },
+    {
+      "id": "forecast_revenue_motions",
+      "label": "Forecast & Revenue Motions",
+      "pattern_id": "manager_operating_system",
+      "primary_surface": "crma_dashboard",
+      "page_model": ["Summary", "Trend & Forecast", "Drivers & Segments", "Exceptions & Actions"],
+      "why_excellent": [
+        "Clear four-step manager decision arc.",
+        "Ends with explicit exception handling rather than stopping at summary metrics."
+      ]
+    },
+    {
+      "id": "lead_funnel",
+      "label": "Lead Funnel",
+      "pattern_id": "manager_operating_system",
+      "primary_surface": "crma_dashboard",
+      "page_model": ["Summary", "Trend & Forecast", "Drivers & Segments", "Exceptions & Actions"],
+      "why_excellent": [
+        "Demand funnel follows the same compact manager operating-system structure as revenue.",
+        "Good exemplar for a reusable four-page page model."
+      ]
+    },
+    {
+      "id": "commercial_rhythm_control_tower",
+      "label": "Commercial Rhythm Control Tower",
+      "pattern_id": "cross_suite_control_tower",
+      "primary_surface": "crma_dashboard",
+      "page_model": ["Summary", "Ownership & Handoffs", "Process Quality"],
+      "why_excellent": [
+        "Compact control-tower structure with explicit ownership and process sections.",
+        "Good exemplar for executive/manager hybrid handoff design."
+      ]
+    },
+    {
+      "id": "bdr_manager",
+      "label": "BDR Manager",
+      "pattern_id": "manager_operating_system",
+      "primary_surface": "crma_dashboard",
+      "page_model": ["NA Rhythm", "Rep Cadence", "Campaign & Sources", "Segments & Targeting", "Action Center"],
+      "why_excellent": [
+        "Manager operating system keeps cadence, targeting, and action center separate.",
+        "Action Center makes the intervention path explicit."
+      ]
+    },
+    {
+      "id": "bdr_rep_queue",
+      "label": "BDR Rep Queue",
+      "pattern_id": "queue_first_rep_surface",
+      "primary_surface": "crma_dashboard",
+      "page_model": ["My Day", "Meetings & Follow-up", "Source & Segment", "Target Accounts"],
+      "why_excellent": [
+        "Queue-first rep page model starts with immediate work and follow-up.",
+        "Supports specialization without losing target-account context."
+      ]
+    },
+    {
+      "id": "revenue_retention_health",
+      "label": "Revenue Retention & Health",
+      "pattern_id": "manager_operating_system",
+      "primary_surface": "crma_dashboard",
+      "page_model": ["Retention Summary", "Trends", "Renewal Pipeline", "Churn Analysis"],
+      "why_excellent": [
+        "Retention operating system keeps summary, trend, pipeline, and risk decomposition separate.",
+        "Good exemplar for renewal/churn manager design."
+      ]
+    },
+    {
+      "id": "executive_product_mix_industry",
+      "label": "Executive Product Mix & Industry",
+      "pattern_id": "executive_mix_snapshot",
+      "primary_surface": "crma_dashboard",
+      "page_model": ["Summary", "Industry Breakdown"],
+      "why_excellent": [
+        "Tight two-page executive structure.",
+        "Summary plus breakdown is a cleaner executive mix pattern than large multi-page decomposition."
+      ]
+    }
+  ]
+}
