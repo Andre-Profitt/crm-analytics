@@ -692,3 +692,215 @@ def test_dist_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
     assert report.status == "pass", [
         f"{f.message}: {f.evidence}" for f in report.findings
     ]
+
+
+# ===========================================================================
+# Slice 4: raw_salesforce_extract_plan
+# ===========================================================================
+#
+# Direct mirror of source_requirement_plan.json items[]. The schema
+# accepts both ``scope == "territory"`` (territory/director/region
+# populated) and ``scope == "global"`` (those three legitimately null).
+
+
+PLAN_FIXTURE_DIR = (
+    REPO_ROOT / "tests" / "fixtures" / "bad_extracts" / "raw_salesforce_extract_plan"
+)
+PLAN_TABLE_ID = "raw_salesforce_extract_plan"
+
+PLAN_COLUMNS = [
+    "snapshot_date",
+    "run_id",
+    "requirement_id",
+    "source_system",
+    "source_type",
+    "salesforce_object",
+    "dataset",
+    "output_grain",
+    "scope",
+    "territory",
+    "director",
+    "region",
+    "period_role",
+    "quarter_label",
+    "source_id",
+    "source_label",
+    "status",
+]
+
+
+def _load_plan_fixture(name: str) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = json.loads(
+        (PLAN_FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8")
+    )
+    df = pd.DataFrame(rows)
+    return df.reindex(columns=[c for c in PLAN_COLUMNS if c in df.columns])
+
+
+def _plan_parquet_from_fixture(name: str, tmp_path: Path) -> Path:
+    df = _load_plan_fixture(name)
+    parquet_path = tmp_path / f"{name}.parquet"
+    df.to_parquet(parquet_path, index=False)
+    return parquet_path
+
+
+def test_plan_pandera_accepts_good_fixture():
+    df = _load_plan_fixture("good")
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_plan_pandera_accepts_missing_source_id_status():
+    """``status="missing_source_id"`` with empty source_id/source_label is
+    a legitimate row — the extract step records the gap so auditing
+    emits a finding instead of dropping the row silently."""
+    df = _load_plan_fixture("good_missing_source_id")
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+@pytest.mark.parametrize(
+    "fixture,expected_substring",
+    [
+        ("unknown_source_system", "source_system"),
+        ("unknown_source_type", "source_type"),
+        ("unknown_scope", "scope"),
+        ("unknown_period_role", "period_role"),
+        ("unknown_status", "status"),
+        ("bad_quarter_label", "quarter_label"),
+        ("bad_snapshot_date", "snapshot_date"),
+        ("empty_requirement_id", "requirement_id"),
+    ],
+)
+def test_plan_pandera_rejects_negative_control(fixture, expected_substring):
+    df = _load_plan_fixture(fixture)
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "fail", f"{fixture} should fail Pandera validation"
+    assert any(
+        expected_substring in (f.evidence or f.message) for f in report.findings
+    ), [(f.message, f.evidence) for f in report.findings]
+
+
+def test_plan_pandera_rejects_missing_dataset_column():
+    df = _load_plan_fixture("missing_dataset")
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "fail"
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "territory_scope_missing_territory",
+        "territory_scope_missing_director",
+    ],
+)
+def test_plan_pandera_rejects_territory_scope_metadata_gap(fixture):
+    """scope='territory' rows must carry non-empty territory and director.
+
+    The column-level rules permit nulls (legitimate for scope='global'),
+    so the contract is enforced by a frame-level check. ``region`` is
+    deliberately not part of this gate — v20c live evidence has it null
+    on every territory row because region is denormalized metadata
+    joined in downstream, not carried on plan items."""
+    df = _load_plan_fixture(fixture)
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "fail", f"{fixture} should fail Pandera validation"
+    blob = " ".join(f"{f.message} {f.evidence}" for f in report.findings)
+    assert "scope='territory'" in blob, [
+        (f.message, f.evidence) for f in report.findings
+    ]
+
+
+def test_plan_pandera_rejects_configured_with_empty_source_id():
+    """status='configured' with an empty source_id would silently fail at
+    extract time. The column allows nullable strings (so
+    status='missing_source_id' rows pass), but the cross-field check
+    forbids the configured/empty combination."""
+    df = _load_plan_fixture("configured_missing_source_id")
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "fail"
+    blob = " ".join(f"{f.message} {f.evidence}" for f in report.findings)
+    assert "status='configured'" in blob and "source_id" in blob, [
+        (f.message, f.evidence) for f in report.findings
+    ]
+
+
+def test_plan_frictionless_accepts_good_fixture(tmp_path: Path):
+    parquet_path = _plan_parquet_from_fixture("good", tmp_path)
+    report = validate_frictionless(
+        table_id=PLAN_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_plan_frictionless_rejects_unknown_status(tmp_path: Path):
+    parquet_path = _plan_parquet_from_fixture("unknown_status", tmp_path)
+    report = validate_frictionless(
+        table_id=PLAN_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "fail"
+
+
+def test_plan_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
+    """Live evidence: build the warehouse fresh against v20c, validate the
+    actual ``raw/salesforce_extract_plan.parquet`` (55 rows)."""
+    audit_path = (
+        REPO_ROOT
+        / "output"
+        / "monthly_salesforce_sources"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "audits"
+        / "source_extract_quality_audit.json"
+    )
+    if not audit_path.exists():
+        pytest.skip("v20c live evidence not on disk")
+
+    rc = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "build_source_backed_warehouse.py"),
+            "--snapshot-date",
+            "2026-04-30",
+            "--run-id",
+            "live-all-sources-pipeline-open-v20c",
+            "--warehouse-root",
+            str(tmp_path / "wh"),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert rc.returncode == 0, rc.stderr or rc.stdout
+
+    parquet_path = (
+        tmp_path
+        / "wh"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "raw"
+        / "salesforce_extract_plan.parquet"
+    )
+    assert parquet_path.exists()
+
+    con = duckdb.connect()
+    try:
+        df = con.execute(f"SELECT * FROM read_parquet('{parquet_path}')").df()
+    finally:
+        con.close()
+
+    assert len(df) == 55, f"expected 55 plan rows, got {len(df)}"
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]

@@ -1,0 +1,122 @@
+{
+  "$schema": "https://specs.frictionlessdata.io/table-schema/",
+  "name": "raw_salesforce_extract_plan",
+  "title": "Salesforce extract plan (raw tier)",
+  "description": "Direct Parquet mirror of source_requirement_plan.json items[]. One row per (requirement_id, territory, period_role, quarter_label) tuple. Anchored to the 2026-04-26 v20d ETL spine checkpoint.",
+  "fields": [
+    {
+      "name": "snapshot_date",
+      "type": "string",
+      "format": "default",
+      "constraints": {
+        "required": true,
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    {
+      "name": "run_id",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "requirement_id",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "source_system",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": ["salesforce"]
+      }
+    },
+    {
+      "name": "source_type",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "salesforce_report",
+          "salesforce_list_view",
+          "salesforce_soql_probe"
+        ]
+      }
+    },
+    {
+      "name": "salesforce_object",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "dataset",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "output_grain",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1
+      }
+    },
+    {
+      "name": "scope",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": ["territory", "global"]
+      }
+    },
+    { "name": "territory", "type": "string" },
+    { "name": "director", "type": "string" },
+    { "name": "region", "type": "string" },
+    {
+      "name": "period_role",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": ["prior_quarter", "current_quarter", "forward_quarter"]
+      }
+    },
+    {
+      "name": "quarter_label",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "pattern": "^Q[1-4]$"
+      }
+    },
+    {
+      "name": "source_id",
+      "type": "string",
+      "constraints": { "required": true }
+    },
+    {
+      "name": "source_label",
+      "type": "string",
+      "constraints": { "required": true }
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": ["configured", "missing_source_id", "disabled"]
+      }
+    }
+  ]
+}
