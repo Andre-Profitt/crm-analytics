@@ -16,6 +16,21 @@ tuple.
 | `empty_requirement_id.json`  | `requirement_id` is `""` (must be non-empty).               |
 | `missing_dataset.json`       | `dataset` column omitted entirely.                          |
 
+Cross-field defects (Pandera frame-level checks; Frictionless Table
+Schema can't express these):
+
+| Fixture                                  | Defect introduced                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------------- |
+| `territory_scope_missing_territory.json` | `scope="territory"` but `territory` is null. Frame-level check rejects the row. |
+| `territory_scope_missing_director.json`  | `scope="territory"` but `director` is empty.                                    |
+| `configured_missing_source_id.json`      | `status="configured"` but `source_id` is empty. An extract-time silent failure. |
+
+The `region` field is deliberately NOT part of the territory-scope
+metadata-completeness check. v20c live evidence has `region` null on
+every territory row because region is denormalized metadata joined in
+downstream by the warehouse builder, not carried on the plan items
+themselves. Tightening would create a false-fail against real data.
+
 Two positive controls so the per-scope nullability split is exercised:
 
 - `good.json` — two rows: `scope="territory"` (APAC pipeline_open) and

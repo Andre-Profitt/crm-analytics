@@ -704,11 +704,7 @@ def test_dist_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
 
 
 PLAN_FIXTURE_DIR = (
-    REPO_ROOT
-    / "tests"
-    / "fixtures"
-    / "bad_extracts"
-    / "raw_salesforce_extract_plan"
+    REPO_ROOT / "tests" / "fixtures" / "bad_extracts" / "raw_salesforce_extract_plan"
 )
 PLAN_TABLE_ID = "raw_salesforce_extract_plan"
 
@@ -793,6 +789,44 @@ def test_plan_pandera_rejects_missing_dataset_column():
     df = _load_plan_fixture("missing_dataset")
     report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
     assert report.status == "fail"
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "territory_scope_missing_territory",
+        "territory_scope_missing_director",
+    ],
+)
+def test_plan_pandera_rejects_territory_scope_metadata_gap(fixture):
+    """scope='territory' rows must carry non-empty territory and director.
+
+    The column-level rules permit nulls (legitimate for scope='global'),
+    so the contract is enforced by a frame-level check. ``region`` is
+    deliberately not part of this gate — v20c live evidence has it null
+    on every territory row because region is denormalized metadata
+    joined in downstream, not carried on plan items."""
+    df = _load_plan_fixture(fixture)
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "fail", f"{fixture} should fail Pandera validation"
+    blob = " ".join(f"{f.message} {f.evidence}" for f in report.findings)
+    assert "scope='territory'" in blob, [
+        (f.message, f.evidence) for f in report.findings
+    ]
+
+
+def test_plan_pandera_rejects_configured_with_empty_source_id():
+    """status='configured' with an empty source_id would silently fail at
+    extract time. The column allows nullable strings (so
+    status='missing_source_id' rows pass), but the cross-field check
+    forbids the configured/empty combination."""
+    df = _load_plan_fixture("configured_missing_source_id")
+    report = validate_pandera(table_id=PLAN_TABLE_ID, df=df)
+    assert report.status == "fail"
+    blob = " ".join(f"{f.message} {f.evidence}" for f in report.findings)
+    assert "status='configured'" in blob and "source_id" in blob, [
+        (f.message, f.evidence) for f in report.findings
+    ]
 
 
 def test_plan_frictionless_accepts_good_fixture(tmp_path: Path):
