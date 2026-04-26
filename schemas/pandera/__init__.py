@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from schemas.pandera import (
     mart_director_source_health,
+    mart_source_run_summary,
     raw_salesforce_extract_plan,
     source_quality_audit,
     staged_distribution_findings,
@@ -40,6 +41,7 @@ SCHEMAS = {
     staged_distribution_findings.TABLE_ID: staged_distribution_findings.SCHEMA,
     staged_source_requirements.TABLE_ID: staged_source_requirements.SCHEMA,
     mart_director_source_health.TABLE_ID: mart_director_source_health.SCHEMA,
+    mart_source_run_summary.TABLE_ID: mart_source_run_summary.SCHEMA,
 }
 
 
