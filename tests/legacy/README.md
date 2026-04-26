@@ -56,6 +56,51 @@ them behind known-bad legacy noise.
   retire the test files; either way they are not blocking source-backed
   CI.
 
+### Runtime failures — script archived
+
+The repo's `scripts/_archive/` directory holds 69 dead/experimental
+scripts moved out of the active surface (commit `ac1c7b2`). The
+following test files exercise scripts that were archived, OR import a
+module that was archived; their failure shape is `ModuleNotFoundError`
+/ `FileNotFoundError` at the script entry point:
+
+**Archived script directly:**
+
+- `test_ai_os_browser_cli.py` — `scripts/ai_os_browser_cli.py` archived.
+- `test_audit_account_intelligence_cli.py`
+- `test_audit_bdr_campaign_control_cli.py`
+- `test_audit_bdr_operating_system_cli.py`
+- `test_audit_bdr_truth_layer_cli.py`
+- `test_audit_commercial_rhythm_control_tower_cli.py`
+- `test_audit_customer_intelligence_cli.py`
+- `test_audit_executive_product_mix_industry_cli.py`
+- `test_audit_forecast_revenue_motions_cli.py`
+- `test_audit_lead_funnel_cli.py`
+- `test_audit_lead_management_cli.py`
+- `test_audit_revenue_retention_health_cli.py`
+- `test_audit_source_truth_executive_revenue_cli.py`
+- `test_deploy_record_actions_cli.py`
+- `test_profile_bdr_activity_model_cli.py`
+- `test_profile_bdr_field_readiness_cli.py`
+- `test_profile_bdr_operating_state_cli.py`
+- `test_profile_bdr_quote_product_signals_cli.py`
+- `test_profile_bdr_response_integrity_cli.py`
+
+**Imports archived module:**
+
+- `test_analytics_intelligence.py` (~50 cases) — references
+  `scripts/analytics_intelligence.py`, which is active but does
+  `import ai_os_browser` from a module that was archived.
+- `test_wave_patch_executor_cli.py` — references active script that
+  imports archived modules.
+- `test_builder_brain.py` (~22 cases) — same `import ai_os_browser`
+  break as `analytics_intelligence`.
+
+Restoring vs retiring is a deliberate decision the operator should make
+when reviewing the archive policy. Until then, quarantining keeps the
+default lane green so the _real_ signal (genuine source-backed bugs) is
+visible.
+
 ## What is NOT here
 
 The source-backed lane keeps any test that exercises code we still ship,
@@ -74,12 +119,11 @@ Specifically:
   observed in this branch's transient state were caused by a DuckDB ≥ 1.5
   prepared-parameter bug in `scripts/monthly_platform/storage.py` that
   Track H's PR (#6) fixes; not legacy.
-- `test_ai_os_browser_cli.py`, `test_analytics_intelligence.py`, and other
-  source-backed tests with pre-existing failures — those exercise live code
-  paths and need targeted fixes per-suite. They are out of scope for this
-  PR. The quarantine's job was to remove **import-error-or-missing-script**
-  noise so the _shape_ of source-backed failures is visible without being
-  buried under ModuleNotFoundError / FileNotFoundError.
+- Pre-existing failures in source-backed tests that exercise _live_
+  (non-archived) code paths need targeted fixes per-suite. The quarantine's
+  job was to remove **import-error-or-missing-script** and **archived-module**
+  noise so the _shape_ of remaining source-backed failures is visible
+  without being buried.
 
 ## How to retire a quarantined file
 

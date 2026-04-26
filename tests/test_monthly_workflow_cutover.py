@@ -87,8 +87,16 @@ def test_legacy_lane_is_opt_in_only(workflow_text: str) -> None:
         re.DOTALL,
     )
     assert legacy_step_match is not None, "Legacy fallback step not found"
-    assert "legacy_only == 'true'" in legacy_step_match.group(0), (
-        "Legacy lane must be gated on inputs.legacy_only == 'true'."
+    # PR #3 (workflow hotfix) replaced the string comparison
+    # ``inputs.legacy_only == 'true'`` with the boolean form
+    # ``github.event_name == 'workflow_dispatch' && inputs.legacy_only``,
+    # because the input is declared ``type: boolean``.
+    assert (
+        "github.event_name == 'workflow_dispatch' && inputs.legacy_only"
+        in legacy_step_match.group(0)
+    ), (
+        "Legacy lane must be gated on (workflow_dispatch AND inputs.legacy_only); "
+        "see commit 34d34ad."
     )
 
     source_backed_step_match = re.search(
@@ -97,8 +105,12 @@ def test_legacy_lane_is_opt_in_only(workflow_text: str) -> None:
         re.DOTALL,
     )
     assert source_backed_step_match is not None, "Source-backed step not found"
-    assert "legacy_only != 'true'" in source_backed_step_match.group(0), (
-        "Source-backed lane must be the default; gate on inputs.legacy_only != 'true'."
+    assert (
+        "github.event_name != 'workflow_dispatch' || !inputs.legacy_only"
+        in source_backed_step_match.group(0)
+    ), (
+        "Source-backed lane must be the default; gate on "
+        "(NOT workflow_dispatch OR NOT inputs.legacy_only); see commit 34d34ad."
     )
 
 
