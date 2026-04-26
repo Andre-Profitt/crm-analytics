@@ -13,8 +13,8 @@ Prior cycle plan (for context): [`docs/2026-04-24-gpt55-feedback-implementation-
 | ----- | -------------------------------------------------- | ---------------- | -------------------------------------------------------------------------- |
 | A     | Cron cutover to source-backed runner               | ✅ DONE          | [`dc0488a`](https://github.com/Andre-Profitt/crm-analytics/commit/dc0488a) |
 | B     | Per-axis source-quality policy actions             | ✅ DONE          | [`5303a5f`](https://github.com/Andre-Profitt/crm-analytics/commit/5303a5f) |
-| C     | Source-quality baselines calibrator                | ✅ DONE          | (this branch)                                                              |
-| D     | Distribution checks for pipeline sources           | NEXT             | —                                                                          |
+| C     | Source-quality baselines calibrator                | ✅ DONE          | merged in PR #2                                                            |
+| D     | Distribution checks for pipeline sources           | ✅ DONE          | (this branch — Track D PR)                                                 |
 | **H** | **DuckDB / Parquet warehouse layer (v3)**          | NEW              | —                                                                          |
 | **I** | **Pandera + JSON Schema dataframe contracts (v3)** | NEW              | —                                                                          |
 | E     | `deck_contract.yaml` (deck API)                    | pending          | —                                                                          |
@@ -312,7 +312,7 @@ The original 7-day plan packed Tracks A–G into one week. The v3 vision inserts
 1. **Day 1 — Track A.** ✅ Done. Cron repointed, snapshot-date locked, legacy frozen.
 2. **Day 2 — Track B.** ✅ Done. Per-axis policy actions in YAML + extractor.
 3. **Day 3 — Track C.** ✅ Done. Read-only baseline calibrator, loader+comparator wired into extract audit, 55 v20c-derived baselines committed under `config/source_quality_baselines/`. Drift defaults to `info` severity; contracts opt up to `warning`/`blocked` via `RowCountPolicy.baseline_drift_action`.
-4. **Day 4 — Track D.** Distribution audit module wired into extract path.
+4. **Day 4 — Track D.** ✅ Done. Per-dimension distribution audit (required-category presence, disappeared category, share drift, concentration drift) plus named slice sentinels. Hand-crafted negative-control fixtures cover all seven required scenarios. See [`docs/2026-04-26-track-d-distribution-audit-design.md`](./2026-04-26-track-d-distribution-audit-design.md).
 5. **Day 5–6 — Tracks H + I.** DuckDB/Parquet warehouse (raw → staged → marts) + Pandera + Frictionless schemas + negative-control fixtures.
 6. **Day 6 — Track E.** `deck_contract.yaml` schema + first slide spec; refactor table validator to consume it (now reads from marts, not bundle JSON).
 7. **Day 7 — Track F + G.** Template-first builder, brand-inheritance gate, then v20d evidence pass and parity diff against v20c.

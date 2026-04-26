@@ -36,6 +36,12 @@ from scripts.monthly_platform.source_requirements import (  # noqa: E402
     load_source_requirements,
     requirement_summary,
 )
+from scripts.monthly_platform.source_distribution_audit import (  # noqa: E402
+    audit_distribution,
+    baseline_key_for_item as distribution_baseline_key_for_item,
+    compare_run_distributions,
+    load_distribution_seeds,
+)
 from scripts.monthly_platform.source_quality_baselines import (  # noqa: E402
     baseline_key_for_item,
     compare_run_to_baselines,
@@ -52,6 +58,7 @@ DEFAULT_REQUIREMENTS_PATH = ROOT / "config" / "monthly_source_requirements.json"
 DEFAULT_TERRITORY_CONFIG = ROOT / "config" / "sd_monthly_territories.json"
 DEFAULT_OUTPUT_ROOT = ROOT / "output" / "monthly_salesforce_sources"
 DEFAULT_BASELINES_DIR = ROOT / "config" / "source_quality_baselines"
+DEFAULT_DISTRIBUTION_SEEDS_DIR = ROOT / "config" / "source_distribution_baselines"
 STAGE_NAME = "extract_salesforce_sources"
 
 
@@ -85,6 +92,8 @@ def extract_sources(
     fail_fast: bool = False,
     baselines_dir: Path | None = None,
     enable_baselines: bool = True,
+    distribution_seeds_dir: Path | None = None,
+    enable_distribution: bool = True,
 ) -> dict[str, Any]:
     started_at = utc_now_iso()
     started = time.monotonic()
@@ -134,6 +143,22 @@ def extract_sources(
     failed = 0
     skipped = 0
 
+    # Track D: load distribution seeds once per run. Missing dir → no-op
+    # (audit still runs the contract-required and concentration axes which
+    # do not need a seed; the seed-dependent axes report no_baseline.)
+    effective_distribution_seeds_dir = (
+        distribution_seeds_dir
+        if distribution_seeds_dir is not None
+        else DEFAULT_DISTRIBUTION_SEEDS_DIR
+    )
+    distribution_seeds = (
+        load_distribution_seeds(effective_distribution_seeds_dir)
+        if enable_distribution
+        else {}
+    )
+    distribution_payloads: list[dict[str, Any]] = []
+    distribution_findings: list[Finding] = []
+
     if plan.status == "blocked":
         status = "blocked"
     elif dry_run:
@@ -160,6 +185,24 @@ def extract_sources(
                     for finding in source_quality_findings
                     if finding.severity == "high"
                 )
+                if enable_distribution:
+                    seed = distribution_seeds.get(
+                        distribution_baseline_key_for_item(item)
+                    )
+                    distribution_payload, source_distribution_findings = (
+                        audit_distribution(
+                            item=item,
+                            rows=result.rows,
+                            seed=seed,
+                        )
+                    )
+                    distribution_payloads.append(distribution_payload)
+                    distribution_findings.extend(source_distribution_findings)
+                    findings.extend(
+                        finding
+                        for finding in source_distribution_findings
+                        if finding.severity == "high"
+                    )
                 extract = storage.register_source_extract(
                     source_type=result.source_type,
                     source_id=result.source_id,
@@ -294,6 +337,40 @@ def extract_sources(
         if status not in ("blocked", "failed"):
             status = "blocked"
 
+    # Track D: distribution audit summary. Per-source payloads were collected
+    # inside the extraction loop above so seed-dependent axes saw the live row
+    # set. We only summarize here. High-severity findings (only fired when a
+    # contract opts up via DimensionPolicy.disappeared_category_action="blocked"
+    # or similar) escalate the run status the same way Track C does.
+    distribution_summary = compare_run_distributions(
+        per_source_payloads=distribution_payloads,
+        findings=distribution_findings,
+    )
+    distribution_summary["enabled"] = enable_distribution
+    distribution_summary["distribution_seeds_dir"] = str(
+        effective_distribution_seeds_dir
+    )
+    quality_audit["distribution_comparison"] = distribution_summary
+    quality_audit["summary"]["distribution_finding_count"] = distribution_summary[
+        "distribution_finding_count"
+    ]
+    quality_audit["summary"]["distribution_high_finding_count"] = distribution_summary[
+        "high_finding_count"
+    ]
+    quality_audit["summary"]["distribution_matched_source_count"] = (
+        distribution_summary["matched_source_count"]
+    )
+    quality_audit["summary"]["distribution_missing_seed_source_count"] = (
+        distribution_summary["missing_seed_source_count"]
+    )
+    high_distribution_findings = [
+        f for f in distribution_findings if f.severity == "high"
+    ]
+    if high_distribution_findings:
+        # Already added to ``findings`` in the per-source loop, no double-add.
+        if status not in ("blocked", "failed"):
+            status = "blocked"
+
     quality_artifact = storage.register_json_artifact(
         artifact_id="source_extract_quality_audit",
         artifact_type="source_extract_quality_audit",
@@ -342,6 +419,16 @@ def extract_sources(
             "baseline_missing_source_count": quality_summary[
                 "baseline_missing_source_count"
             ],
+            "distribution_finding_count": quality_summary["distribution_finding_count"],
+            "distribution_high_finding_count": quality_summary[
+                "distribution_high_finding_count"
+            ],
+            "distribution_matched_source_count": quality_summary[
+                "distribution_matched_source_count"
+            ],
+            "distribution_missing_seed_source_count": quality_summary[
+                "distribution_missing_seed_source_count"
+            ],
             "filters": {
                 "only_requirement": only_requirement,
                 "only_territory": only_territory,
@@ -382,6 +469,16 @@ def extract_sources(
         ],
         "baseline_missing_source_count": quality_summary[
             "baseline_missing_source_count"
+        ],
+        "distribution_finding_count": quality_summary["distribution_finding_count"],
+        "distribution_high_finding_count": quality_summary[
+            "distribution_high_finding_count"
+        ],
+        "distribution_matched_source_count": quality_summary[
+            "distribution_matched_source_count"
+        ],
+        "distribution_missing_seed_source_count": quality_summary[
+            "distribution_missing_seed_source_count"
         ],
     }
 
@@ -790,6 +887,20 @@ def main() -> int:
         action="store_true",
         help="Disable Track C baseline comparison entirely.",
     )
+    parser.add_argument(
+        "--distribution-seeds-dir",
+        type=Path,
+        default=DEFAULT_DISTRIBUTION_SEEDS_DIR,
+        help=(
+            "Source-distribution seed directory (Track D). Read-only — never "
+            f"written by the extract step. Default: {DEFAULT_DISTRIBUTION_SEEDS_DIR}"
+        ),
+    )
+    parser.add_argument(
+        "--no-distribution",
+        action="store_true",
+        help="Disable Track D distribution audit entirely.",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -810,6 +921,8 @@ def main() -> int:
         fail_fast=args.fail_fast,
         baselines_dir=args.baselines_dir,
         enable_baselines=not args.no_baselines,
+        distribution_seeds_dir=args.distribution_seeds_dir,
+        enable_distribution=not args.no_distribution,
     )
     if args.json:
         print(json.dumps(result, indent=2))
