@@ -11,6 +11,11 @@ import time
 from pathlib import Path
 from typing import Any
 
+# Direct-execution path: when ``python3 scripts/extract_salesforce_sources.py``
+# is invoked, sys.path[0] is ``scripts/`` and the repo root is NOT on the
+# path. Add it so ``from scripts.monthly_platform.*`` imports work the same
+# as module-style use from tests. ``ruff.toml`` per-file-ignores ``E402``
+# for ``scripts/*.py`` because of this shim.
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -20,15 +25,30 @@ from scripts.monthly_platform.contracts import (
     FindingSeverity,
     StageResult,
     utc_now_iso,
-)  # noqa: E402
-from scripts.monthly_platform.period import resolve_period_context  # noqa: E402
-from scripts.monthly_platform.salesforce_auth import (  # noqa: E402
+)
+from scripts.monthly_platform.distribution_diff import (
+    diff_distribution_audits,
+    load_audit,
+)
+from scripts.monthly_platform.period import resolve_period_context
+from scripts.monthly_platform.salesforce_auth import (
     DEFAULT_TARGET_ORG,
     build_salesforce_session,
     get_salesforce_auth,
 )
-from scripts.monthly_platform.salesforce_reports import SalesforceSourceClient  # noqa: E402
-from scripts.monthly_platform.source_requirements import (  # noqa: E402
+from scripts.monthly_platform.salesforce_reports import SalesforceSourceClient
+from scripts.monthly_platform.source_distribution_audit import (
+    audit_distribution,
+    baseline_key_for_item as distribution_baseline_key_for_item,
+    compare_run_distributions,
+    load_distribution_seeds,
+)
+from scripts.monthly_platform.source_quality_baselines import (
+    baseline_key_for_item,
+    compare_run_to_baselines,
+    load_baselines,
+)
+from scripts.monthly_platform.source_requirements import (
     SourcePlanItem,
     action_to_severity,
     build_source_requirement_plan,
@@ -36,26 +56,11 @@ from scripts.monthly_platform.source_requirements import (  # noqa: E402
     load_source_requirements,
     requirement_summary,
 )
-from scripts.monthly_platform.distribution_diff import (  # noqa: E402
-    diff_distribution_audits,
-    load_audit,
-)
-from scripts.monthly_platform.source_distribution_audit import (  # noqa: E402
-    audit_distribution,
-    baseline_key_for_item as distribution_baseline_key_for_item,
-    compare_run_distributions,
-    load_distribution_seeds,
-)
-from scripts.monthly_platform.source_quality_baselines import (  # noqa: E402
-    baseline_key_for_item,
-    compare_run_to_baselines,
-    load_baselines,
-)
 from scripts.monthly_platform.storage import (
     MonthlyStorage,
     sha256_bytes,
     stable_json_bytes,
-)  # noqa: E402
+)
 
 
 DEFAULT_REQUIREMENTS_PATH = ROOT / "config" / "monthly_source_requirements.json"

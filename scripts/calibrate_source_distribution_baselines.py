@@ -51,14 +51,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.monthly_platform.contracts import utc_now_iso  # noqa: E402
-from scripts.monthly_platform.source_distribution_audit import (  # noqa: E402
+from scripts.monthly_platform.contracts import utc_now_iso
+from scripts.monthly_platform.source_distribution_audit import (
     DimensionSeed,
     SourceDistributionSeed,
     _category_counts,
     baseline_key_for_item,
 )
-from scripts.monthly_platform.source_requirements import (  # noqa: E402
+from scripts.monthly_platform.source_requirements import (
     SourcePlanItem,
     SourceRequirementPlan,
     SourceRequirementsRegistry,

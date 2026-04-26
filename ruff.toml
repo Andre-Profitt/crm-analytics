@@ -1,0 +1,18 @@
+# Ruff configuration for crm-analytics.
+#
+# The repo is not packaged (no ``pyproject.toml`` / ``setup.py``); scripts
+# under ``scripts/`` add the repo root to ``sys.path`` before importing
+# from ``scripts.monthly_platform.*`` so that running them directly with
+# ``python3 scripts/<name>.py`` works the same as ``import``-style use
+# from tests. That necessarily means ``import`` statements appear after
+# the shim, which trips ``E402``.
+#
+# Adding ``[lint.per-file-ignores]`` here removes the per-import
+# ``# noqa: E402`` wallpaper that has accumulated across ~45 scripts.
+# When the project gets a real ``pyproject.toml`` (Track L), the shims
+# can disappear and this ignore can come out.
+
+target-version = "py313"
+
+[lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
