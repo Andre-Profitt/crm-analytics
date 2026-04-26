@@ -1,0 +1,21 @@
+[
+  {
+    "snapshot_date": "2026-04-30",
+    "run_id": "live-all-sources-pipeline-open-v20c",
+    "requirement_id": "sd_pipeline_open",
+    "source_system": "salesforce",
+    "source_type": "salesforce_list_view",
+    "salesforce_object": "Opportunity",
+    "dataset": "pipeline_open",
+    "output_grain": "opportunity",
+    "scope": "territory",
+    "territory": "APAC",
+    "director": "Jesper Tyrer",
+    "region": "Asia",
+    "period_role": "current_quarter",
+    "quarter_label": "Q2",
+    "source_id": "",
+    "source_label": "",
+    "status": "missing_source_id"
+  }
+]
