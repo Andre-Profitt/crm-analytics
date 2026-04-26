@@ -15,7 +15,7 @@ Prior cycle plan (for context): [`docs/2026-04-24-gpt55-feedback-implementation-
 | B     | Per-axis source-quality policy actions             | ✅ DONE          | [`5303a5f`](https://github.com/Andre-Profitt/crm-analytics/commit/5303a5f)   |
 | C     | Source-quality baselines calibrator                | ✅ DONE          | merged in PR #2                                                              |
 | D     | Distribution checks for pipeline sources           | ✅ DONE          | merged in PR #4; activation slice (calibrator + first opt-in) on this branch |
-| **H** | **DuckDB / Parquet warehouse layer (v3)**          | NEW              | —                                                                            |
+| **H** | **DuckDB / Parquet warehouse layer (v3)**          | 🟡 SKELETON      | (this branch — Track H skeleton PR)                                          |
 | **I** | **Pandera + JSON Schema dataframe contracts (v3)** | NEW              | —                                                                            |
 | E     | `deck_contract.yaml` (deck API)                    | pending          | —                                                                            |
 | F     | Template-first builder + brand fingerprint         | pending          | —                                                                            |

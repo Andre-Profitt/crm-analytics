@@ -34,9 +34,9 @@ DEFAULT_STORAGE_ROOT = Path("output") / "monthly_platform_storage"
 
 
 def stable_json_bytes(payload: Any) -> bytes:
-    return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode(
-        "utf-8"
-    )
+    return json.dumps(
+        payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def sha256_bytes(payload: bytes) -> str:
@@ -60,7 +60,9 @@ def parquet_safe_row(row: Mapping[str, Any]) -> dict[str, Any]:
     return {str(key): parquet_safe_value(value) for key, value in row.items()}
 
 
-def schema_fingerprint(rows: Iterable[Mapping[str, Any]]) -> tuple[list[dict[str, str]], str]:
+def schema_fingerprint(
+    rows: Iterable[Mapping[str, Any]],
+) -> tuple[list[dict[str, str]], str]:
     fields: dict[str, set[str]] = {}
     for row in rows:
         for key, value in row.items():
@@ -195,7 +197,9 @@ class MonthlyStorage:
                 "source_extract_id": extract_id,
                 "source_type": source_type,
                 "source_id": source_id,
-                "duckdb_relation": self._register_duckdb_table(extract_id, parquet_path),
+                "duckdb_relation": self._register_duckdb_table(
+                    extract_id, parquet_path
+                ),
             },
         )
 
@@ -219,7 +223,9 @@ class MonthlyStorage:
             metadata=metadata or {},
         )
 
-        self._insert_artifact(raw_artifact, stage_name=stage_name, source_extract_id=extract_id)
+        self._insert_artifact(
+            raw_artifact, stage_name=stage_name, source_extract_id=extract_id
+        )
         self._insert_artifact(
             table_artifact, stage_name=stage_name, source_extract_id=extract_id
         )
@@ -344,11 +350,15 @@ class MonthlyStorage:
         except ModuleNotFoundError:
             return "duckdb_not_installed"
 
+        # DuckDB >= 1.5 disallows prepared parameters in DDL like
+        # CREATE VIEW; inline the path with single-quote escaping. The
+        # ``parquet_path`` is constructed by ``MonthlyStorage`` from a slugged
+        # extract_id, so it carries no caller-controlled SQL.
+        escaped_path = str(parquet_path).replace("'", "''")
         with duckdb.connect(str(self.duckdb_path)) as conn:
             conn.execute(
                 f'CREATE OR REPLACE VIEW "{relation}" AS '
-                f"SELECT * FROM read_parquet(?)",
-                [str(parquet_path)],
+                f"SELECT * FROM read_parquet('{escaped_path}')"
             )
         return relation
 
