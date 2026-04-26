@@ -164,7 +164,7 @@ def test_run_builder_returns_structured_error_payload(monkeypatch) -> None:  # t
 
 def test_parse_json_output_handles_log_prefix() -> None:
     payload = parse_json_output(
-        "Saved: /tmp/deck.pptx\n{\n  \"status\": \"ok\",\n  \"run_dir\": \"/tmp/run\"\n}\n"
+        'Saved: /tmp/deck.pptx\n{\n  "status": "ok",\n  "run_dir": "/tmp/run"\n}\n'
     )
     assert payload == {"status": "ok", "run_dir": "/tmp/run"}
 
@@ -304,7 +304,9 @@ def test_command_plan_respects_explicit_shell_fallback_flags(
 def test_monthly_run_defaults_release_packet_on_and_allows_skip() -> None:
     parser = build_parser()
 
-    monthly_run_args = parser.parse_args(["monthly-run", "--snapshot-date", "2026-04-30"])
+    monthly_run_args = parser.parse_args(
+        ["monthly-run", "--snapshot-date", "2026-04-30"]
+    )
     assert monthly_run_args.build_release_packet is True
 
     monthly_run_skip_args = parser.parse_args(
@@ -399,7 +401,9 @@ def test_command_monthly_run_passes_extracted_workbook_root_to_builder(
     assert captured["workbook_root"] == extracted_root
 
 
-def test_command_monthly_run_blocks_before_promotion(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+def test_command_monthly_run_blocks_before_promotion(
+    monkeypatch, tmp_path: Path
+) -> None:  # type: ignore[no-untyped-def]
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "manifest.json").write_text("{}", encoding="utf-8")
@@ -492,7 +496,9 @@ def test_command_monthly_run_promotes_when_clean(monkeypatch, tmp_path: Path) ->
     assert payload["release_packet"]["status"] == "skipped"
 
 
-def test_command_monthly_run_blocks_on_release_packet(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+def test_command_monthly_run_blocks_on_release_packet(
+    monkeypatch, tmp_path: Path
+) -> None:  # type: ignore[no-untyped-def]
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     (run_dir / "manifest.json").write_text("{}", encoding="utf-8")
@@ -534,9 +540,13 @@ def test_command_monthly_run_blocks_on_release_packet(monkeypatch, tmp_path: Pat
             "status": "ok",
             "snapshot_date": snapshot_date,
             "region_name": region_name,
-            "run_dir": str(tmp_path / f"region-{region_name.lower().replace(' ', '-')}"),
+            "run_dir": str(
+                tmp_path / f"region-{region_name.lower().replace(' ', '-')}"
+            ),
             "manifest_path": str(
-                tmp_path / f"region-{region_name.lower().replace(' ', '-')}" / "manifest.json"
+                tmp_path
+                / f"region-{region_name.lower().replace(' ', '-')}"
+                / "manifest.json"
             ),
         },
     )
@@ -548,7 +558,11 @@ def test_command_monthly_run_blocks_on_release_packet(monkeypatch, tmp_path: Pat
             "run_dir": str(tmp_path / "global-run"),
             "manifest_path": str(tmp_path / "global-run" / "manifest.json"),
             "deterministic_preview": {
-                "deck_path": str(tmp_path / "global-run" / "Sales Global Summary Validated Baseline.pptx")
+                "deck_path": str(
+                    tmp_path
+                    / "global-run"
+                    / "Sales Global Summary Validated Baseline.pptx"
+                )
             },
         },
     )
@@ -623,9 +637,13 @@ def test_command_monthly_run_builds_region_and_global_release_inputs(
             "status": "ok",
             "snapshot_date": snapshot_date,
             "region_name": region_name,
-            "run_dir": str(tmp_path / f"region-{region_name.lower().replace(' ', '-')}"),
+            "run_dir": str(
+                tmp_path / f"region-{region_name.lower().replace(' ', '-')}"
+            ),
             "manifest_path": str(
-                tmp_path / f"region-{region_name.lower().replace(' ', '-')}" / "manifest.json"
+                tmp_path
+                / f"region-{region_name.lower().replace(' ', '-')}"
+                / "manifest.json"
             ),
         }
 
@@ -646,7 +664,9 @@ def test_command_monthly_run_builds_region_and_global_release_inputs(
             "run_dir": str(global_run_dir),
             "manifest_path": str(global_run_dir / "manifest.json"),
             "deterministic_preview": {
-                "deck_path": str(global_run_dir / "Sales Global Summary Validated Baseline.pptx")
+                "deck_path": str(
+                    global_run_dir / "Sales Global Summary Validated Baseline.pptx"
+                )
             },
         },
     )
@@ -672,19 +692,33 @@ def test_command_monthly_run_builds_region_and_global_release_inputs(
         fake_run_release_packet,
     )
 
+    # The cadence runner constructs a per-run SharePoint subdir from the
+    # snapshot date and a wall-clock timestamp slug:
+    #     <sharepoint-root> / <snapshot-date> / <timestamp-slug>
+    # Pin the slug so the assertion is deterministic. Per-run isolation is
+    # the contract; this test only verifies that the runner forwards the
+    # *constructed* path, not that the slug is generated a particular way.
+    monkeypatch.setattr(
+        "scripts.run_sales_director_monthly_cadence.timestamp_slug",
+        lambda: "20260426-120000",
+    )
+
     payload = command_monthly_run(monthly_run_args(build_release_packet=True))
 
     assert payload["status"] == "ok"
     assert region_calls == ["APAC", "EMEA", "North America"]
     assert payload["global_summary"]["run_dir"] == str(global_run_dir)
     assert payload["global_canonical_shell"]["run_dir"] == str(global_canonical_run_dir)
+    expected_sharepoint_root = (
+        Path("/tmp/sharepoint") / "2026-04-30" / "20260426-120000"
+    )
     assert release_packet_calls == [
         {
             "snapshot_date": "2026-04-30",
             "director_run_dir": run_dir,
             "global_run_dir": global_run_dir,
             "global_canonical_run_dir": global_canonical_run_dir,
-            "sharepoint_root": Path("/tmp/sharepoint"),
+            "sharepoint_root": expected_sharepoint_root,
         }
     ]
 
@@ -741,9 +775,7 @@ def test_command_monthly_run_writes_status_bundle_and_latest_aliases(
             encoding="utf-8"
         )
     )
-    latest_md = (
-        tmp_path / "cadence-status" / "latest.md"
-    ).read_text(encoding="utf-8")
+    latest_md = (tmp_path / "cadence-status" / "latest.md").read_text(encoding="utf-8")
 
     assert latest_json["status"] == "ok"
     assert latest_json["builder_run_dir"] == str(run_dir)
