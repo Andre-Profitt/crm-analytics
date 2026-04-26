@@ -1,0 +1,99 @@
+{
+  "$schema": "https://specs.frictionlessdata.io/table-schema/",
+  "name": "staged_source_requirements",
+  "title": "Source requirements registry (staged tier)",
+  "description": "Flattened, typed projection of config/monthly_source_requirements.json requirements[]. Anchored to the 2026-04-26 v20d ETL spine checkpoint.",
+  "fields": [
+    {
+      "name": "requirement_id",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "minLength": 1,
+        "unique": true
+      }
+    },
+    {
+      "name": "enabled",
+      "type": "boolean",
+      "constraints": { "required": true }
+    },
+    {
+      "name": "owner",
+      "type": "string",
+      "constraints": { "required": true, "minLength": 1 }
+    },
+    {
+      "name": "source_system",
+      "type": "string",
+      "constraints": { "required": true, "enum": ["salesforce"] }
+    },
+    {
+      "name": "source_type",
+      "type": "string",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "salesforce_report",
+          "salesforce_list_view",
+          "salesforce_soql_probe"
+        ]
+      }
+    },
+    {
+      "name": "dataset",
+      "type": "string",
+      "constraints": { "required": true, "minLength": 1 }
+    },
+    {
+      "name": "output_grain",
+      "type": "string",
+      "constraints": { "required": true, "minLength": 1 }
+    },
+    {
+      "name": "scope",
+      "type": "string",
+      "constraints": { "required": true, "enum": ["territory", "global"] }
+    },
+    {
+      "name": "allow_zero",
+      "type": "boolean",
+      "constraints": { "required": true }
+    },
+    {
+      "name": "min_rows",
+      "type": "integer",
+      "constraints": { "minimum": 0 }
+    },
+    {
+      "name": "max_rows",
+      "type": "integer",
+      "constraints": { "minimum": 1 }
+    },
+    {
+      "name": "has_distribution_policy",
+      "type": "boolean",
+      "constraints": { "required": true }
+    },
+    {
+      "name": "distribution_dimension_count",
+      "type": "integer",
+      "constraints": { "required": true, "minimum": 0 }
+    },
+    {
+      "name": "slice_sentinel_count",
+      "type": "integer",
+      "constraints": { "required": true, "minimum": 0 }
+    },
+    {
+      "name": "fallback_policy_present",
+      "type": "boolean",
+      "constraints": { "required": true }
+    },
+    {
+      "name": "tag_count",
+      "type": "integer",
+      "constraints": { "required": true, "minimum": 0 }
+    }
+  ]
+}

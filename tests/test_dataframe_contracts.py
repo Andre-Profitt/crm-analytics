@@ -904,3 +904,184 @@ def test_plan_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
     assert report.status == "pass", [
         f"{f.message}: {f.evidence}" for f in report.findings
     ]
+# ===========================================================================
+# Slice 5: staged_source_requirements
+# ===========================================================================
+
+
+REQUIREMENTS_FIXTURE_DIR = (
+    REPO_ROOT / "tests" / "fixtures" / "bad_extracts" / "staged_source_requirements"
+)
+REQUIREMENTS_TABLE_ID = "staged_source_requirements"
+
+REQUIREMENTS_COLUMNS = [
+    "requirement_id",
+    "enabled",
+    "owner",
+    "source_system",
+    "source_type",
+    "dataset",
+    "output_grain",
+    "scope",
+    "allow_zero",
+    "min_rows",
+    "max_rows",
+    "has_distribution_policy",
+    "distribution_dimension_count",
+    "slice_sentinel_count",
+    "fallback_policy_present",
+    "tag_count",
+]
+
+
+def _load_requirements_fixture(name: str) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = json.loads(
+        (REQUIREMENTS_FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8")
+    )
+    df = pd.DataFrame(rows)
+    df = df.reindex(columns=[c for c in REQUIREMENTS_COLUMNS if c in df.columns])
+    # Match what DuckDB -> pandas produces from the warehouse Parquet:
+    # bools as bool, nullable BIGINT as pandas nullable Int64 (so None
+    # survives the round-trip without becoming float64 NaN).
+    bool_cols = [
+        "enabled",
+        "allow_zero",
+        "has_distribution_policy",
+        "fallback_policy_present",
+    ]
+    for c in bool_cols:
+        if c in df.columns:
+            df[c] = df[c].astype(bool)
+    int_cols = [
+        "min_rows",
+        "max_rows",
+        "distribution_dimension_count",
+        "slice_sentinel_count",
+        "tag_count",
+    ]
+    for c in int_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("Int64")
+    return df
+
+
+def _requirements_parquet_from_fixture(name: str, tmp_path: Path) -> Path:
+    df = _load_requirements_fixture(name)
+    parquet_path = tmp_path / f"{name}.parquet"
+    df.to_parquet(parquet_path, index=False)
+    return parquet_path
+
+
+def test_requirements_pandera_accepts_good_fixture():
+    df = _load_requirements_fixture("good")
+    report = validate_pandera(table_id=REQUIREMENTS_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_requirements_pandera_rejects_duplicate_requirement_id():
+    df = _load_requirements_fixture("duplicate_requirement_id")
+    report = validate_pandera(table_id=REQUIREMENTS_TABLE_ID, df=df)
+    assert report.status == "fail"
+    assert any("requirement_id" in (f.evidence or f.message) for f in report.findings)
+
+
+@pytest.mark.parametrize(
+    "fixture,expected_substring",
+    [
+        ("unknown_source_system", "source_system"),
+        ("unknown_source_type", "source_type"),
+        ("unknown_scope", "scope"),
+        ("negative_min_rows", "min_rows"),
+        ("zero_max_rows", "max_rows"),
+        ("negative_count", "distribution_dimension_count"),
+        ("empty_owner", "owner"),
+    ],
+)
+def test_requirements_pandera_rejects_negative_control(fixture, expected_substring):
+    df = _load_requirements_fixture(fixture)
+    report = validate_pandera(table_id=REQUIREMENTS_TABLE_ID, df=df)
+    assert report.status == "fail", f"{fixture} should fail"
+    assert any(
+        expected_substring in (f.evidence or f.message) for f in report.findings
+    ), [(f.message, f.evidence) for f in report.findings]
+
+
+def test_requirements_pandera_rejects_missing_column():
+    df = _load_requirements_fixture("missing_has_distribution_policy")
+    report = validate_pandera(table_id=REQUIREMENTS_TABLE_ID, df=df)
+    assert report.status == "fail"
+
+
+def test_requirements_frictionless_accepts_good_fixture(tmp_path: Path):
+    parquet_path = _requirements_parquet_from_fixture("good", tmp_path)
+    report = validate_frictionless(
+        table_id=REQUIREMENTS_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]
+
+
+def test_requirements_frictionless_rejects_unknown_scope(tmp_path: Path):
+    parquet_path = _requirements_parquet_from_fixture("unknown_scope", tmp_path)
+    report = validate_frictionless(
+        table_id=REQUIREMENTS_TABLE_ID,
+        parquet_path=parquet_path,
+        repo_root=REPO_ROOT,
+    )
+    assert report.status == "fail"
+
+
+def test_requirements_pandera_accepts_v20d_checkpoint_warehouse(tmp_path: Path):
+    """Live evidence: v20c run produces 4 requirement rows."""
+    audit_path = (
+        REPO_ROOT
+        / "output"
+        / "monthly_salesforce_sources"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "audits"
+        / "source_extract_quality_audit.json"
+    )
+    if not audit_path.exists():
+        pytest.skip("v20c live evidence not on disk")
+
+    rc = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "build_source_backed_warehouse.py"),
+            "--snapshot-date",
+            "2026-04-30",
+            "--run-id",
+            "live-all-sources-pipeline-open-v20c",
+            "--warehouse-root",
+            str(tmp_path / "wh"),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert rc.returncode == 0, rc.stderr or rc.stdout
+
+    parquet_path = (
+        tmp_path
+        / "wh"
+        / "2026-04-30"
+        / "live-all-sources-pipeline-open-v20c"
+        / "staged"
+        / "source_requirements.parquet"
+    )
+    con = duckdb.connect()
+    try:
+        df = con.execute(f"SELECT * FROM read_parquet('{parquet_path}')").df()
+    finally:
+        con.close()
+    assert len(df) >= 1, f"expected requirement rows, got {len(df)}"
+    report = validate_pandera(table_id=REQUIREMENTS_TABLE_ID, df=df)
+    assert report.status == "pass", [
+        f"{f.message}: {f.evidence}" for f in report.findings
+    ]

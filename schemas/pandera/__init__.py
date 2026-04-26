@@ -28,6 +28,7 @@ from schemas.pandera import (
     source_quality_audit,
     staged_distribution_findings,
     staged_source_quality_findings,
+    staged_source_requirements,
 )
 
 
@@ -36,6 +37,7 @@ SCHEMAS = {
     source_quality_audit.TABLE_ID: source_quality_audit.SCHEMA,
     staged_source_quality_findings.TABLE_ID: staged_source_quality_findings.SCHEMA,
     staged_distribution_findings.TABLE_ID: staged_distribution_findings.SCHEMA,
+    staged_source_requirements.TABLE_ID: staged_source_requirements.SCHEMA,
 }
 
 

@@ -1,0 +1,20 @@
+[
+  {
+    "requirement_id": "sd_pipeline_open",
+    "enabled": true,
+    "owner": "",
+    "source_system": "salesforce",
+    "source_type": "salesforce_list_view",
+    "dataset": "pipeline_open",
+    "output_grain": "opportunity",
+    "scope": "territory",
+    "allow_zero": true,
+    "min_rows": 0,
+    "max_rows": null,
+    "has_distribution_policy": true,
+    "distribution_dimension_count": 3,
+    "slice_sentinel_count": 1,
+    "fallback_policy_present": false,
+    "tag_count": 4
+  }
+]
