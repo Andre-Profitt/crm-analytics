@@ -403,7 +403,12 @@ def build_exec_dashboard(wb, data, overdue_rows, kyc_rows):
         total_cond_arr += sum(a["arr_unwtd"] for a in d["approval_candidates"])
         total_missing_n += len(d["approval_missing"])
 
-    # KPI cards: label + value, arranged in a 2 x 3 grid
+    # KPI cards: label + value, arranged in a 2 x 3 grid.
+    # NB: ``q1_won*`` / ``q1_lost*`` count *calendar* Q1 (Jan–Mar) of the
+    # analysis year — fixed historical metrics — so the labels must say
+    # "Q1", not ``prior_quarter_label`` (which equals "Q1" only when the
+    # analysis date sits in Q2). The slip metric inside the losses card is
+    # prior-quarter-relative, so its sub-label keeps ``prior_quarter_label``.
     cards = [
         (
             "Open Land pipeline",
@@ -411,14 +416,15 @@ def build_exec_dashboard(wb, data, overdue_rows, kyc_rows):
             f"EUR {total_open_unwtd:,.0f} unwtd / EUR {total_open_wtd:,.0f} wtd",
         ),
         (
-            f"{RUNTIME_PERIOD['prior_quarter_label']} wins",
+            "Q1 wins",
             f"{total_q1_won} deals",
             f"EUR {total_q1_won_arr:,.0f} unwtd",
         ),
         (
-            f"{RUNTIME_PERIOD['prior_quarter_label']} losses at risk",
+            "Q1 losses at risk",
             f"EUR {total_q1_lost_arr:,.0f}",
-            f"Slips still open: EUR {total_q1_slip_arr:,.0f}",
+            f"Slips from {RUNTIME_PERIOD['prior_quarter_label']} still open: "
+            f"EUR {total_q1_slip_arr:,.0f}",
         ),
         (
             f"Approved {RUNTIME_PERIOD['analysis_year']}",
@@ -477,9 +483,11 @@ def build_exec_dashboard(wb, data, overdue_rows, kyc_rows):
         "Open Land Deals",
         "Open ARR Unwtd",
         "Open ARR Wtd",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Won",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Won ARR",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Lost",
+        # ``q1_won*`` / ``q1_lost*`` are calendar-Q1 of the analysis year,
+        # not prior-quarter; see the KPI-card comment above.
+        "Q1 Won",
+        "Q1 Won ARR",
+        "Q1 Lost",
         f"Approved {RUNTIME_PERIOD['analysis_year']}",
         "Cond Approved",
     ]
@@ -543,10 +551,14 @@ def build_summary_sheet(wb, data):
         "Open Land Deals",
         "Open Land ARR Unwtd",
         "Open Land ARR Wtd",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Won",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Won ARR",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Lost",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Lost ARR",
+        # ``q1_won*`` / ``q1_lost*`` are calendar-Q1 of the analysis year.
+        # The slip columns below are prior-quarter-relative (the data is
+        # opps that slipped from the prior quarter), so they keep
+        # ``prior_quarter_label`` in the header.
+        "Q1 Won",
+        "Q1 Won ARR",
+        "Q1 Lost",
+        "Q1 Lost ARR",
         f"{RUNTIME_PERIOD['prior_quarter_label']} Slips Still Open",
         f"{RUNTIME_PERIOD['prior_quarter_label']} Slip ARR at Risk",
     ]
@@ -2429,9 +2441,11 @@ def build_territory_scorecard(wb, overdue_rows, kyc_rows):
         "Open ARR Unwtd",
         "Open ARR Wtd",
         "Avg Probability %",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Won ARR",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Lost ARR",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Win Rate %",
+        # ``q1_won_arr`` / ``q1_lost_arr`` are calendar-Q1, not prior-quarter.
+        # See ``_is_q1_of_analysis_year`` and the KPI-card comment.
+        "Q1 Won ARR",
+        "Q1 Lost ARR",
+        "Q1 Win Rate %",
         "Slips Still Open",
         "Slip ARR",
         "Overdue Opps",
@@ -3854,9 +3868,11 @@ def build_owner_scorecard(wb):
         "Director",
         "Open Deals",
         "Open ARR (EUR)",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Won",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Won ARR",
-        f"{RUNTIME_PERIOD['prior_quarter_label']} Lost",
+        # ``q1_won`` / ``q1_won_arr`` / ``q1_lost`` are calendar-Q1, not
+        # prior-quarter. See ``_is_q1_of_analysis_year``.
+        "Q1 Won",
+        "Q1 Won ARR",
+        "Q1 Lost",
         "Win Rate (ARR)",
         "Avg Deal Size",
         "Avg Cycle Days",
