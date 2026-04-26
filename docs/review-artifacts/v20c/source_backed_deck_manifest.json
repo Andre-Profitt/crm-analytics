@@ -1,0 +1,46 @@
+{
+  "schema_version": "monthly_platform.source_backed_deck.v1",
+  "status": "ok",
+  "snapshot_date": "2026-04-30",
+  "source_run_id": "live-all-sources-pipeline-open-v20c",
+  "deck_path": "/Users/test/crm-analytics/output/source_backed_decks/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_monthly_review.pptx",
+  "truth_packet_path": "/Users/test/crm-analytics/output/deck_truth_packets_from_sources/live-all-sources-pipeline-open-v20c/2026-04-30/deck_truth_packet.json",
+  "source_backed_publish_gate_path": "/Users/test/crm-analytics/output/monthly_source_backed_publish_gate/2026-04-30/live-all-sources-pipeline-open-v20c/source_backed_publish_gate.json",
+  "source_bundle_manifest_path": "/Users/test/crm-analytics/output/monthly_source_bundles/2026-04-30/live-all-sources-pipeline-open-v20c/source_bundle_manifest.json",
+  "slide_count": 6,
+  "slide_titles": [
+    "Monthly Sales Director Operating Review",
+    "Publish gate status is green across the evidence chain",
+    "Regional open pipeline is traceable to director bundles",
+    "Director book view: pipeline, risk, and tie-out health",
+    "Quarter display logic: current quarter unless fallback is required",
+    "Leadership readout: clean source chain, ready for standard deck production"
+  ],
+  "summary": {
+    "director_count": 9,
+    "metric_count": 60,
+    "claim_count": 60,
+    "high_blocker_count": 0,
+    "tieout_mismatch_count": 0,
+    "source_extract_count": 55,
+    "selected_source_count": 55,
+    "forward_fallback_count": 4
+  },
+  "visual_contract": {
+    "required_titles": [
+      "Monthly Sales Director Operating Review",
+      "Publish gate is green across the evidence chain",
+      "Regional open pipeline is reconciled and ready to review",
+      "Director book view: pipeline, risk, and tie-out health",
+      "Quarter display logic: current quarter unless fallback is required",
+      "Leadership readout: clean evidence trail, ready for monthly deck handoff"
+    ],
+    "required_text": [
+      "Source-backed",
+      "Truth Status: OK",
+      "Publish gate",
+      "Quarter display logic",
+      "think-cell"
+    ]
+  }
+}
