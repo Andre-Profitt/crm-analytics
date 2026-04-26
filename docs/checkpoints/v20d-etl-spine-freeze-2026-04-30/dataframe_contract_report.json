@@ -1,0 +1,80 @@
+{
+  "schema_version": "monthly_platform.etl_spine_freeze_report.v1",
+  "snapshot_date": "2026-04-30",
+  "run_id": "v20d-etl-spine-freeze",
+  "table_count": 7,
+  "tables_passing": 7,
+  "status": "pass",
+  "tables": [
+    {
+      "table_id": "raw_salesforce_extract_plan",
+      "rows": 55,
+      "parquet": "raw/salesforce_extract_plan.parquet",
+      "pandera": "pass",
+      "frictionless": "pass",
+      "status": "pass",
+      "pandera_findings": [],
+      "frictionless_findings": []
+    },
+    {
+      "table_id": "raw_source_quality_audit",
+      "rows": 55,
+      "parquet": "raw/source_quality_audit.parquet",
+      "pandera": "pass",
+      "frictionless": "pass",
+      "status": "pass",
+      "pandera_findings": [],
+      "frictionless_findings": []
+    },
+    {
+      "table_id": "staged_source_requirements",
+      "rows": 4,
+      "parquet": "staged/source_requirements.parquet",
+      "pandera": "pass",
+      "frictionless": "pass",
+      "status": "pass",
+      "pandera_findings": [],
+      "frictionless_findings": []
+    },
+    {
+      "table_id": "staged_source_quality_findings",
+      "rows": 1,
+      "parquet": "staged/source_quality_findings.parquet",
+      "pandera": "pass",
+      "frictionless": "pass",
+      "status": "pass",
+      "pandera_findings": [],
+      "frictionless_findings": []
+    },
+    {
+      "table_id": "staged_distribution_findings",
+      "rows": 0,
+      "parquet": "staged/distribution_findings.parquet",
+      "pandera": "pass",
+      "frictionless": "pass",
+      "status": "pass",
+      "pandera_findings": [],
+      "frictionless_findings": []
+    },
+    {
+      "table_id": "mart_director_source_health",
+      "rows": 10,
+      "parquet": "marts/director_source_health.parquet",
+      "pandera": "pass",
+      "frictionless": "pass",
+      "status": "pass",
+      "pandera_findings": [],
+      "frictionless_findings": []
+    },
+    {
+      "table_id": "mart_source_run_summary",
+      "rows": 1,
+      "parquet": "marts/source_run_summary.parquet",
+      "pandera": "pass",
+      "frictionless": "pass",
+      "status": "pass",
+      "pandera_findings": [],
+      "frictionless_findings": []
+    }
+  ]
+}

@@ -1,0 +1,171 @@
+{
+  "generated_at": "2026-04-26T19:37:03.319928+00:00",
+  "run_id": "v20d-etl-spine-freeze",
+  "schema_version": "monthly_platform.source_backed_warehouse_manifest.v1",
+  "snapshot_date": "2026-04-30",
+  "tables": [
+    {
+      "byte_count": 5591,
+      "columns": [
+        "snapshot_date",
+        "run_id",
+        "requirement_id",
+        "source_system",
+        "source_type",
+        "salesforce_object",
+        "dataset",
+        "output_grain",
+        "scope",
+        "territory",
+        "director",
+        "region",
+        "period_role",
+        "quarter_label",
+        "source_id",
+        "source_label",
+        "status"
+      ],
+      "relative_path": "raw/salesforce_extract_plan.parquet",
+      "row_count": 55,
+      "sha256": "8e0c41ca14a4059aee615688c413bcf4f9f0469b02f0e07a322f5de8d6e29264",
+      "table_id": "raw_salesforce_extract_plan"
+    },
+    {
+      "byte_count": 12031,
+      "columns": [
+        "snapshot_date",
+        "run_id",
+        "source_key",
+        "status",
+        "requirement_id",
+        "dataset",
+        "source_type",
+        "salesforce_id",
+        "label",
+        "territory",
+        "director",
+        "period_role",
+        "quarter_label",
+        "row_count",
+        "row_count_status",
+        "required_field_count",
+        "required_fields_present_count",
+        "missing_required_fields_count",
+        "finding_count",
+        "high_finding_count",
+        "medium_finding_count",
+        "quality_hash"
+      ],
+      "relative_path": "raw/source_quality_audit.parquet",
+      "row_count": 55,
+      "sha256": "482ffda5fcd701eec2e479ab626072f4814b4984ecf993f0de81f41cd4d273db",
+      "table_id": "raw_source_quality_audit"
+    },
+    {
+      "byte_count": 2786,
+      "columns": [
+        "requirement_id",
+        "enabled",
+        "owner",
+        "source_system",
+        "source_type",
+        "dataset",
+        "output_grain",
+        "scope",
+        "allow_zero",
+        "min_rows",
+        "max_rows",
+        "has_distribution_policy",
+        "distribution_dimension_count",
+        "slice_sentinel_count",
+        "fallback_policy_present",
+        "tag_count"
+      ],
+      "relative_path": "staged/source_requirements.parquet",
+      "row_count": 4,
+      "sha256": "6772ec9b7a036d269460212cb15ad0873739b024ed1e9b12722ccc55d1defc8a",
+      "table_id": "staged_source_requirements"
+    },
+    {
+      "byte_count": 1821,
+      "columns": [
+        "snapshot_date",
+        "run_id",
+        "track",
+        "severity",
+        "issue",
+        "evidence",
+        "owner"
+      ],
+      "relative_path": "staged/source_quality_findings.parquet",
+      "row_count": 1,
+      "sha256": "48248f4166a806b8be49a1088dbcab622eb36013ac2056da007a2f538dd0aea0",
+      "table_id": "staged_source_quality_findings"
+    },
+    {
+      "byte_count": 219,
+      "columns": [
+        "snapshot_date",
+        "run_id",
+        "track",
+        "severity",
+        "issue",
+        "evidence",
+        "owner"
+      ],
+      "relative_path": "staged/distribution_findings.parquet",
+      "row_count": 0,
+      "sha256": "a846d4f02c6dbbb10e55da643d3188bf36fd079cb3dadd05f8b77202b0b3eda9",
+      "table_id": "staged_distribution_findings"
+    },
+    {
+      "byte_count": 2258,
+      "columns": [
+        "snapshot_date",
+        "run_id",
+        "director",
+        "source_count",
+        "ok_source_count",
+        "warning_source_count",
+        "blocked_source_count",
+        "total_row_count",
+        "total_finding_count"
+      ],
+      "relative_path": "marts/director_source_health.parquet",
+      "row_count": 10,
+      "sha256": "9d0d40dd4a9471715f088fca15648b7e31bd1d15bdbec67860448eecfa577ca9",
+      "table_id": "mart_director_source_health"
+    },
+    {
+      "byte_count": 3682,
+      "columns": [
+        "snapshot_date",
+        "run_id",
+        "generated_at",
+        "status",
+        "selected_source_count",
+        "source_count",
+        "ok_source_count",
+        "warning_source_count",
+        "blocked_source_count",
+        "finding_count",
+        "high_finding_count",
+        "medium_finding_count",
+        "baseline_drift_finding_count",
+        "baseline_high_finding_count",
+        "baseline_matched_source_count",
+        "baseline_missing_source_count",
+        "distribution_finding_count",
+        "distribution_high_finding_count",
+        "distribution_matched_source_count",
+        "distribution_missing_seed_source_count",
+        "distribution_missing_seed_dimension_count"
+      ],
+      "relative_path": "marts/source_run_summary.parquet",
+      "row_count": 1,
+      "sha256": "2fe09598b1fade463276f63ab08f6dcbbfd9c026de0d76dc507f8f4f877c93a7",
+      "table_id": "mart_source_run_summary"
+    }
+  ],
+  "warehouse_root": "/Users/test/crm-analytics/output/source_backed_warehouse/2026-04-30/v20d-etl-spine-freeze"
+}
