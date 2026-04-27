@@ -64,9 +64,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Track E validators only need: pyyaml, jsonschema, openpyxl,
-          # python-pptx, pytest. requirements.txt already covers these,
-          # so no separate install step is needed.
+          # requirements.txt covers runtime deps (pydantic, pyyaml,
+          # openpyxl, python-pptx). The validators + tests also need
+          # jsonschema, Pillow (Track F F6 image diffs), and pytest;
+          # install those explicitly here so the workflow doesn't
+          # depend on a separate dev-requirements file.
+          pip install pytest pytest-asyncio jsonschema Pillow
 
       - name: Validate deck contract structurally
         run: python3 scripts/validate_deck_contract.py --show-findings
