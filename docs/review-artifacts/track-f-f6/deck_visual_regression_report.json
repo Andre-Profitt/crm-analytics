@@ -1,0 +1,222 @@
+{
+  "schema_version": "monthly_platform.deck_visual_regression_report.v1",
+  "validated_at": "2026-04-27T13:21:23.173728+00:00",
+  "baseline_path": "<repo>/tests/fixtures/track_f/golden_baseline/manifest.json",
+  "captured_at": "2026-04-27T13:21:13.980520+00:00",
+  "status": "pass",
+  "blocker_count": 0,
+  "warning_count": 0,
+  "slide_count": 16,
+  "baseline_slide_count": 16,
+  "slides": [
+    {
+      "slide_number": 1,
+      "slide_id": "cover",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "full_slide",
+          "status": "pass",
+          "actual_hash": "a6e43bec38f1feaa2eed8db535ae52350da29191ec72c3398d359ea15e77e1ed",
+          "baseline_hash": "a6e43bec38f1feaa2eed8db535ae52350da29191ec72c3398d359ea15e77e1ed"
+        }
+      ]
+    },
+    {
+      "slide_number": 2,
+      "slide_id": "executive_summary",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "8fd6b6ce536aa7e6381b12dba23ca2640449adb7d665ed40df8a6135b822b1fa",
+          "baseline_hash": "8fd6b6ce536aa7e6381b12dba23ca2640449adb7d665ed40df8a6135b822b1fa"
+        }
+      ]
+    },
+    {
+      "slide_number": 3,
+      "slide_id": "since_last_review",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "787705b3dc169bba0b253609b5d5a969216a9c1b896b4735f1e8b3ea44c93b07",
+          "baseline_hash": "787705b3dc169bba0b253609b5d5a969216a9c1b896b4735f1e8b3ea44c93b07"
+        }
+      ]
+    },
+    {
+      "slide_number": 4,
+      "slide_id": "q1_promised_delivered",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "6950e59f4b3d40d853775ae35f0090d81f9cdd72d071b2448bb0050f2fa8cc43",
+          "baseline_hash": "6950e59f4b3d40d853775ae35f0090d81f9cdd72d071b2448bb0050f2fa8cc43"
+        }
+      ]
+    },
+    {
+      "slide_number": 5,
+      "slide_id": "q1_loss_drivers",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "cdc88e9d8d5d8b4725ca2e0bd1776dc295008dd2ad4c11005130b822c619e6b9",
+          "baseline_hash": "cdc88e9d8d5d8b4725ca2e0bd1776dc295008dd2ad4c11005130b822c619e6b9"
+        }
+      ]
+    },
+    {
+      "slide_number": 6,
+      "slide_id": "q2_outlook",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "2d8ad9707a78d9807b2014da0183e0ab739e2981d85543f3281b0f623f05d8b1",
+          "baseline_hash": "2d8ad9707a78d9807b2014da0183e0ab739e2981d85543f3281b0f623f05d8b1"
+        }
+      ]
+    },
+    {
+      "slide_number": 7,
+      "slide_id": "top_open_opportunities",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "44a3bc2e532e09f63ca0d941fe66cfbe1b070a4f2ac40c2ccd8ecb3490707199",
+          "baseline_hash": "44a3bc2e532e09f63ca0d941fe66cfbe1b070a4f2ac40c2ccd8ecb3490707199"
+        }
+      ]
+    },
+    {
+      "slide_number": 8,
+      "slide_id": "deal_risk_triage",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "eb80f8bbe2504b2a0a690b39a0085aff362c80ad078c983621f6cee045a0f876",
+          "baseline_hash": "eb80f8bbe2504b2a0a690b39a0085aff362c80ad078c983621f6cee045a0f876"
+        }
+      ]
+    },
+    {
+      "slide_number": 9,
+      "slide_id": "owner_coaching",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "4dd8ff9b2824655476cfb7bde45251c35dd5a83ba91c3b48deaf29f89dd3ae0d",
+          "baseline_hash": "4dd8ff9b2824655476cfb7bde45251c35dd5a83ba91c3b48deaf29f89dd3ae0d"
+        }
+      ]
+    },
+    {
+      "slide_number": 10,
+      "slide_id": "pushed_deals",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "1f9ff6f892b6fda689173464a5e37405562500f49403f6d161cc632261ad992d",
+          "baseline_hash": "1f9ff6f892b6fda689173464a5e37405562500f49403f6d161cc632261ad992d"
+        }
+      ]
+    },
+    {
+      "slide_number": 11,
+      "slide_id": "q1_slippage",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "0627fc9ba703fd690390c16a1b60c41a1735d76102f7d07628c4d7f608488d62",
+          "baseline_hash": "0627fc9ba703fd690390c16a1b60c41a1735d76102f7d07628c4d7f608488d62"
+        }
+      ]
+    },
+    {
+      "slide_number": 12,
+      "slide_id": "forecast_accuracy",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "ab26b03eae2d133fa906db2c3b6bbb2ab56c385d1ff938481f4c8d09b78d2271",
+          "baseline_hash": "ab26b03eae2d133fa906db2c3b6bbb2ab56c385d1ff938481f4c8d09b78d2271"
+        }
+      ]
+    },
+    {
+      "slide_number": 13,
+      "slide_id": "forecast_mix",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "88d51128d4c7b87074cf15f526d889c1d2a5172a95f820648c5ac43685aa6348",
+          "baseline_hash": "88d51128d4c7b87074cf15f526d889c1d2a5172a95f820648c5ac43685aa6348"
+        }
+      ]
+    },
+    {
+      "slide_number": 14,
+      "slide_id": "commercial_approvals",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "1ac04484423a970f02b5c707309b6c49e9485580be357700fffa31da96aaa8c7",
+          "baseline_hash": "1ac04484423a970f02b5c707309b6c49e9485580be357700fffa31da96aaa8c7"
+        }
+      ]
+    },
+    {
+      "slide_number": 15,
+      "slide_id": "renewals",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "footer_band",
+          "status": "pass",
+          "actual_hash": "87dc4f6e84b328e832e9918ded3469e6925c7629a403e2344d34febefdfecaa0",
+          "baseline_hash": "87dc4f6e84b328e832e9918ded3469e6925c7629a403e2344d34febefdfecaa0"
+        }
+      ]
+    },
+    {
+      "slide_number": 16,
+      "slide_id": "legal_notice",
+      "status": "pass",
+      "regions": [
+        {
+          "id": "full_slide",
+          "status": "pass",
+          "actual_hash": "035dc5a0c8fff2db424af7e92399de0a535037b568e342da3c46e1744dc84574",
+          "baseline_hash": "035dc5a0c8fff2db424af7e92399de0a535037b568e342da3c46e1744dc84574"
+        }
+      ]
+    }
+  ],
+  "findings": []
+}
