@@ -1,12 +1,25 @@
-# Track E / Milestone 3 — restore slides removed from `build_deck_from_excel.py`
+# Track E / Milestone 3 — restore conditional slides on `build_deck_from_excel.py`
 
-Filed during the Track E re-anchor (2026-04-27). **Not a Track F blocker.**
+Filed during the Track E re-anchor (2026-04-27). Updated 2026-04-27 after Track F sub-milestones — the slides aren't removed, they're CONDITIONAL.
 
-## Problem
+## Updated finding (2026-04-27 post-Track F)
 
-The Track E M1 contract was anchored to a 2026-04-20 production deck (`jesper-tyrer-LAND.pptx`) with 18 slides. As of 2026-04-27, `scripts/build_deck_from_excel.py` produces only **16 slides** — two slides were removed from the builder between 2026-04-20 and 2026-04-27.
+**The slides are not removed from the builder. They are conditionally included based on data availability.**
 
-To unblock Track F, the contract was re-anchored to the current 16-slide builder output. The two removed slides are tracked here as restore candidates.
+- `slide_forecast_variance` — function exists at `build_deck_from_excel.py:2085`, called at `:3738` only when `analytics.get("variance")` is truthy. The `variance` payload is populated by `read_director_analytics()` reading the Forecast Variance bucket data from `output/sharepoint/FY26 Pipeline Review, All Territories.xlsx`. Verified 2026-04-27: even with the analytics workbook present, the variance dict stays None — the analytics workbook's retrospective consolidated tab needs to carry director-territory-keyed bucket rows the function can match.
+
+- `slide_q2_forward_look` — function exists at `:1302`, called at `:3866` only when SF live enrichment succeeds. Requires (a) `config/sd_monthly_territories.json` with the director's `soql_where`, (b) SF auth via `sf org display`, (c) running SOQL against the live org. The standalone `build_deck_from_excel.py` call without territory config logs `[SKIP] Forward Look: territory config not found`.
+
+So restoring these two slides is **not a builder code change** — it's a data + environment configuration:
+
+1. For `forecast_variance`: ensure the analytics workbook's retrospective consolidated tab is populated and parses correctly for the director-territory pair.
+2. For `q2_forward_look`: ensure the cadence runner (which has `sd_monthly_territories.json` + SF auth) is the test environment for visual regression baselines.
+
+## Problem (original)
+
+The Track E M1 contract was anchored to a 2026-04-20 production deck (`jesper-tyrer-LAND.pptx`) with 18 slides. As of 2026-04-27, `scripts/build_deck_from_excel.py` produces only **16 slides** in standalone mode — two slides are conditionally included only when the cadence pipeline supplies them.
+
+To unblock Track F, the contract was re-anchored to the current 16-slide build that the standalone validator can reproduce.
 
 ## Slides removed
 
@@ -21,15 +34,17 @@ GPT's note when granting Track E approval explicitly called out the bridge as a 
 
 The validator code paths for `binding_type=derived_table` are kept (synthetic injection in tests covers them), so when a builder PR restores the slide, the contract can flip the slide back to `status: active` without further validator work.
 
-## Decision required
+## Decision required (revised 2026-04-27)
 
-For each removed slide, decide:
+The slides exist as functions; they need data + environment plumbing to surface in builds:
 
-1. **Restore in builder** — re-add `slide_q1_forecast_variance` and `slide_q2_deal_readiness` functions in `build_deck_from_excel.py`. Re-add the slides to the deck contract `profiles.director_monthly.slides` block. Re-add the `derived_table` (q1_forecast_variance_bridge) and `q2_deal_readiness` table bindings.
+1. **Wire the analytics-workbook variance** — populate the retrospective consolidated tab in `output/sharepoint/FY26 Pipeline Review, All Territories.xlsx` so `read_director_analytics()` can return a non-empty `variance` dict for each director-territory pair. Then standalone builds emit slide_forecast_variance.
 
-2. **Accept as deprecated** — document why each slide was removed (was it stakeholder feedback?) and leave the contract at 16 slides.
+2. **Establish a cadence-environment baseline** — switch the visual-regression baseline (and the live anchor at `~/Downloads/jesper-tyrer-LAND.pptx`) to a build produced by the cadence runner with full territory config + SF auth, so q2_forward_look + forecast_variance both render. The contract grows back to 18 slides; the validator's slide_count expectation moves 16 → 18.
 
-3. **Replace with successor slide** — if a different slide carries the same value (e.g., q2_deal_readiness merged into top_open), document the equivalence and update the contract takeaway/columns to capture the merge.
+3. **Or accept conditional slides in the contract** — add a `conditional_inclusion: { reason: "analytics_workbook.variance" | "sf_live_enrichment" }` field to slide entries; the PPTX checker treats missing conditional slides as pass-with-info instead of fail. Slide count expectation becomes a min/max range. This is the cleanest "describe truth" path, but requires schema + checker changes.
+
+Recommend (3) for the lowest blast radius — it's a contract refinement that doesn't depend on data plumbing or test-environment changes.
 
 ## Out of scope
 
