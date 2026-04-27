@@ -1,0 +1,13 @@
+{
+  "schema_version": "monthly_platform.deck_contract_report.v1",
+  "contract_path": "<sanitized>/crm-analytics/config/deck_contract.yaml",
+  "deck_contract_schema_version": "monthly_platform.deck_contract.v2",
+  "workbook_contract_schema_version": "monthly_platform.director_workbook_contract.v1",
+  "status": "pass",
+  "blocker_count": 0,
+  "warning_count": 0,
+  "profile_count": 2,
+  "director_monthly_slide_count": 16,
+  "director_monthly_expected_slide_count": 16,
+  "findings": []
+}

@@ -250,6 +250,35 @@ def _validate_table_headers(
             )
             continue
 
+        # header_pattern_sets — canonical regex tuples for tables whose
+        # headers are dynamic-by-design (e.g. snapshot-date columns). A match
+        # is treated as pass_stable (the canonical contract form), NOT a
+        # warning. Checked before legacy_header_sets so canonical-pattern
+        # tables don't generate transition warnings.
+        pattern_sets = decl.get("header_pattern_sets") or []
+        matched_pattern: list[str] | None = None
+        for header_set in pattern_sets:
+            if len(header_set) != len(actual_headers):
+                continue
+            try:
+                if all(re.fullmatch(p, h) for p, h in zip(header_set, actual_headers)):
+                    matched_pattern = list(header_set)
+                    break
+            except re.error:
+                continue
+
+        if matched_pattern is not None:
+            per_table.append(
+                {
+                    "table_id": decl.get("id"),
+                    "order": idx,
+                    "status": "pass_pattern",
+                    "actual_headers": actual_headers,
+                    "matched_pattern": matched_pattern,
+                }
+            )
+            continue
+
         legacy_sets = decl.get("legacy_header_sets") or []
         matched_legacy: list[str] | None = None
         for header_set in legacy_sets:

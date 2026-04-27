@@ -138,40 +138,19 @@ profiles:
         - field: Changed On
           order: desc
         columns:
-        - id: account
-          header: Account
-          source_column: Account
-          max_chars: 24
-        - id: opportunity
-          header: Opportunity
-          source_column: Opportunity
-          max_chars: 28
-        - id: owner
-          header: Owner
-          source_column: Owner
-        - id: stage
-          header: Stage
-          source_column: Stage
-        - id: movement
-          header: Movement
-          source_column: Movement
-        - id: old_close
-          header: Old Close
-          source_column: Old Close
-          format: yyyy_mm_dd
-        - id: new_close
-          header: New Close
-          source_column: New Close
-          format: yyyy_mm_dd
-        - id: changed_on
-          header: Changed
-          source_column: Changed On
-          format: yyyy_mm_dd
-        - id: arr
-          header: ARR
-          source_column: ARR Unweighted (EUR)
-          format: eur_compact
-        legacy_header_sets:
+        - id: metric
+          header: Metric
+          computed: bucket_label
+        - id: prior_snapshot
+          header: Prior Snapshot
+          computed: bucket_label
+        - id: current_snapshot
+          header: Current Snapshot
+          computed: bucket_label
+        - id: change
+          header: Change
+          computed: bucket_arr_impact
+        header_pattern_sets:
         - - Metric
           - \d{4}-\d{2}-\d{2}
           - \d{4}-\d{2}-\d{2}
@@ -242,20 +221,16 @@ profiles:
           order: desc
         columns:
         - id: reason
-          header: Reason
+          header: Loss Reason
           source_column: Reason
         - id: count
           header: Count
           computed: row_count
         - id: arr
-          header: ARR
+          header: Lost ARR
           source_column: ARR Unweighted (EUR)
           aggregation: sum
           format: eur_compact
-        legacy_header_sets:
-        - - Loss Reason
-          - Count
-          - Lost ARR
       - id: tbl_q1_loss_stage_reached
         source: director_workbook
         sheet: Won Lost FY26
@@ -267,20 +242,16 @@ profiles:
         max_rows: 10
         columns:
         - id: stage
-          header: Stage Reached
+          header: Stage Reached Before Loss
           source_column: Stage
         - id: count
           header: Count
           computed: row_count
         - id: arr
-          header: ARR
+          header: Lost ARR
           source_column: ARR Unweighted (EUR)
           aggregation: sum
           format: eur_compact
-        legacy_header_sets:
-        - - Stage Reached Before Loss
-          - Count
-          - Lost ARR
     - id: q2_outlook
       slide_number: 6
       title: Q2 Outlook
@@ -361,26 +332,21 @@ profiles:
         - id: stage
           header: Stage
           source_column: Stage
-        - id: close
-          header: Close
+        - id: close_date
+          header: Close Date
           source_column: Close Date
           format: yyyy_mm_dd
+        - id: age
+          header: Age
+          computed: days_to_close
         - id: arr
-          header: ARR
+          header: ARR (mEUR)
           source_column: ARR Unweighted (EUR)
           format: eur_compact
-        - id: probability
-          header: Prob %
-          source_column: Probability %
-        legacy_header_sets:
-        - - Account
-          - Opportunity
-          - Owner
-          - Stage
-          - Close Date
-          - Age
-          - ARR \(mEUR\)
-          - ARR Wtd \(mEUR\)
+        - id: arr_wtd
+          header: ARR Wtd (mEUR)
+          source_column: ARR Weighted (EUR)
+          format: eur_compact
     - id: deal_risk_triage
       slide_number: 8
       title: Deal Risk Triage
@@ -419,45 +385,34 @@ profiles:
         - field: ARR Weighted (EUR)
           order: desc
         columns:
+        - id: rank
+          header: '#'
+          computed: row_count
+        - id: score
+          header: Score
+          source_column: Score
+        - id: account
+          header: Account
+          source_column: Opportunity
+          max_chars: 28
         - id: opportunity
           header: Opportunity
           source_column: Opportunity
           max_chars: 32
-        - id: owner
-          header: Owner
-          source_column: Owner
         - id: stage
           header: Stage
           source_column: Stage
-        - id: forecast_category
-          header: Forecast
-          source_column: Forecast Category
-        - id: arr_weighted
-          header: Wtd ARR
-          source_column: ARR Weighted (EUR)
-          format: eur_compact
         - id: close
           header: Close
           source_column: Close Date
           format: yyyy_mm_dd
-        - id: push_count
-          header: Pushes
-          source_column: Push Count
-        - id: score
-          header: Score
-          source_column: Score
-        - id: priority
-          header: Priority
-          source_column: Priority
-        legacy_header_sets:
-        - - '#'
-          - Score
-          - Account
-          - Opportunity
-          - Stage
-          - Close
-          - ARR \(mEUR\)
-          - Reasons
+        - id: arr
+          header: ARR (mEUR)
+          source_column: ARR Weighted (EUR)
+          format: eur_compact
+        - id: reasons
+          header: Reasons
+          computed: readiness_status
     - id: owner_coaching
       slide_number: 9
       title: Owner Coaching Priorities
@@ -503,30 +458,24 @@ profiles:
         - id: owner
           header: Owner
           source_column: Owner
-        - id: deal_count
+        - id: deals
           header: Deals
           computed: row_count
-        - id: total_arr
-          header: ARR
+        - id: open_arr
+          header: Open ARR
           source_column: ARR Unweighted (EUR)
           aggregation: sum
           format: eur_compact
-        - id: total_pushes
+        - id: pushes
           header: Pushes
           source_column: Push Count
           aggregation: sum
-        - id: avg_pushes
-          header: Avg Push
-          source_column: Push Count
-          aggregation: mean
-          format: number_1dp
-        legacy_header_sets:
-        - - Owner
-          - Deals
-          - Open ARR
-          - Pushes
-          - Top Risk Signals
-          - Coaching Focus
+        - id: top_risk_signals
+          header: Top Risk Signals
+          computed: readiness_status
+        - id: coaching_focus
+          header: Coaching Focus
+          computed: readiness_status
     - id: pushed_deals
       slide_number: 10
       title: Pushed Deals
@@ -596,12 +545,9 @@ profiles:
           header: Opportunity
           source_column: Opportunity
           max_chars: 28
-        - id: owner
-          header: Owner
-          source_column: Owner
-        - id: stage
-          header: Stage
-          source_column: Stage
+        - id: movement
+          header: Movement
+          source_column: Movement
         - id: old_close
           header: Old Close
           source_column: Old Close
@@ -610,18 +556,14 @@ profiles:
           header: New Close
           source_column: New Close
           format: yyyy_mm_dd
+        - id: changed
+          header: Changed
+          source_column: Changed On
+          format: yyyy_mm_dd
         - id: arr
-          header: ARR
+          header: ARR (mEUR)
           source_column: ARR Unweighted (EUR)
           format: eur_compact
-        legacy_header_sets:
-        - - Account
-          - Opportunity
-          - Movement
-          - Old Close
-          - New Close
-          - Changed
-          - ARR \(mEUR\)
     - id: forecast_accuracy
       slide_number: 12
       title: Forecast Accuracy
@@ -689,23 +631,14 @@ profiles:
         - id: category
           header: Category
           source_column: Forecast Category
-        - id: deal_count
+        - id: deals
           header: Deals
           computed: row_count
-        - id: arr_wtd
-          header: Wtd ARR
+        - id: arr
+          header: ARR (mEUR)
           source_column: Forecast ARR Wtd (EUR)
           aggregation: sum
           format: eur_compact
-        - id: arr_unwtd
-          header: Unwtd ARR
-          source_column: ARR Unwtd (EUR)
-          aggregation: sum
-          format: eur_compact
-        legacy_header_sets:
-        - - Category
-          - Deals
-          - ARR \(mEUR\)
     - id: commercial_approvals
       slide_number: 14
       title: Commercial Approvals
@@ -730,27 +663,22 @@ profiles:
           Status: Approved 2026
         max_rows: 5
         columns:
-        - id: account
-          header: Account
-          source_column: Account
-          max_chars: 24
-        - id: opportunity
-          header: Opportunity
-          source_column: Opportunity
-          max_chars: 28
-        - id: arr
-          header: ARR
+        - id: region
+          header: Region
+          source_column: Lead Scope
+        - id: approval_count
+          header: '# Approvals'
+          computed: row_count
+        - id: avg_deal_size
+          header: Avg Deal Size (mEUR ARR)*
           source_column: ARR Unweighted (EUR)
+          aggregation: mean
           format: eur_compact
-        - id: approval_date
-          header: Approved
-          source_column: Approval Date
-          format: yyyy_mm_dd
-        legacy_header_sets:
-        - - Region
-          - '# Approvals'
-          - Avg Deal Size \(mEUR ARR\)\*
-          - Actual Deal ARR Coverage \(mEUR\)
+        - id: actual_coverage
+          header: Actual Deal ARR Coverage (mEUR)
+          source_column: ARR Unweighted (EUR)
+          aggregation: sum
+          format: eur_compact
       - id: tbl_approvals_pending
         source: director_workbook
         sheet: Commercial Approval
@@ -758,30 +686,22 @@ profiles:
           Status: Pending Approval
         max_rows: 5
         columns:
-        - id: account
-          header: Account
-          source_column: Account
-          max_chars: 24
-        - id: opportunity
-          header: Opportunity
-          source_column: Opportunity
-          max_chars: 28
-        - id: stage
-          header: Stage
-          source_column: Stage
-        - id: arr
-          header: ARR
+        - id: region
+          header: Region
+          source_column: Lead Scope
+        - id: approval_count
+          header: '# Approvals'
+          computed: row_count
+        - id: avg_deal_size
+          header: Avg Deal Size
           source_column: ARR Unweighted (EUR)
+          aggregation: mean
           format: eur_compact
-        - id: next_step
-          header: Next Step
-          source_column: Next Step
-          max_chars: 36
-        legacy_header_sets:
-        - - Region
-          - '# Approvals'
-          - Avg Deal Size
-          - Actual Deal ARR Coverage \(mEUR\)
+        - id: actual_coverage
+          header: Actual Deal ARR Coverage (mEUR)
+          source_column: ARR Unweighted (EUR)
+          aggregation: sum
+          format: eur_compact
       - id: tbl_approvals_candidate
         source: director_workbook
         sheet: Commercial Approval
@@ -789,25 +709,18 @@ profiles:
           Status: Candidate
         max_rows: 5
         columns:
-        - id: account
-          header: Account
-          source_column: Account
-          max_chars: 24
         - id: opportunity
-          header: Opportunity
+          header: Opportunity Name
           source_column: Opportunity
-          max_chars: 28
-        - id: stage
-          header: Stage
-          source_column: Stage
-        - id: arr
-          header: ARR
+          max_chars: 32
+        - id: deal_size
+          header: Deal size (mEUR)
           source_column: ARR Unweighted (EUR)
           format: eur_compact
-        legacy_header_sets:
-        - - Opportunity Name
-          - Deal size \(mEUR\)
-          - Approved subject to
+        - id: approved_subject_to
+          header: Approved subject to
+          source_column: Next Step
+          max_chars: 36
       - id: tbl_approvals_other
         source: director_workbook
         sheet: Commercial Approval
@@ -819,24 +732,14 @@ profiles:
             - Candidate
         max_rows: 5
         columns:
-        - id: account
-          header: Account
-          source_column: Account
-          max_chars: 24
         - id: opportunity
-          header: Opportunity
+          header: Opportunity Name
           source_column: Opportunity
-          max_chars: 28
-        - id: status
-          header: Status
-          source_column: Status
+          max_chars: 32
         - id: arr
-          header: ARR
+          header: ARR (mEUR)
           source_column: ARR Unweighted (EUR)
           format: eur_compact
-        legacy_header_sets:
-        - - Opportunity Name
-          - ARR \(mEUR\)
     - id: renewals
       slide_number: 15
       title: FY26 Renewals
@@ -874,7 +777,7 @@ profiles:
           order: asc
         columns:
         - id: close
-          header: Close
+          header: Close Date
           source_column: Close Date
           format: yyyy_mm_dd
         - id: account
@@ -892,25 +795,16 @@ profiles:
           header: Stage
           source_column: Stage
         - id: acv
-          header: ACV
+          header: ACV (EUR)
           source_column: ACV Unweighted (EUR)
           format: eur_compact
         - id: probability
-          header: Prob %
+          header: Probability
           source_column: Probability %
-        - id: comments
-          header: Comments
+        - id: commentary
+          header: Commentary
           source_column: Comments
           max_chars: 36
-        legacy_header_sets:
-        - - Close Date
-          - Account
-          - Opportunity
-          - Owner
-          - Stage
-          - ACV \(EUR\)
-          - Probability
-          - Commentary
     - id: legal_notice
       slide_number: 16
       title: Legal Notice

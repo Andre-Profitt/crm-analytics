@@ -49,11 +49,11 @@ def _make_contract(raw: dict) -> deck_contract.DeckContract:
 )
 def test_apac_anchor_passes_in_legacy_mode():
     report = validate_pptx(APAC_DECK)
-    # Expected (post Track F F1 — stable titles + takeaway split, 2026-04-27):
-    #   - 16-slide live anchor (re-anchored from 18 pre-Track-F)
-    #   - 0 legacy verbose titles  (was 15 pre-F1; F1 closed this)
-    #   - 13 legacy header drifts on tables (warnings; F2 closes these)
-    #   - 1 missing required link (warning, M1 transition; F3 closes this)
+    # Expected (post Track F F2 — stable table headers, 2026-04-27):
+    #   - 16-slide live anchor
+    #   - 0 legacy verbose titles  (closed by F1)
+    #   - 0 legacy header drifts   (closed by F2)
+    #   - 1 missing required link  (warning; F3 closes this)
     #   - 0 blockers
     #   - 15 stable titles (every non-static slide; cover + 14 narrative slides)
     assert report["status"] == "pass", report["findings"]
@@ -69,9 +69,22 @@ def test_apac_anchor_passes_in_legacy_mode():
     legacy_header_findings = [
         f for f in report["findings"] if f["code"] == "legacy_header_drift"
     ]
-    assert len(legacy_header_findings) == 13, (
-        f"expected 13 legacy_header_drift warnings (closed by F2), got "
-        f"{len(legacy_header_findings)}"
+    assert len(legacy_header_findings) == 0, (
+        f"F2 acceptance gate: every table must match stable contract headers "
+        f"(or header_pattern_sets for dynamic-date tables), got "
+        f"{len(legacy_header_findings)} legacy_header_drift warnings"
+    )
+    # Slide 3 (since_last_review) has dynamic-date columns and matches
+    # via header_pattern_sets — counts as pass_pattern, not warning.
+    pattern_passes = sum(
+        1
+        for s in report["slides"]
+        for tr in (s.get("header_results") or [])
+        if tr.get("status") == "pass_pattern"
+    )
+    assert pattern_passes == 1, (
+        f"expected 1 header_pattern_sets match (slide 3 since_last_review), "
+        f"got {pattern_passes}"
     )
 
 
