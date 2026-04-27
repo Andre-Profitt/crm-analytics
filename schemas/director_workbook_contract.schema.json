@@ -55,10 +55,6 @@
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
         },
-        "dynamic_column_patterns": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/dynamic_pattern" }
-        },
         "expected_status_values": {
           "type": "array",
           "uniqueItems": true,
@@ -72,35 +68,44 @@
         "notes": { "type": "string" }
       }
     },
-    "dynamic_pattern": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "pattern"],
-      "properties": {
-        "kind": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$"
-        },
-        "pattern": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Templated header pattern with one or more ${var} placeholders."
-        },
-        "format": {
-          "type": "string",
-          "enum": ["yyyy_mm_dd", "raw"]
-        }
-      }
-    },
     "snapshot_role": {
+      "oneOf": [
+        { "$ref": "#/$defs/snapshot_role_pattern" },
+        { "$ref": "#/$defs/snapshot_role_runtime" }
+      ]
+    },
+    "snapshot_role_pattern": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sheet", "pattern_kind", "role_description"],
+      "required": ["sheet", "column_pattern", "selection"],
       "properties": {
         "sheet": { "type": "string", "minLength": 1 },
-        "pattern_kind": {
+        "column_pattern": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$"
+          "minLength": 1,
+          "description": "Regex matching column headers in the named sheet. Must contain a named group `(?P<date>...)` whose match defines selection ordering."
+        },
+        "selection": {
+          "type": "string",
+          "enum": ["earliest", "latest"]
+        },
+        "role_description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "snapshot_role_runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "value"],
+      "properties": {
+        "source": { "const": "runtime" },
+        "value": {
+          "type": "string",
+          "enum": [
+            "snapshot_date",
+            "prior_snapshot_date",
+            "presentation_month",
+            "analysis_scope"
+          ]
         },
         "role_description": { "type": "string", "minLength": 1 }
       }

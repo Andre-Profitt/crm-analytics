@@ -128,6 +128,8 @@ profiles:
       - id: executive_summary
         slide_number: 2
         title: Executive Summary
+        legacy_title_patterns:
+          - "^Pipeline EUR.* (un)?weighted.*deals.*$"
         purpose: KPI cards + narrative bullets for the director's headline numbers.
         layout: kpi_cards
         required_takeaway:
@@ -149,6 +151,8 @@ profiles:
       - id: since_last_review
         slide_number: 3
         title: Since Last Review
+        legacy_title_patterns:
+          - "^Since last review.*$"
         purpose: Movement table — what changed between prior_snapshot_date and snapshot_date.
         layout: table_with_takeaway
         required_takeaway:
@@ -210,6 +214,8 @@ profiles:
       - id: q1_promised_delivered
         slide_number: 4
         title: Q1 Promised vs Delivered
+        legacy_title_patterns:
+          - "^Q1 pipeline opened at EUR.*$"
         purpose: KPI cards comparing Q1 opening pipeline to Q1 closed outcome.
         layout: kpi_cards
         required_takeaway:
@@ -231,6 +237,8 @@ profiles:
       - id: q1_forecast_variance
         slide_number: 5
         title: Q1 Forecast Variance
+        legacy_title_patterns:
+          - "^Q1 Forecast Variance.*$"
         purpose: Variance bridge — opening Q1 pipeline -> final Q1 outcome.
         layout: table_with_takeaway
         required_takeaway:
@@ -249,12 +257,79 @@ profiles:
           }
         definition: historical_trending_delta
         tables:
-          - id: tbl_q1_forecast_variance
+          # Displayed as the bucket bridge in the produced deck. Source rows
+          # are at opportunity grain in Q1 Snapshot Trend; the named transform
+          # collapses them into the 8 executive buckets at runtime. The
+          # binding_type tells the resolver to skip per-row column existence
+          # checks and instead verify (a) snapshot_roles all resolve and
+          # (b) the named transform is registered.
+          - id: tbl_q1_forecast_variance_bridge
+            binding_type: derived_table
+            display_grain: bucket
+            source_grain: opportunity
+            transform_id: q1_forecast_variance_bridge
             source: director_workbook
             sheet: Q1 Snapshot Trend
-            max_rows: 8
-            sort:
-              - { field: q1_change_to_close, order: asc, aggregation: sum }
+            snapshot_roles:
+              opening_arr: q1_opening
+              latest_arr: q1_latest
+              change_at_close: q1_change_to_close
+            columns:
+              - { id: bucket, header: Bucket, computed: bucket_label }
+              - {
+                  id: arr_impact,
+                  header: ARR Impact,
+                  computed: bucket_arr_impact,
+                  format: eur_compact,
+                }
+            rows:
+              - {
+                  id: initial_q1_pipeline,
+                  label: "Initial Q1 pipeline",
+                  origin: opening_snapshot,
+                }
+              - {
+                  id: closed_won_removed,
+                  label: "Closed Won (out of pipeline)",
+                  origin: closed_outcome,
+                }
+              - {
+                  id: closed_lost_removed,
+                  label: "Closed Lost (out of pipeline)",
+                  origin: closed_outcome,
+                }
+              - {
+                  id: new_deals_added,
+                  label: "New deals added",
+                  origin: net_inflow,
+                }
+              - {
+                  id: arr_revised_up,
+                  label: "ARR revised up",
+                  origin: arr_delta_positive,
+                }
+              - {
+                  id: arr_revised_down,
+                  label: "ARR revised down",
+                  origin: arr_delta_negative,
+                }
+              - {
+                  id: final_q1_pipeline,
+                  label: "Final Q1 pipeline",
+                  origin: latest_snapshot,
+                }
+              - { id: net_change, label: "Net change", origin: bridge_total }
+          # Supporting evidence at opportunity grain. Not the displayed table —
+          # available for drill-through / audit. The binding_type makes the
+          # resolver perform direct column-existence checks on this one.
+          - id: tbl_q1_forecast_variance_evidence
+            binding_type: direct_workbook_table
+            display_grain: opportunity
+            source_grain: opportunity
+            evidence_only: true
+            source: director_workbook
+            sheet: Q1 Snapshot Trend
+            max_rows: 50
             columns:
               - {
                   id: account,
@@ -271,18 +346,18 @@ profiles:
               - {
                   id: opening_arr,
                   header: Opening,
-                  snapshot_role: q1_open_snapshot,
+                  snapshot_role: q1_opening,
                   format: eur_compact,
                 }
               - {
-                  id: closing_arr,
-                  header: Closing,
-                  snapshot_role: q1_close_snapshot,
+                  id: latest_arr,
+                  header: Latest,
+                  snapshot_role: q1_latest,
                   format: eur_compact,
                 }
               - {
-                  id: net_change,
-                  header: Net Change,
+                  id: change_at_close,
+                  header: Change at Close,
                   snapshot_role: q1_change_to_close,
                   format: eur_compact,
                 }
@@ -290,6 +365,8 @@ profiles:
       - id: q1_loss_drivers
         slide_number: 6
         title: Q1 Loss Drivers
+        legacy_title_patterns:
+          - "^\\d+ Q1 .* losses.*$"
         purpose: Two tables — loss reason breakdown + stage reached for losses.
         layout: dual_table
         required_takeaway:
@@ -350,6 +427,8 @@ profiles:
       - id: q2_outlook
         slide_number: 7
         title: Q2 Outlook
+        legacy_title_patterns:
+          - "^Q2 book EUR.*$"
         purpose: KPI cards for Q2 book — unweighted, weighted, deal count.
         layout: kpi_cards
         required_takeaway:
@@ -371,6 +450,8 @@ profiles:
       - id: q2_deal_readiness
         slide_number: 8
         title: Q2 Deal Readiness
+        legacy_title_patterns:
+          - "^Q2 .*: \\d+ deals.*$"
         purpose: Per-deal Q2 readiness — days to close, last activity, stage, next step.
         layout: table_with_takeaway
         required_takeaway:
@@ -437,6 +518,8 @@ profiles:
       - id: top_open_opportunities
         slide_number: 9
         title: Top Open Opportunities
+        legacy_title_patterns:
+          - "^Top \\d+ open deals.*$"
         purpose: Top-N open Land deals by unweighted ARR.
         layout: table_with_takeaway
         required_takeaway:
@@ -499,6 +582,8 @@ profiles:
       - id: deal_risk_triage
         slide_number: 10
         title: Deal Risk Triage
+        legacy_title_patterns:
+          - "^Top \\d+ Q2.*Deals at Risk.*$"
         purpose: Top Q2-Q3 deals at risk by Pipeline Inspection score/priority.
         layout: table_with_takeaway
         required_takeaway:
@@ -558,6 +643,8 @@ profiles:
       - id: owner_coaching
         slide_number: 11
         title: Owner Coaching Priorities
+        legacy_title_patterns:
+          - "^\\d+ owners carry \\d+ pushes.*$"
         purpose: Owner-level rollup of pushes + open ARR for coaching priorities.
         layout: table_with_takeaway
         required_takeaway:
@@ -613,6 +700,8 @@ profiles:
       - id: pushed_deals
         slide_number: 12
         title: Pushed Deals
+        legacy_title_patterns:
+          - "^\\d+ open deals pushed.*$"
         purpose: Pushed-deal headline + Salesforce link for live drill.
         layout: kpi_cards_with_link
         required_takeaway:
@@ -630,6 +719,8 @@ profiles:
       - id: q1_slippage
         slide_number: 13
         title: Q1 Slippage
+        legacy_title_patterns:
+          - "^\\d+ deals slipped out of Q1.*$"
         purpose: Deals that slipped out of Q1 + their post-slip behavior.
         layout: table_with_takeaway
         required_takeaway:
@@ -693,6 +784,8 @@ profiles:
       - id: forecast_accuracy
         slide_number: 14
         title: Forecast Accuracy
+        legacy_title_patterns:
+          - "^\\d+ deals? closed-won.*$"
         purpose: KPI cards comparing forecast commitments to closed outcomes.
         layout: kpi_cards
         required_takeaway:
@@ -713,6 +806,8 @@ profiles:
       - id: forecast_mix
         slide_number: 15
         title: Forecast Mix
+        legacy_title_patterns:
+          - "^Forecast mix:.*$"
         purpose: Open Land pipeline by forecast category.
         layout: table_with_takeaway
         required_takeaway:
@@ -768,6 +863,8 @@ profiles:
       - id: commercial_approvals
         slide_number: 16
         title: Commercial Approvals
+        legacy_title_patterns:
+          - "^Commercial Approvals:.*$"
         purpose: Approval status — distinguish approved-2026, pending approval, candidate.
         layout: quad_table
         required_takeaway:
@@ -897,6 +994,8 @@ profiles:
       - id: renewals
         slide_number: 17
         title: FY26 Renewals
+        legacy_title_patterns:
+          - "^\\d+ renewals due FY26.*$"
         purpose: FY26 renewal exposure by close date.
         layout: table_with_takeaway
         required_takeaway:

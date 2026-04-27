@@ -211,6 +211,12 @@
           "type": "array",
           "items": { "$ref": "#/$defs/link_spec" }
         },
+        "legacy_title_patterns": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Optional regex patterns the PPTX checker accepts as the produced slide title until the builder is updated to emit the stable title. Warning, not blocker."
+        },
         "period": { "$ref": "#/$defs/period" },
         "population": { "$ref": "#/$defs/population" },
         "movement_window": { "$ref": "#/$defs/movement_window" },
@@ -365,6 +371,58 @@
       "required": ["id", "source", "columns"],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "binding_type": {
+          "type": "string",
+          "enum": ["direct_workbook_table", "derived_table"],
+          "description": "How the binding resolver should treat this table. direct_workbook_table = per-row slice of the source sheet (default for back-compat). derived_table = aggregate / pivoted / bridge view produced by a named transform."
+        },
+        "evidence_only": {
+          "type": "boolean",
+          "description": "Set true for supporting/drill-through tables that should not appear in the produced PPTX. PPTX checker excludes evidence_only tables from per-slide table-count expectations."
+        },
+        "display_grain": {
+          "type": "string",
+          "enum": [
+            "opportunity",
+            "owner",
+            "stage",
+            "forecast_category",
+            "bucket",
+            "snapshot",
+            "approval_status"
+          ]
+        },
+        "source_grain": {
+          "type": "string",
+          "enum": [
+            "opportunity",
+            "owner",
+            "stage",
+            "forecast_category",
+            "bucket",
+            "snapshot",
+            "approval_status"
+          ]
+        },
+        "transform_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Required when binding_type=derived_table. The binding resolver verifies the transform is registered in monthly_platform.deck_transforms."
+        },
+        "snapshot_roles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "description": "Map from transform-input name to a snapshot_role declared in director_workbook_contract.yaml. Used by derived_table bindings."
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/derived_row" },
+          "description": "Required when binding_type=derived_table. Declares the bucket/group rows the displayed table is supposed to contain."
+        },
         "source": {
           "type": "string",
           "enum": ["director_workbook", "warehouse"]
@@ -409,8 +467,44 @@
         {
           "if": { "properties": { "source": { "const": "warehouse" } } },
           "then": { "required": ["mart"] }
+        },
+        {
+          "if": {
+            "properties": { "binding_type": { "const": "derived_table" } },
+            "required": ["binding_type"]
+          },
+          "then": {
+            "required": [
+              "transform_id",
+              "rows",
+              "display_grain",
+              "source_grain"
+            ]
+          }
         }
       ]
+    },
+    "derived_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "label": { "type": "string", "minLength": 1 },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "opening_snapshot",
+            "latest_snapshot",
+            "closed_outcome",
+            "net_inflow",
+            "arr_delta_positive",
+            "arr_delta_negative",
+            "bridge_total",
+            "static"
+          ]
+        }
+      }
     },
     "table_column": {
       "type": "object",
@@ -422,12 +516,18 @@
         "source_column": { "type": "string", "minLength": 1 },
         "computed": {
           "type": "string",
-          "enum": ["row_count", "days_to_close", "readiness_status"]
+          "enum": [
+            "row_count",
+            "days_to_close",
+            "readiness_status",
+            "bucket_label",
+            "bucket_arr_impact"
+          ]
         },
         "snapshot_role": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Reference to a semantic role declared in director_workbook_contract.yaml::snapshot_roles. Resolved to a physical column at run time by the binding resolver using dynamic_column_patterns. Use for trend-snapshot sheets (Q1/Q2 Snapshot Trend) where physical column names depend on snapshot dates."
+          "description": "Reference to a semantic role declared in director_workbook_contract.yaml::snapshot_roles. Resolved to a physical column at runtime by the binding resolver using the role's column_pattern + selection (or runtime value)."
         },
         "joined_from": {
           "type": "string",

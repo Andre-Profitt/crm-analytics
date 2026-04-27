@@ -220,26 +220,12 @@ sheets:
       - Opportunity
       - Close Date (live)
       - Owner
-    dynamic_column_patterns:
-      - kind: arr_at_snapshot
-        pattern: "ARR ${snapshot_date}"
-        format: yyyy_mm_dd
-      - kind: arr_change_at_snapshot
-        pattern: "ARR Change ${snapshot_date}"
-        format: yyyy_mm_dd
-      - kind: stage_at_snapshot
-        pattern: "StageName_ ${snapshot_date}"
-        format: yyyy_mm_dd
-      - kind: stage_change_at_snapshot
-        pattern: "StageName_ Change ${snapshot_date}"
-        format: yyyy_mm_dd
     notes: |
       Row 1 is a free-text snapshot manifest ("Historical Trending, snapshots: ..."),
       not a header. The header row is row 2. Snapshot column count varies per run
       based on how many trend points are captured. The deck contract should refer
-      to columns by semantic role (q1_open_snapshot, q1_close_snapshot) and rely
-      on the binding resolver to map roles to physical column names per snapshot
-      date.
+      to columns by semantic role declared under `snapshot_roles` and rely on the
+      binding resolver to map roles to physical columns per snapshot date.
 
   - name: Q2 Snapshot Trend
     purpose: Q2 historical trending — same shape as Q1 Snapshot Trend.
@@ -251,40 +237,52 @@ sheets:
       - Opportunity
       - Close Date (live)
       - Owner
-    dynamic_column_patterns:
-      - kind: arr_at_snapshot
-        pattern: "ARR ${snapshot_date}"
-        format: yyyy_mm_dd
-      - kind: arr_change_at_snapshot
-        pattern: "ARR Change ${snapshot_date}"
-        format: yyyy_mm_dd
-      - kind: stage_at_snapshot
-        pattern: "StageName_ ${snapshot_date}"
-        format: yyyy_mm_dd
-      - kind: stage_change_at_snapshot
-        pattern: "StageName_ Change ${snapshot_date}"
-        format: yyyy_mm_dd
 
 # Semantic snapshot roles the deck contract references — mapped to physical
-# columns by the binding resolver at run time using the patterns above.
+# columns by the binding resolver at runtime. Pattern-based roles use a regex
+# with a named "date" group + selection (earliest|latest|nth). Runtime-based
+# roles bind directly to a run_metadata key rather than a column.
 snapshot_roles:
-  q1_open_snapshot:
+  q1_opening:
     sheet: Q1 Snapshot Trend
-    pattern_kind: arr_at_snapshot
-    role_description: Q1 opening snapshot (typically 2026-01-01).
-  q1_close_snapshot:
+    column_pattern: '^ARR (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: earliest
+    role_description: Q1 opening ARR snapshot (typically 2026-01-01).
+  q1_latest:
     sheet: Q1 Snapshot Trend
-    pattern_kind: arr_at_snapshot
-    role_description: Q1 closing snapshot (typically 2026-03-31).
+    column_pattern: '^ARR (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: latest
+    role_description: Most recent Q1 ARR snapshot in the workbook.
   q1_change_to_close:
     sheet: Q1 Snapshot Trend
-    pattern_kind: arr_change_at_snapshot
-    role_description: Q1 ARR change at close snapshot.
-  q2_open_snapshot:
+    column_pattern: '^ARR Change (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: latest
+    role_description: Most recent Q1 ARR-change column.
+  q1_stage_opening:
+    sheet: Q1 Snapshot Trend
+    column_pattern: '^StageName_ (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: earliest
+    role_description: Q1 opening Stage snapshot.
+  q1_stage_latest:
+    sheet: Q1 Snapshot Trend
+    column_pattern: '^StageName_ (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: latest
+    role_description: Most recent Q1 Stage snapshot.
+  q2_opening:
     sheet: Q2 Snapshot Trend
-    pattern_kind: arr_at_snapshot
-    role_description: Q2 opening snapshot (typically 2026-04-01).
-  q2_current_snapshot:
+    column_pattern: '^ARR (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: earliest
+    role_description: Q2 opening ARR snapshot (typically 2026-04-01).
+  q2_latest:
     sheet: Q2 Snapshot Trend
-    pattern_kind: arr_at_snapshot
-    role_description: Most recent Q2 snapshot at presentation_month.
+    column_pattern: '^ARR (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: latest
+    role_description: Most recent Q2 ARR snapshot.
+  movement_prior:
+    source: runtime
+    value: prior_snapshot_date
+    role_description: prior_snapshot_date from the active profile run_metadata.
+  movement_current:
+    source: runtime
+    value: snapshot_date
+    role_description: snapshot_date from the active profile run_metadata.
