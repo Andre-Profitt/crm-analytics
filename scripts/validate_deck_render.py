@@ -279,9 +279,13 @@ def validate_render(
             )
             footer_status = "pass" if footer_present else "fail"
             if not footer_present:
+                # Track F render-gate convergence (post-footer-emission):
+                # this is now a blocker. Builder emits a source-note footer
+                # on every non-static slide via _apply_source_note_footer.
+                slide_overall = "fail"
                 findings.append(
                     RenderFinding(
-                        severity="warning",
+                        severity="blocker",
                         code="footer_missing",
                         path=f"slides[{snum}].footer",
                         message=(
@@ -293,19 +297,32 @@ def validate_render(
                 )
 
         # ---- legal notice disclaimer text ----
+        # Check both slide shapes and the slide's layout shapes — the
+        # SimCorp 'End slide with disclaimer 1' template layout carries the
+        # disclaimer on layout-level placeholders that python-pptx does NOT
+        # surface via slide.shapes when the slide just inherits the layout.
+        # Falling back to layout text covers the production path where the
+        # disclaimer is rendered from the template, not authored on each slide.
         if sid == "legal_notice":
-            full_text = " ".join(
+            slide_text = " ".join(
                 shape.text_frame.text for shape in slide.shapes if shape.has_text_frame
             )
+            layout_text = " ".join(
+                shape.text_frame.text
+                for shape in slide.slide_layout.shapes
+                if shape.has_text_frame
+            )
+            full_text = f"{slide_text} {layout_text}"
             if not any(token in full_text for token in LEGAL_DISCLAIMER_TOKENS):
+                slide_overall = "fail"
                 findings.append(
                     RenderFinding(
-                        severity="warning",
+                        severity="blocker",
                         code="legal_disclaimer_missing",
                         path=f"slides[{snum}].legal_notice",
                         message=(
-                            f"slide {snum} (legal_notice) has no text containing "
-                            f"any of {LEGAL_DISCLAIMER_TOKENS}"
+                            f"slide {snum} (legal_notice) has no text in slide or "
+                            f"layout containing any of {LEGAL_DISCLAIMER_TOKENS}"
                         ),
                     )
                 )

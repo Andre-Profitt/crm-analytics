@@ -4039,8 +4039,64 @@ def build_deck(
     sidecar_path.write_text(_json.dumps(sidecar, indent=2))
     print(f"Sidecar: {sidecar_path}")
 
+    # Track F render-gate convergence: emit a source-note footer on every
+    # non-static slide so the deck_render validator (validate_deck_render.py)
+    # can flip footer_missing from warning -> blocker.
+    _apply_source_note_footer(
+        prs,
+        director=director,
+        territory=territory,
+        snapshot_date=snapshot_date,
+    )
+
     prs.save(str(output_path))
     print(f"Saved: {output_path}")
+
+
+def _apply_source_note_footer(
+    prs, *, director: str, territory: str, snapshot_date: str
+) -> None:
+    """Add a small source-note textbox to the bottom band of every slide.
+
+    Skips:
+      - the first slide (cover; has its own meta block)
+      - the last slide (legal_notice; has its own disclaimer)
+      - slides that already have a text frame at top >= 6.5" (the footer
+        band) so we don't double-stamp slides like pushed_deals which
+        already emit a footer with the SF link
+    """
+    footer_top = Inches(7.05)
+    footer_threshold = Inches(6.5)
+    text = (
+        f"Source: Salesforce live extract  |  Snapshot {snapshot_date}  "
+        f"|  {director}, {territory}"
+    )
+    total = len(prs.slides)
+    for idx, slide in enumerate(prs.slides):
+        if idx == 0 or idx == total - 1:
+            continue
+        # Already has something in the footer band? Skip.
+        already = False
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            if not shape.text_frame.text.strip():
+                continue
+            top = shape.top if shape.top is not None else 0
+            if top >= footer_threshold:
+                already = True
+                break
+        if already:
+            continue
+        tb = slide.shapes.add_textbox(
+            Inches(0.5), footer_top, Inches(12.33), Inches(0.3)
+        )
+        p = tb.text_frame.paragraphs[0]
+        run = p.add_run()
+        run.text = text
+        run.font.size = Pt(8)
+        run.font.italic = True
+        run.font.color.rgb = RGBColor(0x5C, 0x74, 0x82)
 
 
 def main():

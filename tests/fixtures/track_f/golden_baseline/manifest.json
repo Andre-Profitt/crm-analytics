@@ -1,6 +1,6 @@
 {
   "schema_version": "monthly_platform.deck_visual_regression_baseline.v1",
-  "captured_at": "2026-04-27T13:21:13.980520+00:00",
+  "captured_at": "2026-04-27T14:35:27.731938+00:00",
   "captured_from_pptx": "/Users/test/Downloads/jesper-tyrer-LAND.pptx",
   "dpi": 100,
   "slides": [
@@ -42,7 +42,7 @@
             1.0,
             0.08
           ],
-          "hash": "8fd6b6ce536aa7e6381b12dba23ca2640449adb7d665ed40df8a6135b822b1fa",
+          "hash": "da661617c1e7d0346c40beed6b7e1c2b6db4407100edc65e4f82d3a1a8e50b98",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -67,7 +67,7 @@
             1.0,
             0.08
           ],
-          "hash": "787705b3dc169bba0b253609b5d5a969216a9c1b896b4735f1e8b3ea44c93b07",
+          "hash": "668d8d1ee43dd5591de54a463c10ddd36af6c22448ddc23b4d1ff907e0991c1a",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -92,7 +92,7 @@
             1.0,
             0.08
           ],
-          "hash": "6950e59f4b3d40d853775ae35f0090d81f9cdd72d071b2448bb0050f2fa8cc43",
+          "hash": "ae8c630093f204330fe4cbd1dc784438a13a2a652b97b2392969b9b2400f4bf1",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -117,7 +117,7 @@
             1.0,
             0.08
           ],
-          "hash": "cdc88e9d8d5d8b4725ca2e0bd1776dc295008dd2ad4c11005130b822c619e6b9",
+          "hash": "f297e58a6add387d3ad0fb3b1d97e02c022939d9537f70278435a348b2a0c88b",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -142,7 +142,7 @@
             1.0,
             0.08
           ],
-          "hash": "2d8ad9707a78d9807b2014da0183e0ab739e2981d85543f3281b0f623f05d8b1",
+          "hash": "7f633753b76bce2876c53548dc1b73e6a9594b4ef69a116f26e723137459cbe2",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -167,7 +167,7 @@
             1.0,
             0.08
           ],
-          "hash": "44a3bc2e532e09f63ca0d941fe66cfbe1b070a4f2ac40c2ccd8ecb3490707199",
+          "hash": "c644038a7db7ec1c037b780ec58aac108dca494acf556259184c3989b9dbd3c6",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -192,7 +192,7 @@
             1.0,
             0.08
           ],
-          "hash": "eb80f8bbe2504b2a0a690b39a0085aff362c80ad078c983621f6cee045a0f876",
+          "hash": "9ecc9a6ac1ce681f40b34a0fb8276c9eb04100df961df4a328f34192fcd7fe02",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -217,7 +217,7 @@
             1.0,
             0.08
           ],
-          "hash": "4dd8ff9b2824655476cfb7bde45251c35dd5a83ba91c3b48deaf29f89dd3ae0d",
+          "hash": "c65157009a9ed70608d1974a199b6d6fbd4c9cc64ac51ba7dee842a8213e00aa",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -267,7 +267,7 @@
             1.0,
             0.08
           ],
-          "hash": "0627fc9ba703fd690390c16a1b60c41a1735d76102f7d07628c4d7f608488d62",
+          "hash": "518b06d647aea23faafd27124aa29e88a4472471cf03fd5921046c68efd7805b",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -292,7 +292,7 @@
             1.0,
             0.08
           ],
-          "hash": "ab26b03eae2d133fa906db2c3b6bbb2ab56c385d1ff938481f4c8d09b78d2271",
+          "hash": "8a02aac0f86ec3aa20b8954c8a1f6502c3ffcd9602a5e75185850edab2fe3600",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -317,7 +317,7 @@
             1.0,
             0.08
           ],
-          "hash": "88d51128d4c7b87074cf15f526d889c1d2a5172a95f820648c5ac43685aa6348",
+          "hash": "83fab2b7cef2dbc08b209ae95f3a0d6896966e91ed498ed39ec0713b7832e4bd",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
@@ -367,7 +367,7 @@
             1.0,
             0.08
           ],
-          "hash": "87dc4f6e84b328e832e9918ded3469e6925c7629a403e2344d34febefdfecaa0",
+          "hash": "227990a8b8437006f778c50f2626e4df3d037e88c3a780fe4e09f76665a62e41",
           "pixel_geometry": {
             "left": 0,
             "top": 690,
