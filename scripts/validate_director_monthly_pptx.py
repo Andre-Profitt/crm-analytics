@@ -84,6 +84,198 @@ def _slide_has_hyperlink(slide) -> bool:
     return False
 
 
+# Salesforce list-view URL must point at the Lightning Opportunity list.
+# Accepts either domain form: simcorp.lightning.force.com (Lightning) or
+# simcorp.my.salesforce.com (My Domain) — both resolve to the same Lightning UI.
+SALESFORCE_LIST_VIEW_RE = re.compile(
+    r"^https?://[^/]*simcorp(\.lightning\.force\.com|\.my\.salesforce\.com)"
+    r"(/lightning)?/o/Opportunity/list",
+    re.IGNORECASE,
+)
+
+
+def _slide_link_addresses(slide) -> list[str]:
+    """All non-empty hyperlink addresses on the slide."""
+    out: list[str] = []
+    for shape in slide.shapes:
+        if not shape.has_text_frame:
+            continue
+        for para in shape.text_frame.paragraphs:
+            for run in para.runs:
+                hl = getattr(run, "hyperlink", None)
+                addr = getattr(hl, "address", None) if hl is not None else None
+                if addr:
+                    out.append(str(addr))
+    return out
+
+
+def _link_satisfies_kind(address: str, kind: str | None) -> bool:
+    if kind == "salesforce_list_view":
+        return bool(SALESFORCE_LIST_VIEW_RE.search(address or ""))
+    if kind == "salesforce_report":
+        return bool(
+            re.search(
+                r"simcorp(\.lightning\.force\.com|\.my\.salesforce\.com)",
+                address or "",
+                re.IGNORECASE,
+            )
+        )
+    if kind == "sharepoint":
+        return "sharepoint.com" in (address or "").lower()
+    if kind == "external_url":
+        return (address or "").startswith(("http://", "https://"))
+    # Unknown kind — accept any non-empty address.
+    return bool(address)
+
+
+def _slide_table_objects(slide) -> list:
+    return [shape.table for shape in slide.shapes if shape.has_table]
+
+
+def _table_header_row(table) -> list[str]:
+    """Extract first-row cell text, normalised (strip + collapse newlines)."""
+    return [
+        " / ".join(
+            part.strip() for part in table.cell(0, c).text.split("\n") if part.strip()
+        )
+        for c in range(len(table.columns))
+    ]
+
+
+def _validate_table_headers(
+    *,
+    slide_decl: dict[str, Any],
+    actual_slide,
+    findings: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """Compare per-table actual headers to contract columns[].header.
+
+    Returns (overall_status, per_table_results). overall_status is one of:
+      - "pass"               every displayed table matches stable headers
+      - "warning"            at least one table only matches a legacy_header_sets entry
+      - "fail"               at least one table matches neither stable nor legacy
+      - "n/a"                no displayed (non-evidence_only) tables on this slide
+
+    Matches by slide order (per GPT spec).
+    """
+    expected_tables = [
+        t for t in (slide_decl.get("tables") or []) if not t.get("evidence_only")
+    ]
+    actual_tables = _slide_table_objects(actual_slide)
+
+    if not expected_tables:
+        return "n/a", []
+
+    overall = "pass"
+    per_table: list[dict[str, Any]] = []
+    sid = slide_decl.get("id")
+    snum = slide_decl.get("slide_number")
+
+    for idx, decl in enumerate(expected_tables):
+        if idx >= len(actual_tables):
+            findings.append(
+                {
+                    "severity": "blocker",
+                    "code": "table_missing_in_pptx",
+                    "path": f"slides[{snum}].tables[{decl.get('id')}]",
+                    "message": (
+                        f"slide {snum} ({sid}) declares table {decl.get('id')!r} "
+                        f"at order {idx} but the produced deck has only "
+                        f"{len(actual_tables)} table(s)"
+                    ),
+                }
+            )
+            per_table.append(
+                {
+                    "table_id": decl.get("id"),
+                    "order": idx,
+                    "status": "fail",
+                    "detail": "table missing in produced deck",
+                }
+            )
+            overall = "fail"
+            continue
+
+        stable_headers = [str(c.get("header", "")) for c in (decl.get("columns") or [])]
+        actual_headers = _table_header_row(actual_tables[idx])
+
+        if actual_headers == stable_headers:
+            per_table.append(
+                {
+                    "table_id": decl.get("id"),
+                    "order": idx,
+                    "status": "pass_stable",
+                    "actual_headers": actual_headers,
+                }
+            )
+            continue
+
+        legacy_sets = decl.get("legacy_header_sets") or []
+        matched_legacy: list[str] | None = None
+        for header_set in legacy_sets:
+            if len(header_set) != len(actual_headers):
+                continue
+            try:
+                if all(re.fullmatch(p, h) for p, h in zip(header_set, actual_headers)):
+                    matched_legacy = list(header_set)
+                    break
+            except re.error:
+                # invalid regex inside legacy_header_sets — skip and let the
+                # contract validator surface it on the next pass.
+                continue
+
+        if matched_legacy is not None:
+            findings.append(
+                {
+                    "severity": "warning",
+                    "code": "legacy_header_drift",
+                    "path": f"slides[{snum}].tables[{decl.get('id')}].columns",
+                    "message": (
+                        f"slide {snum} ({sid}) table {decl.get('id')!r} headers "
+                        f"match a legacy_header_sets entry rather than stable headers. "
+                        f"actual={actual_headers} stable={stable_headers}"
+                    ),
+                }
+            )
+            per_table.append(
+                {
+                    "table_id": decl.get("id"),
+                    "order": idx,
+                    "status": "warning_legacy",
+                    "actual_headers": actual_headers,
+                    "stable_headers": stable_headers,
+                    "matched_legacy": matched_legacy,
+                }
+            )
+            if overall == "pass":
+                overall = "warning"
+        else:
+            findings.append(
+                {
+                    "severity": "blocker",
+                    "code": "table_header_mismatch",
+                    "path": f"slides[{snum}].tables[{decl.get('id')}].columns",
+                    "message": (
+                        f"slide {snum} ({sid}) table {decl.get('id')!r} headers do "
+                        f"not match stable columns nor any legacy_header_sets entry. "
+                        f"actual={actual_headers} stable={stable_headers}"
+                    ),
+                }
+            )
+            per_table.append(
+                {
+                    "table_id": decl.get("id"),
+                    "order": idx,
+                    "status": "fail",
+                    "actual_headers": actual_headers,
+                    "stable_headers": stable_headers,
+                }
+            )
+            overall = "fail"
+
+    return overall, per_table
+
+
 def validate_pptx(
     pptx_path: Path,
     *,
@@ -210,20 +402,52 @@ def validate_pptx(
                 }
             )
 
-        # Required-links presence — at least one hyperlink anywhere.
-        # M1 transition policy: missing required links emit a WARNING,
-        # not a blocker, until the builder is updated. Mirrors the
-        # legacy_verbose_title transition policy — the contract
-        # describes the forward state, the warning surfaces the gap.
+        # Per-table header validation (Cond 1). Skips evidence_only
+        # tables. Pass if headers match the stable contract OR a
+        # legacy_header_sets entry; fail (blocker) only when neither
+        # matches. Skipped entirely when table_status == "fail" so we
+        # don't emit cascading mismatches against missing tables.
+        header_status: str = "n/a"
+        header_results: list[dict[str, Any]] = []
+        if expected_tables > 0 and table_status != "fail":
+            header_status, header_results = _validate_table_headers(
+                slide_decl=decl,
+                actual_slide=actual_slide,
+                findings=findings,
+            )
+
+        # Required-links presence (Cond 2 — tightened semantics).
+        # For required_links.kind=salesforce_list_view, a hyperlink only
+        # satisfies the requirement if the target URL is a Salesforce
+        # Opportunity list view. Wrong-target = blocker. Missing link
+        # entirely = warning during M1 transition.
         link_status = "n/a"
         link_detail = ""
         required_links = decl.get("required_links") or []
         if required_links:
-            if _slide_has_hyperlink(actual_slide):
+            addresses = _slide_link_addresses(actual_slide)
+            unsatisfied: list[dict[str, Any]] = []
+            for link_decl in required_links:
+                kind = link_decl.get("kind")
+                matching = [a for a in addresses if _link_satisfies_kind(a, kind)]
+                if not matching:
+                    unsatisfied.append(
+                        {
+                            "id": link_decl.get("id"),
+                            "kind": kind,
+                            "label": link_decl.get("label"),
+                        }
+                    )
+
+            if not unsatisfied:
                 link_status = "pass"
-            else:
+            elif not addresses:
+                # No hyperlinks at all — M1 transition warning.
                 link_status = "warning"
-                link_detail = "expected at least one hyperlink, found none (M1 transition warning)"
+                link_detail = (
+                    f"expected {len(required_links)} required link(s), "
+                    f"found no hyperlinks at all (M1 transition warning)"
+                )
                 findings.append(
                     {
                         "severity": "warning",
@@ -236,6 +460,27 @@ def validate_pptx(
                         ),
                     }
                 )
+            else:
+                # Hyperlinks exist but none satisfy the declared kinds —
+                # this is a wrong-target failure, NOT a transition gap.
+                link_status = "fail"
+                link_detail = (
+                    f"slide has {len(addresses)} hyperlink(s) but none satisfy "
+                    f"required kinds: {[u['kind'] for u in unsatisfied]}"
+                )
+                for u in unsatisfied:
+                    findings.append(
+                        {
+                            "severity": "blocker",
+                            "code": "required_link_target_mismatch",
+                            "path": f"slides[{snum}].required_links[{u['id']}]",
+                            "message": (
+                                f"slide {snum} ({sid}) link {u['id']!r} "
+                                f"(kind={u['kind']!r}) not satisfied by any "
+                                f"hyperlink on the slide. addresses={addresses}"
+                            ),
+                        }
+                    )
 
         slide_results.append(
             {
@@ -249,14 +494,21 @@ def validate_pptx(
                 "actual_tables": actual_tables,
                 "table_status": table_status,
                 "table_detail": table_detail,
+                "header_status": header_status,
+                "header_results": header_results,
                 "link_status": link_status,
                 "link_detail": link_detail,
                 "status": (
                     "fail"
-                    if title_status == "fail" or table_status == "fail"
+                    if title_status == "fail"
+                    or table_status == "fail"
+                    or header_status == "fail"
+                    or link_status == "fail"
                     else (
                         "warning"
-                        if title_status == "warning_legacy" or link_status == "warning"
+                        if title_status == "warning_legacy"
+                        or header_status == "warning"
+                        or link_status == "warning"
                         else "pass"
                     )
                 ),
@@ -324,13 +576,14 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
 
     lines.append(
-        "| # | Slide | Title status | Tables (decl/actual) | Link | Slide status |"
+        "| # | Slide | Title | Tables (decl/actual) | Headers | Link | Slide status |"
     )
-    lines.append("| ---: | --- | --- | --- | --- | --- |")
+    lines.append("| ---: | --- | --- | --- | --- | --- | --- |")
     for r in report["slides"]:
         lines.append(
             f"| {r['slide_number']} | `{r['slide_id'] or '?'}` | {r['title_status']} | "
-            f"{r['expected_tables']}/{r['actual_tables']} | {r['link_status']} | {r['status']} |"
+            f"{r['expected_tables']}/{r['actual_tables']} | {r.get('header_status', 'n/a')} | "
+            f"{r['link_status']} | {r['status']} |"
         )
     lines.append("")
 

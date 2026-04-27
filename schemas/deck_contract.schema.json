@@ -455,6 +455,15 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/table_column" }
+        },
+        "legacy_header_sets": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "description": "Optional list of acceptable produced-PPTX header tuples. Each inner array is an ordered list of regex patterns matching the actual first-row headers. The PPTX checker accepts any match here as a WARNING (legacy_header_drift), not a blocker, mirroring legacy_title_patterns. Mismatches against BOTH the stable columns[].header AND every legacy_header_sets entry are blockers (table_header_mismatch)."
         }
       },
       "allOf": [
