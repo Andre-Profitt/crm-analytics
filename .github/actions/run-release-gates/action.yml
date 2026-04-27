@@ -1,0 +1,54 @@
+name: Run release gates
+description: >-
+  Composite action that runs the Track E + Track F + Track G-Lite +
+  Track K + Track J-Lite gates: structural contract validators (deck +
+  workbook), template brand fingerprint, then the pytest suite. Caller
+  is expected to have run setup-crm-analytics first.
+
+inputs:
+  test-paths:
+    description: >-
+      Pytest path patterns to run. Quoted, space-separated. Defaults to
+      every release-pipeline track. Override to scope (e.g. for nightly).
+    required: false
+    default: >-
+      tests/test_track_e_*.py
+      tests/test_track_f_*.py
+      tests/test_track_g_*.py
+      tests/test_track_em2_*.py
+      tests/test_track_k_*.py
+      tests/test_track_j_*.py
+  pytest-extra-args:
+    description: Extra args appended to the pytest invocation.
+    required: false
+    default: "-v"
+
+runs:
+  using: composite
+  steps:
+    - name: Validate deck contract structurally
+      shell: bash
+      run: python3 scripts/validate_deck_contract.py --show-findings
+
+    - name: Validate director workbook contract structurally
+      shell: bash
+      run: python3 scripts/validate_track_e_workbook_contract.py --show-findings
+
+    - name: Validate SimCorp template brand fingerprint (Track F F4)
+      shell: bash
+      run: python3 scripts/validate_deck_brand.py --show-findings
+
+    - name: Run release-pipeline tests
+      shell: bash
+      # Live-anchor tests skip automatically when the workbook/PPTX in
+      # ~/Downloads/ are absent (they are not committed).
+      run: |
+        python3 -m pytest ${{ inputs.test-paths }} ${{ inputs.pytest-extra-args }}
+
+    - name: Surface release-gates summary on failure
+      if: failure()
+      shell: bash
+      run: |
+        echo "::warning::Release gates failed."
+        echo "::warning::Live-anchor tests skip when workbook/PPTX are absent;"
+        echo "::warning::structural validators + non-anchor tests should always pass."
