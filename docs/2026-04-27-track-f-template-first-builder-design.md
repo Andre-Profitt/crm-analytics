@@ -2,7 +2,7 @@
 
 - **Integration branch:** `integration/track-f-template-first-builder`
 - **Anchored predecessor:** Track E M1, merged on `main` as squash commit `295df21` on 2026-04-27.
-- **Builder lineage in scope:** `scripts/build_sd_monthly_deck_v2.py` (Sales Director Monthly deck builder, PowerPoint output).
+- **Builder lineage in scope:** `scripts/build_deck_from_excel.py` (Sales Director Monthly LAND deck builder, PowerPoint output, 4129 LOC). Invoked from `scripts/run_monthly_director_review.py:907` with `--land-only`; output lands at `output/simcorp_director_decks/<date>/land-only/<director>-LAND.pptx`. **Note:** the design originally named `build_sd_monthly_deck_v2.py`, which is orphaned (no production caller). User expanded the override 2026-04-27 to the actual production builder.
 - **Status:** scoping → awaiting explicit go-ahead before any code edits to the builder land on this branch.
 
 ## Why this milestone exists
@@ -28,15 +28,15 @@ The project's general rule (CLAUDE.md, `feedback_no_python_builders.md`) is:
 
 That rule was scoped to **CRM Analytics dashboard builders** — the `build_<dashboard>.py` files that duplicate Wave API dashboard state. The reasoning: patch live dashboards via Wave API, don't maintain a parallel Python tree.
 
-`scripts/build_sd_monthly_deck_v2.py` is a different category:
+`scripts/build_deck_from_excel.py` is a different category:
 
 - It produces PowerPoint, not a Salesforce Wave dashboard.
 - There is no Wave API equivalent to "patch instead."
-- It is the canonical production lane (`run_sales_director_monthly_cadence.py` → `build_sd_monthly_deck_v2.py`).
+- It is the canonical production lane for the LAND deck Track E governs: `run_monthly_director_review.py --land-only` → `build_deck_from_excel.py` → `output/simcorp_director_decks/<date>/land-only/<director>-LAND.pptx`. (The cadence-lane Shell deck under `output/sales_director_canonical_shells/` is a different artifact, produced by `build_sales_director_monthly_shell_v2.js` from Node, and is NOT in Track F scope.)
 
 Track F **must** edit this file to deliver the GPT-defined acceptance gate. This is a deliberate exception to the general no-touch rule, scoped to the deck builder lineage only. All other `build_*.py` files (dashboard builders) remain untouchable under the standing rule.
 
-**Confirm-before-edit gate:** every sub-milestone below that touches `build_sd_monthly_deck_v2.py` will be staged as a separate PR/commit on this branch. The first commit will be the design doc + a verification harness only — no builder edits. Builder edits land starting at F1 only after explicit user confirmation.
+**Confirm-before-edit gate:** every sub-milestone below that touches `build_deck_from_excel.py` lands as its own commit on this branch. The first commit was the design doc seed; this commit corrects the file name. Builder edits start at F1 (next commit).
 
 ## Acceptance gate (Track F done means)
 
@@ -80,7 +80,7 @@ Each sub-milestone is one named PR-sized unit on this branch. Acceptance criteri
 
 **Scope:** convert the production builder's dynamic sentence-style slide titles into the stable short titles defined in `deck_contract.yaml::profiles.director_monthly.slides[*].title`. Move the dynamic narrative into a takeaway block underneath the title, populated from `slides[*].required_takeaway.template` + `required_metrics`.
 
-**Files touched:** `scripts/build_sd_monthly_deck_v2.py` (slide-construction functions for slides 2–17; cover and legal stay as-is).
+**Files touched:** `scripts/build_deck_from_excel.py` (slide-construction functions for slides 2–17; cover and legal stay as-is).
 
 **Builder change pattern:**
 
@@ -116,7 +116,7 @@ slide.add_takeaway(
 
 **Scope:** builder emits the stable contract `tables[].columns[].header` strings instead of the production-current column names.
 
-**Files touched:** `scripts/build_sd_monthly_deck_v2.py` (table-rendering functions for the 14 tables tracked under `legacy_header_sets`).
+**Files touched:** `scripts/build_deck_from_excel.py` (table-rendering functions for the 14 tables tracked under `legacy_header_sets`).
 
 **Acceptance:**
 
@@ -133,7 +133,7 @@ slide.add_takeaway(
 
 **Scope:** slide 12 (`pushed_deals`) emits a real hyperlink to the Salesforce Lightning Opportunity list view, scoped to the director's pushed deals.
 
-**Files touched:** `scripts/build_sd_monthly_deck_v2.py` (slide 12 construction); possibly `config/sales_director_md1_presets.json` to add a per-director `pushed_deals_list_view_url` if not already present.
+**Files touched:** `scripts/build_deck_from_excel.py` (slide 12 construction); possibly `config/sales_director_md1_presets.json` to add a per-director `pushed_deals_list_view_url` if not already present.
 
 **Acceptance:**
 
@@ -149,7 +149,7 @@ slide.add_takeaway(
 
 **Files touched:**
 
-- `scripts/build_sd_monthly_deck_v2.py` (template loading)
+- `scripts/build_deck_from_excel.py` (template loading)
 - `scripts/monthly_platform/brand_contract.py` (new)
 - `scripts/validate_deck_brand.py` (new)
 
@@ -198,7 +198,7 @@ slide.add_takeaway(
 
 ## Hard NO-GOs (preserved from M1, refreshed for F)
 
-- No edits to **dashboard builders** (`build_<dashboard>.py` files that duplicate Wave API state). The standing rule still applies; only `build_sd_monthly_deck_v2.py` is in scope.
+- No edits to **dashboard builders** (`build_<dashboard>.py` files that duplicate Wave API state). The standing rule still applies; only `build_deck_from_excel.py` (and helpers it imports) is in scope.
 - No release catalog or waivers (Track K).
 - No OpenLineage events (Track J).
 - No reusable workflows (Track L).
@@ -230,6 +230,6 @@ slide.add_takeaway(
 
 Before any builder code edits land on this branch:
 
-1. Confirm Track F's narrow override of the no-touch rule is acceptable (`build_sd_monthly_deck_v2.py` only).
+1. ~~Confirm Track F's narrow override of the no-touch rule is acceptable.~~ **CLEARED 2026-04-27** — override granted for `scripts/build_deck_from_excel.py` (and its imported helpers).
 2. Confirm sub-milestone order F1 → F6 (or pick a different sequence — e.g. F4 template-first first, then converge titles/headers under the new template).
 3. Confirm scope of the per-sub-milestone PR boundary — is each F-sub-PR opened as a separate GitHub PR, or all squashed onto this branch and merged once?
