@@ -148,6 +148,11 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/slide" }
+        },
+        "conditional_slides": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/conditional_slide" },
+          "description": "Slides the builder may emit when specific upstream data is available (analytics workbook variance, SF live enrichment, etc.). NOT validated by the PPTX checker — they're forward-state documentation. When a conditional slide ships in production, promote it to `slides` with a real slide_number."
         }
       },
       "allOf": [
@@ -156,6 +161,35 @@
           "then": { "required": ["slides", "run_metadata"] }
         }
       ]
+    },
+    "conditional_slide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "conditional_inclusion"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "purpose": { "type": "string" },
+        "conditional_inclusion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reason"],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "analytics_workbook_variance",
+                "sf_live_enrichment",
+                "historical_trending",
+                "other"
+              ]
+            },
+            "detail": { "type": "string" },
+            "builder_function": { "type": "string" },
+            "promoted_to_slides_when": { "type": "string" }
+          }
+        }
+      }
     },
     "run_metadata": {
       "type": "object",

@@ -41,8 +41,7 @@ data_sources:
   director_workbook:
     type: excel_workbook
     contract: config/director_workbook_contract.yaml
-    description: APAC pilot pattern — 13-sheet live director workbook produced upstream of the deck builder by the cadence
-      pipeline.
+    description: APAC pilot pattern — 13-sheet live director workbook produced upstream of the deck builder by the cadence pipeline.
     required_sheets:
     - Summary
     - Pipeline Open FY26
@@ -59,8 +58,7 @@ data_sources:
     - Q2 Snapshot Trend
   warehouse:
     type: parquet_warehouse
-    description: v20d ETL spine warehouse (Track I). Referenced for cross-checks (source readiness on cover); not the primary
-      feed in M1.
+    description: v20d ETL spine warehouse (Track I). Referenced for cross-checks (source readiness on cover); not the primary feed in M1.
     required_marts:
     - mart_source_run_summary
     - mart_director_source_health
@@ -100,8 +98,7 @@ profiles:
       required_takeaway:
         required: true
         max_chars: 220
-        template: '{territory}: {open_arr_unweighted_eur} open ({open_arr_weighted_eur} weighted) across {open_deal_count}
-          deals.'
+        template: '{territory}: {open_arr_unweighted_eur} open ({open_arr_weighted_eur} weighted) across {open_deal_count} deals.'
         required_metrics:
         - open_arr_unweighted
         - open_arr_weighted
@@ -267,8 +264,7 @@ profiles:
       required_takeaway:
         required: true
         max_chars: 200
-        template: Q2 book {q2_open_arr_unweighted_eur} unweighted, {q2_open_arr_weighted_eur} weighted. {q2_open_deal_count}
-          deals closing Apr-Jun.
+        template: Q2 book {q2_open_arr_unweighted_eur} unweighted, {q2_open_arr_weighted_eur} weighted. {q2_open_deal_count} deals closing Apr-Jun.
         required_metrics:
         - q2_open_arr_unweighted
         - q2_open_arr_weighted
@@ -294,8 +290,7 @@ profiles:
       required_takeaway:
         required: true
         max_chars: 180
-        template: Top {top_n} open deals = {top_n_arr_eur}. {top_account} leads at {top_account_arr_eur}; top 5 = {top_5_share_pct}
-          of this book.
+        template: Top {top_n} open deals = {top_n_arr_eur}. {top_account} leads at {top_account_arr_eur}; top 5 = {top_5_share_pct} of this book.
         required_metrics:
         - top_n
         - top_n_arr
@@ -428,8 +423,7 @@ profiles:
       required_takeaway:
         required: true
         max_chars: 150
-        template: '{coach_owner_count} owners carry {coach_total_pushes} pushes across {coach_total_arr_eur}. Coach in this
-          order.'
+        template: '{coach_owner_count} owners carry {coach_total_pushes} pushes across {coach_total_arr_eur}. Coach in this order.'
         required_metrics:
         - coach_owner_count
         - coach_total_pushes
@@ -491,8 +485,7 @@ profiles:
       required_takeaway:
         required: true
         max_chars: 180
-        template: '{pushed_deal_count} open deals pushed. {pushed_top_owner} owns {pushed_top_owner_count} of the most-pushed
-          deals; pattern review.'
+        template: '{pushed_deal_count} open deals pushed. {pushed_top_owner} owns {pushed_top_owner_count} of the most-pushed deals; pattern review.'
         required_metrics:
         - pushed_deal_count
         - pushed_top_owner
@@ -755,8 +748,7 @@ profiles:
       required_takeaway:
         required: true
         max_chars: 180
-        template: '{renewal_count} renewals due FY26, {renewal_acv_eur} ACV ({renewal_q2_count} in Q2, {renewal_q3_count}
-          in Q3).'
+        template: '{renewal_count} renewals due FY26, {renewal_acv_eur} ACV ({renewal_q2_count} in Q2, {renewal_q3_count} in Q3).'
         required_metrics:
         - renewal_count
         - renewal_acv
@@ -821,6 +813,28 @@ profiles:
         required: false
       required_source_notes: []
       static: true
+    conditional_slides:
+    - id: q1_forecast_variance
+      title: Q1 Forecast Variance
+      purpose: Bucket bridge — opening Q1 pipeline -> closed outcomes -> deltas -> final Q1 pipeline. 8-row executive view.
+      conditional_inclusion:
+        reason: analytics_workbook_variance
+        detail: Emitted only when read_director_analytics() returns a non-empty 'variance' dict from the FY26 Pipeline Review analytics workbook's
+          retrospective consolidated tab.
+        builder_function: scripts/build_deck_from_excel.py::slide_forecast_variance (called at line 3738)
+        promoted_to_slides_when: analytics workbook is wired to populate director-territory-keyed bucket rows AND the live-anchor build includes
+          it; then this entry moves to slides[] with a real slide_number.
+    - id: q2_deal_readiness
+      title: Q2 Deal Readiness
+      purpose: Per-deal Q2 forward-look — readiness, days to close, last activity, AuM context, next-step freshness.
+      conditional_inclusion:
+        reason: sf_live_enrichment
+        detail: 'Emitted only when SF live enrichment runs successfully — needs sd_monthly_territories.json (territory soql_where), SF auth via
+          ''sf org display'', and SOQL execution against the live org. Standalone build_deck_from_excel.py without the cadence runner skips with
+          ''[SKIP] Forward Look: territory config not found''.'
+        builder_function: scripts/build_deck_from_excel.py::slide_q2_forward_look (called at line 3866)
+        promoted_to_slides_when: the test/CI build environment includes SF auth + territory config; then this entry moves to slides[] with a real
+          slide_number.
   control_deck:
     status: deferred
     priority: internal_control_artifact
