@@ -22,6 +22,11 @@ class DirectorBundleDatasetContract(ContractModel):
     source_contract_keys: list[str] = Field(default_factory=list)
     source_requirement_ids: list[str] = Field(default_factory=list)
     rationale: str = ""
+    # Track E/M2: explicit flag that the director-monthly deck reads this
+    # dataset (via config/director_workbook_contract.yaml). When True, the
+    # bundle policy is expected to converge on source_backed; while it
+    # remains optional_empty the rationale should call that out.
+    deck_consumed: bool = False
 
     @model_validator(mode="after")
     def validate_source_backed_requirements(self) -> "DirectorBundleDatasetContract":
@@ -29,6 +34,17 @@ class DirectorBundleDatasetContract(ContractModel):
             raise ValueError("source_backed dataset requires source_contract_keys")
         if self.policy == "optional_empty" and self.required_for_publish:
             raise ValueError("optional_empty dataset cannot be required_for_publish")
+        if (
+            self.deck_consumed
+            and self.policy == "optional_empty"
+            and "M2" not in self.rationale
+            and "deferred" not in self.rationale.lower()
+        ):
+            raise ValueError(
+                f"deck_consumed dataset {self.dataset!r} on policy=optional_empty "
+                f"must reference 'M2' or 'deferred' in rationale to acknowledge "
+                f"the bundle/deck-contract mismatch"
+            )
         return self
 
 

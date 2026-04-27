@@ -12,7 +12,8 @@
       "source_requirement_ids": [
         "sd_pipeline_open"
       ],
-      "rationale": "APAC pilot is now backed by a dedicated monthly Opportunity list view with unweighted ARR and Probability. Other territories must add equivalent source IDs before full-run promotion."
+      "rationale": "APAC pilot is now backed by a dedicated monthly Opportunity list view with unweighted ARR and Probability. Other territories must add equivalent source IDs before full-run promotion.",
+      "deck_consumed": true
     },
     {
       "dataset": "won_lost",
@@ -20,7 +21,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Legacy SOQL-backed closed-deal dataset. Add a monthly source requirement before using it for publish claims."
+      "rationale": "Legacy SOQL-backed closed-deal dataset. Add a monthly source requirement before using it for publish claims. DECK-CONSUMED via 'Won Lost FY26' but bundle source extraction not yet wired (Track E/M2 follow-up). Migrate to source_backed with source_contract_keys when the source extractor lands.",
+      "deck_consumed": true
     },
     {
       "dataset": "renewals",
@@ -28,7 +30,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Renewal detail is not part of the current report-first source contract."
+      "rationale": "Renewal detail is not part of the current report-first source contract. DECK-CONSUMED via 'Renewals FY26' but bundle source extraction not yet wired (Track E/M2 follow-up). Migrate to source_backed with source_contract_keys when the source extractor lands.",
+      "deck_consumed": true
     },
     {
       "dataset": "approvals",
@@ -36,7 +39,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Approval detail is not part of the current report-first source contract."
+      "rationale": "Approval detail is not part of the current report-first source contract. DECK-CONSUMED via 'Commercial Approval' but bundle source extraction not yet wired (Track E/M2 follow-up). Migrate to source_backed with source_contract_keys when the source extractor lands.",
+      "deck_consumed": true
     },
     {
       "dataset": "pi_current",
@@ -48,7 +52,8 @@
       "source_requirement_ids": [
         "sd_pipeline_inspection"
       ],
-      "rationale": "Current-quarter Pipeline Inspection list view is the canonical monthly pipeline display source."
+      "rationale": "Current-quarter Pipeline Inspection list view is the canonical monthly pipeline display source.",
+      "deck_consumed": true
     },
     {
       "dataset": "pi_forward",
@@ -60,7 +65,8 @@
       "source_requirement_ids": [
         "sd_pipeline_inspection"
       ],
-      "rationale": "Forward-quarter Pipeline Inspection list view supports fallback when current-quarter active pipeline is empty."
+      "rationale": "Forward-quarter Pipeline Inspection list view supports fallback when current-quarter active pipeline is empty.",
+      "deck_consumed": true
     },
     {
       "dataset": "activity",
@@ -68,7 +74,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Activity signals remain a legacy SOQL enrichment until a source-backed requirement lands."
+      "rationale": "Activity signals remain a legacy SOQL enrichment until a source-backed requirement lands. DECK-CONSUMED via 'Activity Volume' but bundle source extraction not yet wired (Track E/M2 follow-up). Migrate to source_backed with source_contract_keys when the source extractor lands.",
+      "deck_consumed": true
     },
     {
       "dataset": "commit_items",
@@ -76,7 +83,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Commit items are not part of the current monthly report-first source contract."
+      "rationale": "Commit items are not part of the current monthly report-first source contract. DECK-CONSUMED via 'Commit Items' but bundle source extraction not yet wired (Track E/M2 follow-up). Migrate to source_backed with source_contract_keys when the source extractor lands.",
+      "deck_consumed": true
     },
     {
       "dataset": "stage_events",
@@ -84,7 +92,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Field-history stage events are not source-backed by the current specified reports."
+      "rationale": "Field-history stage events are not source-backed by the current specified reports. DECK-CONSUMED via 'Stage History' but bundle source extraction not yet wired (Track E/M2 follow-up). Migrate to source_backed with source_contract_keys when the source extractor lands.",
+      "deck_consumed": true
     },
     {
       "dataset": "forecast_category_events",
@@ -92,7 +101,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Field-history forecast-category events are not source-backed by the current specified reports."
+      "rationale": "Field-history forecast-category events are not source-backed by the current specified reports. DECK-CONSUMED via 'Forecast Category History' but bundle source extraction not yet wired (Track E/M2 follow-up). Migrate to source_backed with source_contract_keys when the source extractor lands.",
+      "deck_consumed": true
     },
     {
       "dataset": "close_date_events",
@@ -100,7 +110,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Field-history close-date events are not source-backed by the current specified reports."
+      "rationale": "Field-history close-date events are not source-backed by the current specified reports.",
+      "deck_consumed": false
     },
     {
       "dataset": "movement_prior",
@@ -108,7 +119,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Prior-quarter movement logic should be rebuilt from historical-trending/field-history requirements before use."
+      "rationale": "Prior-quarter movement logic should be rebuilt from historical-trending/field-history requirements before use.",
+      "deck_consumed": false
     },
     {
       "dataset": "movement_current",
@@ -116,7 +128,8 @@
       "required_for_publish": false,
       "source_contract_keys": [],
       "source_requirement_ids": [],
-      "rationale": "Current-quarter movement logic should be rebuilt from historical-trending/field-history requirements before use."
+      "rationale": "Current-quarter movement logic should be rebuilt from historical-trending/field-history requirements before use.",
+      "deck_consumed": false
     },
     {
       "dataset": "snapshot_trend",
@@ -128,7 +141,8 @@
       "source_requirement_ids": [
         "sd_historical_trending"
       ],
-      "rationale": "Historical Trending reports are the canonical source for snapshot movement inputs."
+      "rationale": "Historical Trending reports are the canonical source for snapshot movement inputs.",
+      "deck_consumed": true
     }
   ]
 }
