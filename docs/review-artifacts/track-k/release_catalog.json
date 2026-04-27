@@ -1,0 +1,138 @@
+{
+  "schema_version": "monthly_platform.release_catalog.v1",
+  "captured_at": "2026-04-27T14:58:41.354317+00:00",
+  "run_id": "v20d-track-f-final",
+  "policy_path": "config/release_policy.yaml",
+  "waiver_dir": "config/waivers/",
+  "publish_decision": "publish_ready",
+  "pre_waiver_blocker_total": 0,
+  "pre_waiver_warning_total": 0,
+  "post_waiver_blocker_total": 0,
+  "post_waiver_warning_total": 0,
+  "applied_waivers": [],
+  "unused_waivers": [
+    {
+      "id": "WV-2026-04-001",
+      "gate": "brand_fingerprint.template_size_mismatch",
+      "owner": "Sales Operations Engineering",
+      "approved_by": "Andre",
+      "reason": "Demonstration waiver. The brand fingerprint validator emits a warning\nwhen the template file's byte size differs from the contract's\nexpected_template_size_bytes (the SHA mismatch is the actual blocker).\nThis waiver shows the format the release catalog accepts.",
+      "severity_before": "warning",
+      "severity_after": "info",
+      "expires_on": "2026-12-31",
+      "allowed_runs": [],
+      "finding_path": null,
+      "source_path": "<repo>/config/waivers/EXAMPLE-template-size-mismatch.yaml"
+    }
+  ],
+  "waiver_loader_findings": [],
+  "artifact_digests": {
+    "deck_contract_yaml": {
+      "path": "<repo>/config/deck_contract.yaml",
+      "sha256": "e619cf398cbcd37c260aeb06d3042219c9b8dfcc39df1553a10c02a3677a180d",
+      "size": 26329
+    },
+    "workbook_contract_yaml": {
+      "path": "<repo>/config/director_workbook_contract.yaml",
+      "sha256": "a026398cba34f574a4408f86bf81aea6dc98723faea1cf128aab2b80deca8cc9",
+      "size": 8972
+    },
+    "deck_contract_schema_json": {
+      "path": "<repo>/schemas/deck_contract.schema.json",
+      "sha256": "50011cdad708bd4ea9e00eca13d678a911966b69f27a8b699dbfd63a180e834b",
+      "size": 21496
+    },
+    "workbook_contract_schema_json": {
+      "path": "<repo>/schemas/director_workbook_contract.schema.json",
+      "sha256": "c084bd1568f9c4dfdd664d3c0b4d95f56bc3bbaac00d0de52648d0cf1f165d11",
+      "size": 4014
+    },
+    "template_pptx": {
+      "path": "<repo>/assets/SimCorp_PPT_Template.pptx",
+      "sha256": "7834561e83403c4c2f7b1150953a860c23c8e1caf81ef3c7f2fefb0446514195",
+      "size": 9058051
+    },
+    "visual_regions_yaml": {
+      "path": "<repo>/config/deck_visual_regions.yaml",
+      "sha256": "2fc61b9026de9d1bcc60f3379f8b2a51a2a200c20b81b8532571fa2db5742e76",
+      "size": 2001
+    },
+    "visual_baseline_json": {
+      "path": "<repo>/tests/fixtures/track_f/golden_baseline/manifest.json",
+      "sha256": "c042a76a93dd76d71f3d735766f294b8bca0f73ffda62cc0a1f14834a478efd4",
+      "size": 9247
+    },
+    "live_workbook_xlsx": {
+      "path": "<workbook-anchor>",
+      "sha256": "d275e1ab82c2561acf9d5719fe6c0723482d3cb10884739c781a7dd12d1f28a6",
+      "size": 131977
+    },
+    "produced_pptx": {
+      "path": "<pptx-anchor>",
+      "sha256": "20ac554afce5d589790e9e8c17ce029daeb9dc6271c69eb78320c790a35d1005",
+      "size": 8812059
+    }
+  },
+  "release_packet_summaries": [
+    {
+      "validator": "deck_contract",
+      "status": "pass",
+      "blockers": 0,
+      "warnings": 0,
+      "slides": 16
+    },
+    {
+      "validator": "director_workbook_contract",
+      "status": "pass",
+      "blockers": 0,
+      "warnings": 0,
+      "sheets": 13,
+      "roles": 9
+    },
+    {
+      "validator": "director_workbook_validation",
+      "status": "pass",
+      "blockers": 0,
+      "warnings": 0,
+      "sheets_present": "13/13",
+      "roles_resolved": 9
+    },
+    {
+      "validator": "deck_bindings",
+      "status": "pass",
+      "blockers": 0,
+      "warnings": 0,
+      "bindings": 64
+    },
+    {
+      "validator": "pptx_contract",
+      "status": "pass",
+      "blockers": 0,
+      "warnings": 0,
+      "stable_titles": 15,
+      "slides": "16/16"
+    },
+    {
+      "validator": "brand_fingerprint",
+      "status": "pass",
+      "blockers": 0,
+      "warnings": 0,
+      "sha": "match",
+      "layouts_missing": 0
+    },
+    {
+      "validator": "deck_render",
+      "status": "pass",
+      "blockers": 0,
+      "warnings": 0,
+      "slides": 16
+    },
+    {
+      "validator": "deck_visual_regression",
+      "status": "pass",
+      "blockers": 0,
+      "warnings": 0,
+      "slides_checked": "16/16"
+    }
+  ]
+}

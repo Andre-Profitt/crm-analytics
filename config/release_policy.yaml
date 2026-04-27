@@ -1,0 +1,45 @@
+# Track K — release policy
+#
+# Declares which validator finding codes are blockers, which are warnings,
+# and which can never be waived (tie-out blockers — they govern truth or
+# brand identity and must always block release).
+#
+# Used by:
+#   - scripts/monthly_platform/release_catalog.py to classify findings
+#   - scripts/monthly_platform/waivers.py to reject waivers against
+#     non-waivable gates
+#
+# Findings the validators emit but that aren't listed here default to the
+# severity the validator already assigned. Listing a code here only matters
+# when (a) you want to override the validator's severity, or (b) you want
+# to mark it as never_waivable.
+
+schema_version: monthly_platform.release_policy.v1
+
+# Gates that can never be waived. A waiver targeting any of these is
+# rejected at load time.
+never_waivable:
+  # Schema-level violations always block — they mean the contract or
+  # input is structurally broken.
+  - deck_contract.schema_violation
+  - director_workbook_contract.schema_violation
+  # Brand identity drift — the SimCorp template is the contracted brand
+  # surface. A different template SHA means the deck wasn't built from
+  # approved brand assets. Always block.
+  - brand_fingerprint.template_sha256_mismatch
+  - brand_fingerprint.required_layout_missing
+  # Deck shape drift — header mismatches mean the produced deck shows
+  # different columns than the contract governs. Tie-out blocker.
+  - pptx_contract.table_header_mismatch
+  - pptx_contract.table_count_mismatch
+  - pptx_contract.title_neither_stable_nor_legacy
+  # Workbook structural drift — a missing required sheet or column
+  # means the contract describes a different workbook than reality.
+  - director_workbook_validation.missing_sheet
+  - director_workbook_validation.missing_required_column
+
+# Gate-level severity overrides. These let us flip a validator's
+# default severity without changing validator code. Useful when the
+# release-engineering view of severity differs from the validator's.
+# Empty for now — every validator's defaults are already correct.
+severity_overrides: {}
