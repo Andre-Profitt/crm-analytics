@@ -3366,18 +3366,29 @@ def slide_pushed_deals_with_link(prs, pi_data, territory, q1_movement=None):
         f"Early: {tiers['early']['count']} at 1-2 ({_fmt_eur(tiers['early']['arr'])}).",
     )
 
-    # PI link footer on summary slide
+    # PI link footer on summary slide. Track F F3: emit as a real
+    # hyperlink (run.hyperlink.address) so the PPTX checker's kind-aware
+    # validation (M1 Cond 2) recognises it as a salesforce_list_view.
+    # The contract's required_links[salesforce_pushed_deals] expects a
+    # Salesforce Lightning Opportunity list URL — PI_LINKS values match
+    # that pattern: simcorp.lightning.force.com/lightning/o/Opportunity/list?filterName=...
     link = PI_LINKS.get(territory, "")
     if link:
         txBox = slide.shapes.add_textbox(
             Inches(0.9), Inches(6.8), Inches(11.0), Inches(0.3)
         )
         p = txBox.text_frame.paragraphs[0]
-        run = p.add_run()
-        run.text = f"Open Pipeline Inspection in Salesforce: {link}"
-        run.font.size = Pt(8)
-        run.font.italic = True
-        run.font.color.rgb = RGBColor(0x08, 0x3E, 0xA7)
+        prefix = p.add_run()
+        prefix.text = "Open Pipeline Inspection in Salesforce: "
+        prefix.font.size = Pt(8)
+        prefix.font.italic = True
+        prefix.font.color.rgb = RGBColor(0x08, 0x3E, 0xA7)
+        link_run = p.add_run()
+        link_run.text = link
+        link_run.hyperlink.address = link
+        link_run.font.size = Pt(8)
+        link_run.font.italic = True
+        link_run.font.color.rgb = RGBColor(0x08, 0x3E, 0xA7)
 
 
 def slide_q1_movement(prs, q1_movement):

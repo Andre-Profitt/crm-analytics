@@ -49,11 +49,11 @@ def _make_contract(raw: dict) -> deck_contract.DeckContract:
 )
 def test_apac_anchor_passes_in_legacy_mode():
     report = validate_pptx(APAC_DECK)
-    # Expected (post Track F F2 — stable table headers, 2026-04-27):
+    # Expected (post Track F F3 — Salesforce drill-through link, 2026-04-27):
     #   - 16-slide live anchor
     #   - 0 legacy verbose titles  (closed by F1)
     #   - 0 legacy header drifts   (closed by F2)
-    #   - 1 missing required link  (warning; F3 closes this)
+    #   - 0 missing required link  (closed by F3)
     #   - 0 blockers
     #   - 15 stable titles (every non-static slide; cover + 14 narrative slides)
     assert report["status"] == "pass", report["findings"]
@@ -63,8 +63,14 @@ def test_apac_anchor_passes_in_legacy_mode():
         f"got {report['legacy_verbose_title_count']} legacy verbose titles"
     )
     assert report["stable_title_count"] == 15
-    assert any(
+    # F3: builder now emits a real Salesforce Lightning Opportunity list
+    # hyperlink on slide 10 (pushed_deals). The kind-aware link check
+    # should accept it; no missing_required_link_transition warnings.
+    assert not any(
         f["code"] == "missing_required_link_transition" for f in report["findings"]
+    ), (
+        "F3 acceptance gate: pushed_deals slide must emit a satisfying "
+        "Salesforce drill-through hyperlink"
     )
     legacy_header_findings = [
         f for f in report["findings"] if f["code"] == "legacy_header_drift"
@@ -85,6 +91,11 @@ def test_apac_anchor_passes_in_legacy_mode():
     assert pattern_passes == 1, (
         f"expected 1 header_pattern_sets match (slide 3 since_last_review), "
         f"got {pattern_passes}"
+    )
+    # Total warnings should be zero post-F1+F2+F3.
+    assert report["warning_count"] == 0, (
+        f"expected 0 warnings post-F3, got {report['warning_count']}: "
+        f"{report['findings']}"
     )
 
 
