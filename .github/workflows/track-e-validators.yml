@@ -26,6 +26,7 @@ name: Track E — contract validators
       - "scripts/validate_deck_bindings.py"
       - "scripts/validate_director_monthly_pptx.py"
       - "scripts/validate_deck_brand.py"
+      - "scripts/validate_deck_render.py"
       - "assets/SimCorp_PPT_Template.pptx"
       - "tests/test_track_e_*.py"
       - "tests/test_track_f_*.py"
