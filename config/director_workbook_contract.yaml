@@ -106,7 +106,11 @@ sheets:
       - Approval Date
       - Next Step
       - Lead Scope
-    expected_status_values: [Approved 2026, Pending Approval, Candidate]
+    expected_status_values:
+      - Approved 2026
+      - Pending Approval
+      - Candidate
+      - Approved (prior year)
 
   - name: Renewals FY26
     purpose: FY26 renewal exposure.
@@ -180,7 +184,14 @@ sheets:
       - New Close
       - Changed On
       - ARR Unweighted (EUR)
-    expected_movement_values: [Push, Slip, Pull, Created, Closed]
+    expected_movement_values:
+      - Push
+      - Slip
+      - Pull
+      - Created
+      - Closed
+      - Q1 Slipped
+      - Post-Q1 Push
 
   - name: Stage History
     purpose: Stage-change history events (long-form).
