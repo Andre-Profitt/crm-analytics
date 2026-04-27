@@ -1,0 +1,202 @@
+{
+  "schema_version": "monthly_platform.director_workbook_validation.v1",
+  "workbook_path": "<workbook-anchor>",
+  "contract_path": "<sanitized>/crm-analytics/config/director_workbook_contract.yaml",
+  "validated_at": "2026-04-27T02:25:02.301919+00:00",
+  "status": "pass",
+  "blocker_count": 0,
+  "warning_count": 0,
+  "sheet_count_declared": 13,
+  "sheet_count_present": 13,
+  "snapshot_role_count": 9,
+  "resolved_snapshot_roles": [
+    {
+      "role": "q1_opening",
+      "sheet": "Q1 Snapshot Trend",
+      "physical_column": "ARR 2026-01-01",
+      "resolved_date": "2026-01-01",
+      "source": "pattern",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "role": "q1_latest",
+      "sheet": "Q1 Snapshot Trend",
+      "physical_column": "ARR 2026-04-12",
+      "resolved_date": "2026-04-12",
+      "source": "pattern",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "role": "q1_change_to_close",
+      "sheet": "Q1 Snapshot Trend",
+      "physical_column": "ARR Change 2026-04-12",
+      "resolved_date": "2026-04-12",
+      "source": "pattern",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "role": "q1_stage_opening",
+      "sheet": "Q1 Snapshot Trend",
+      "physical_column": "StageName_ 2026-01-01",
+      "resolved_date": "2026-01-01",
+      "source": "pattern",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "role": "q1_stage_latest",
+      "sheet": "Q1 Snapshot Trend",
+      "physical_column": "StageName_ 2026-04-12",
+      "resolved_date": "2026-04-12",
+      "source": "pattern",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "role": "q2_opening",
+      "sheet": "Q2 Snapshot Trend",
+      "physical_column": "ARR 2026-04-01",
+      "resolved_date": "2026-04-01",
+      "source": "pattern",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "role": "q2_latest",
+      "sheet": "Q2 Snapshot Trend",
+      "physical_column": "ARR 2026-04-15",
+      "resolved_date": "2026-04-15",
+      "source": "pattern",
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "role": "movement_prior",
+      "sheet": null,
+      "physical_column": null,
+      "resolved_date": null,
+      "source": "runtime",
+      "status": "pass",
+      "detail": "runtime-bound role -> prior_snapshot_date"
+    },
+    {
+      "role": "movement_current",
+      "sheet": null,
+      "physical_column": null,
+      "resolved_date": null,
+      "source": "runtime",
+      "status": "pass",
+      "detail": "runtime-bound role -> snapshot_date"
+    }
+  ],
+  "sheet_statuses": [
+    {
+      "name": "Summary",
+      "status": "pass",
+      "row_count": 26,
+      "column_count": 3,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Pipeline Open FY26",
+      "status": "pass",
+      "row_count": 106,
+      "column_count": 22,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Won Lost FY26",
+      "status": "pass",
+      "row_count": 63,
+      "column_count": 12,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Commercial Approval",
+      "status": "pass",
+      "row_count": 9,
+      "column_count": 10,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Renewals FY26",
+      "status": "pass",
+      "row_count": 4,
+      "column_count": 8,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Pipeline Inspection",
+      "status": "pass",
+      "row_count": 51,
+      "column_count": 9,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Activity Volume",
+      "status": "pass",
+      "row_count": 106,
+      "column_count": 8,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Commit Items",
+      "status": "pass",
+      "row_count": 61,
+      "column_count": 9,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Q1 Movement",
+      "status": "pass",
+      "row_count": 65,
+      "column_count": 9,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Stage History",
+      "status": "pass",
+      "row_count": 689,
+      "column_count": 8,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Forecast Category History",
+      "status": "pass",
+      "row_count": 496,
+      "column_count": 8,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Q1 Snapshot Trend",
+      "status": "pass",
+      "row_count": 60,
+      "column_count": 19,
+      "missing_columns": [],
+      "enum_drift": null
+    },
+    {
+      "name": "Q2 Snapshot Trend",
+      "status": "pass",
+      "row_count": 6,
+      "column_count": 19,
+      "missing_columns": [],
+      "enum_drift": null
+    }
+  ],
+  "findings": []
+}
