@@ -1,0 +1,351 @@
+{
+  "schema_version": "monthly_platform.lineage_index.v1",
+  "captured_at": "2026-04-27T22:55:07.426047+00:00",
+  "run_id": "59fb3528-b778-4b05-a9e8-e6d50dc047fa",
+  "summary": {
+    "job_count": 8,
+    "dataset_count": 5,
+    "edge_count": 14,
+    "jobs_complete": 7,
+    "jobs_failed": 1,
+    "jobs_open": 0
+  },
+  "jobs": [
+    {
+      "name": "deck_contract",
+      "namespace": "crm-analytics.monthly-release",
+      "events": {
+        "START": 1,
+        "COMPLETE": 1,
+        "FAIL": 0,
+        "ABORT": 0
+      },
+      "first_seq": 1,
+      "last_seq": 2,
+      "status": "COMPLETE",
+      "last_result": {
+        "validator_status": "pass",
+        "blockers": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "name": "director_workbook_contract",
+      "namespace": "crm-analytics.monthly-release",
+      "events": {
+        "START": 1,
+        "COMPLETE": 1,
+        "FAIL": 0,
+        "ABORT": 0
+      },
+      "first_seq": 3,
+      "last_seq": 4,
+      "status": "COMPLETE",
+      "last_result": {
+        "validator_status": "pass",
+        "blockers": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "name": "director_workbook_validation",
+      "namespace": "crm-analytics.monthly-release",
+      "events": {
+        "START": 1,
+        "COMPLETE": 1,
+        "FAIL": 0,
+        "ABORT": 0
+      },
+      "first_seq": 5,
+      "last_seq": 6,
+      "status": "COMPLETE",
+      "last_result": {
+        "validator_status": "pass",
+        "blockers": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "name": "deck_bindings",
+      "namespace": "crm-analytics.monthly-release",
+      "events": {
+        "START": 1,
+        "COMPLETE": 1,
+        "FAIL": 0,
+        "ABORT": 0
+      },
+      "first_seq": 7,
+      "last_seq": 8,
+      "status": "COMPLETE",
+      "last_result": {
+        "validator_status": "pass",
+        "blockers": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "name": "pptx_contract",
+      "namespace": "crm-analytics.monthly-release",
+      "events": {
+        "START": 1,
+        "COMPLETE": 1,
+        "FAIL": 0,
+        "ABORT": 0
+      },
+      "first_seq": 9,
+      "last_seq": 10,
+      "status": "COMPLETE",
+      "last_result": {
+        "validator_status": "pass",
+        "blockers": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "name": "brand_fingerprint",
+      "namespace": "crm-analytics.monthly-release",
+      "events": {
+        "START": 1,
+        "COMPLETE": 1,
+        "FAIL": 0,
+        "ABORT": 0
+      },
+      "first_seq": 11,
+      "last_seq": 12,
+      "status": "COMPLETE",
+      "last_result": {
+        "validator_status": "pass",
+        "blockers": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "name": "deck_render",
+      "namespace": "crm-analytics.monthly-release",
+      "events": {
+        "START": 1,
+        "COMPLETE": 1,
+        "FAIL": 0,
+        "ABORT": 0
+      },
+      "first_seq": 13,
+      "last_seq": 14,
+      "status": "COMPLETE",
+      "last_result": {
+        "validator_status": "pass",
+        "blockers": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "name": "deck_visual_regression",
+      "namespace": "crm-analytics.monthly-release",
+      "events": {
+        "START": 1,
+        "COMPLETE": 0,
+        "FAIL": 0,
+        "ABORT": 1
+      },
+      "first_seq": 15,
+      "last_seq": 16,
+      "status": "ABORT",
+      "last_result": {
+        "validator_status": "skipped",
+        "reason": "--skip-visual"
+      }
+    }
+  ],
+  "datasets": [
+    {
+      "name": "/Users/test/Downloads/jesper-tyrer-2026-04-20.xlsx",
+      "namespace": "file://crm-analytics",
+      "produced_by": [],
+      "consumed_by": [
+        "director_workbook_validation",
+        "deck_bindings"
+      ],
+      "facets": {
+        "dataSource": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json",
+          "name": "/Users/test/Downloads/jesper-tyrer-2026-04-20.xlsx",
+          "uri": "file:///Users/test/Downloads/jesper-tyrer-2026-04-20.xlsx"
+        },
+        "contentDigest": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "algorithm": "sha256",
+          "value": "d275e1ab82c2561acf9d5719fe6c0723482d3cb10884739c781a7dd12d1f28a6",
+          "size_bytes": 131977
+        }
+      }
+    },
+    {
+      "name": "/Users/test/Downloads/jesper-tyrer-LAND.pptx",
+      "namespace": "file://crm-analytics",
+      "produced_by": [],
+      "consumed_by": [
+        "pptx_contract",
+        "deck_render"
+      ],
+      "facets": {
+        "dataSource": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json",
+          "name": "/Users/test/Downloads/jesper-tyrer-LAND.pptx",
+          "uri": "file:///Users/test/Downloads/jesper-tyrer-LAND.pptx"
+        },
+        "contentDigest": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "algorithm": "sha256",
+          "value": "20ac554afce5d589790e9e8c17ce029daeb9dc6271c69eb78320c790a35d1005",
+          "size_bytes": 8812059
+        }
+      }
+    },
+    {
+      "name": "/Users/test/crm-analytics/assets/SimCorp_PPT_Template.pptx",
+      "namespace": "file://crm-analytics",
+      "produced_by": [],
+      "consumed_by": [
+        "brand_fingerprint"
+      ],
+      "facets": {
+        "dataSource": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json",
+          "name": "/Users/test/crm-analytics/assets/SimCorp_PPT_Template.pptx",
+          "uri": "file:///Users/test/crm-analytics/assets/SimCorp_PPT_Template.pptx"
+        },
+        "contentDigest": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "algorithm": "sha256",
+          "value": "7834561e83403c4c2f7b1150953a860c23c8e1caf81ef3c7f2fefb0446514195",
+          "size_bytes": 9058051
+        }
+      }
+    },
+    {
+      "name": "/Users/test/crm-analytics/config/deck_contract.yaml",
+      "namespace": "file://crm-analytics",
+      "produced_by": [],
+      "consumed_by": [
+        "deck_contract",
+        "deck_bindings",
+        "pptx_contract",
+        "brand_fingerprint",
+        "deck_render"
+      ],
+      "facets": {
+        "dataSource": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json",
+          "name": "/Users/test/crm-analytics/config/deck_contract.yaml",
+          "uri": "file:///Users/test/crm-analytics/config/deck_contract.yaml"
+        },
+        "contentDigest": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "algorithm": "sha256",
+          "value": "e619cf398cbcd37c260aeb06d3042219c9b8dfcc39df1553a10c02a3677a180d",
+          "size_bytes": 26329
+        }
+      }
+    },
+    {
+      "name": "/Users/test/crm-analytics/config/director_workbook_contract.yaml",
+      "namespace": "file://crm-analytics",
+      "produced_by": [],
+      "consumed_by": [
+        "deck_contract",
+        "director_workbook_contract",
+        "director_workbook_validation",
+        "deck_bindings"
+      ],
+      "facets": {
+        "dataSource": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json",
+          "name": "/Users/test/crm-analytics/config/director_workbook_contract.yaml",
+          "uri": "file:///Users/test/crm-analytics/config/director_workbook_contract.yaml"
+        },
+        "contentDigest": {
+          "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+          "algorithm": "sha256",
+          "value": "a026398cba34f574a4408f86bf81aea6dc98723faea1cf128aab2b80deca8cc9",
+          "size_bytes": 8972
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "job": "deck_contract",
+      "dataset": "/Users/test/crm-analytics/config/deck_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "deck_contract",
+      "dataset": "/Users/test/crm-analytics/config/director_workbook_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "director_workbook_contract",
+      "dataset": "/Users/test/crm-analytics/config/director_workbook_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "director_workbook_validation",
+      "dataset": "/Users/test/crm-analytics/config/director_workbook_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "director_workbook_validation",
+      "dataset": "/Users/test/Downloads/jesper-tyrer-2026-04-20.xlsx",
+      "direction": "input"
+    },
+    {
+      "job": "deck_bindings",
+      "dataset": "/Users/test/crm-analytics/config/deck_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "deck_bindings",
+      "dataset": "/Users/test/crm-analytics/config/director_workbook_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "deck_bindings",
+      "dataset": "/Users/test/Downloads/jesper-tyrer-2026-04-20.xlsx",
+      "direction": "input"
+    },
+    {
+      "job": "pptx_contract",
+      "dataset": "/Users/test/crm-analytics/config/deck_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "pptx_contract",
+      "dataset": "/Users/test/Downloads/jesper-tyrer-LAND.pptx",
+      "direction": "input"
+    },
+    {
+      "job": "brand_fingerprint",
+      "dataset": "/Users/test/crm-analytics/config/deck_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "brand_fingerprint",
+      "dataset": "/Users/test/crm-analytics/assets/SimCorp_PPT_Template.pptx",
+      "direction": "input"
+    },
+    {
+      "job": "deck_render",
+      "dataset": "/Users/test/crm-analytics/config/deck_contract.yaml",
+      "direction": "input"
+    },
+    {
+      "job": "deck_render",
+      "dataset": "/Users/test/Downloads/jesper-tyrer-LAND.pptx",
+      "direction": "input"
+    }
+  ]
+}
