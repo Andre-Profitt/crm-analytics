@@ -85,13 +85,9 @@ profiles:
       - snapshot_date
       - territory
       - analysis_scope
-      legacy_title_patterns:
-      - ^Monthly Pipeline Review$
     - id: executive_summary
       slide_number: 2
       title: Executive Summary
-      legacy_title_patterns:
-      - ^Pipeline EUR.* (un)?weighted.*deals.*$
       purpose: KPI cards + narrative bullets for the director's headline numbers.
       layout: kpi_cards
       required_takeaway:
@@ -118,8 +114,6 @@ profiles:
     - id: since_last_review
       slide_number: 3
       title: Since Last Review
-      legacy_title_patterns:
-      - ^Since last review.*$
       purpose: Movement table — what changed between prior_snapshot_date and snapshot_date.
       layout: table_with_takeaway
       required_takeaway:
@@ -185,8 +179,6 @@ profiles:
     - id: q1_promised_delivered
       slide_number: 4
       title: Q1 Promised vs Delivered
-      legacy_title_patterns:
-      - ^Q1 pipeline opened at EUR.*$
       purpose: KPI cards comparing Q1 opening pipeline to Q1 closed outcome.
       layout: kpi_cards
       required_takeaway:
@@ -212,8 +204,6 @@ profiles:
     - id: q1_loss_drivers
       slide_number: 5
       title: Q1 Loss Drivers
-      legacy_title_patterns:
-      - ^\d+ Q1 .* losses.*$
       purpose: Two tables — loss reason breakdown + stage reached for losses.
       layout: dual_table
       required_takeaway:
@@ -294,8 +284,6 @@ profiles:
     - id: q2_outlook
       slide_number: 6
       title: Q2 Outlook
-      legacy_title_patterns:
-      - ^Q2 book EUR.*$
       purpose: KPI cards for Q2 book — unweighted, weighted, deal count.
       layout: kpi_cards
       required_takeaway:
@@ -323,8 +311,6 @@ profiles:
     - id: top_open_opportunities
       slide_number: 7
       title: Top Open Opportunities
-      legacy_title_patterns:
-      - ^(Top|Key) \d+ open deals.*$
       purpose: Top-N open Land deals by unweighted ARR.
       layout: table_with_takeaway
       required_takeaway:
@@ -398,8 +384,6 @@ profiles:
     - id: deal_risk_triage
       slide_number: 8
       title: Deal Risk Triage
-      legacy_title_patterns:
-      - ^(Top|Key) \d+ Q2.*Deals at Risk.*$
       purpose: Top Q2-Q3 deals at risk by Pipeline Inspection score/priority.
       layout: table_with_takeaway
       required_takeaway:
@@ -477,8 +461,6 @@ profiles:
     - id: owner_coaching
       slide_number: 9
       title: Owner Coaching Priorities
-      legacy_title_patterns:
-      - ^\d+ owners carry \d+ pushes.*$
       purpose: Owner-level rollup of pushes + open ARR for coaching priorities.
       layout: table_with_takeaway
       required_takeaway:
@@ -548,8 +530,6 @@ profiles:
     - id: pushed_deals
       slide_number: 10
       title: Pushed Deals
-      legacy_title_patterns:
-      - ^\d+ open deals pushed.*$
       purpose: Pushed-deal headline + Salesforce link for live drill.
       layout: kpi_cards_with_link
       required_takeaway:
@@ -572,8 +552,6 @@ profiles:
     - id: q1_slippage
       slide_number: 11
       title: Q1 Slippage
-      legacy_title_patterns:
-      - ^\d+ deals slipped out of Q1.*$
       purpose: Deals that slipped out of Q1 + their post-slip behavior.
       layout: table_with_takeaway
       required_takeaway:
@@ -647,8 +625,6 @@ profiles:
     - id: forecast_accuracy
       slide_number: 12
       title: Forecast Accuracy
-      legacy_title_patterns:
-      - ^\d+ deals? closed-won.*$
       purpose: KPI cards comparing forecast commitments to closed outcomes.
       layout: kpi_cards
       required_takeaway:
@@ -675,8 +651,6 @@ profiles:
     - id: forecast_mix
       slide_number: 13
       title: Forecast Mix
-      legacy_title_patterns:
-      - ^Forecast (mix|Breakdown):.*$
       purpose: Open Land pipeline by forecast category.
       layout: table_with_takeaway
       required_takeaway:
@@ -735,8 +709,6 @@ profiles:
     - id: commercial_approvals
       slide_number: 14
       title: Commercial Approvals
-      legacy_title_patterns:
-      - ^Commercial Approvals:.*$
       purpose: Approval status — distinguish approved-2026, pending approval, candidate.
       layout: quad_table
       required_takeaway:
@@ -868,8 +840,6 @@ profiles:
     - id: renewals
       slide_number: 15
       title: FY26 Renewals
-      legacy_title_patterns:
-      - ^\d+ renewals due FY26.*$
       purpose: FY26 renewal exposure by close date.
       layout: table_with_takeaway
       required_takeaway:

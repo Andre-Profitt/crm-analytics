@@ -49,15 +49,20 @@ def _make_contract(raw: dict) -> deck_contract.DeckContract:
 )
 def test_apac_anchor_passes_in_legacy_mode():
     report = validate_pptx(APAC_DECK)
-    # Expected (post Track E re-anchor 2026-04-27):
-    #   - 16-slide live anchor (was 18 pre-re-anchor)
-    #   - 15 legacy verbose titles (warnings)
-    #   - 13 legacy header drifts on tables (warnings, Cond 1)
-    #   - 1 missing required link (warning, M1 transition)
+    # Expected (post Track F F1 — stable titles + takeaway split, 2026-04-27):
+    #   - 16-slide live anchor (re-anchored from 18 pre-Track-F)
+    #   - 0 legacy verbose titles  (was 15 pre-F1; F1 closed this)
+    #   - 13 legacy header drifts on tables (warnings; F2 closes these)
+    #   - 1 missing required link (warning, M1 transition; F3 closes this)
     #   - 0 blockers
+    #   - 15 stable titles (every non-static slide; cover + 14 narrative slides)
     assert report["status"] == "pass", report["findings"]
     assert report["actual_slide_count"] == 16
-    assert report["legacy_verbose_title_count"] == 15
+    assert report["legacy_verbose_title_count"] == 0, (
+        "F1 acceptance gate: builder must emit stable contract titles, "
+        f"got {report['legacy_verbose_title_count']} legacy verbose titles"
+    )
+    assert report["stable_title_count"] == 15
     assert any(
         f["code"] == "missing_required_link_transition" for f in report["findings"]
     )
@@ -65,7 +70,8 @@ def test_apac_anchor_passes_in_legacy_mode():
         f for f in report["findings"] if f["code"] == "legacy_header_drift"
     ]
     assert len(legacy_header_findings) == 13, (
-        f"expected 13 legacy_header_drift warnings, got {len(legacy_header_findings)}"
+        f"expected 13 legacy_header_drift warnings (closed by F2), got "
+        f"{len(legacy_header_findings)}"
     )
 
 
@@ -74,13 +80,18 @@ def test_apac_anchor_passes_in_legacy_mode():
     reason="Live APAC pptx not present.",
 )
 def test_title_neither_stable_nor_legacy_blocks():
-    # Drop legacy_title_patterns so the verbose title can't match.
+    # Post Track F F1: the produced deck emits stable titles. To exercise
+    # the blocker path we MUTATE the stable title in the contract so the
+    # produced "Owner Coaching Priorities" no longer matches stable, and
+    # also drop legacy_title_patterns so it can't fall back. Result:
+    # title_neither_stable_nor_legacy blocker.
     raw = yaml.safe_load(CANONICAL_DECK.read_text(encoding="utf-8"))
     slide = next(
         s
         for s in raw["profiles"]["director_monthly"]["slides"]
         if s["id"] == "owner_coaching"
     )
+    slide["title"] = "Some Different Stable Title"
     slide.pop("legacy_title_patterns", None)
     contract = _make_contract(raw)
     report = validate_pptx(APAC_DECK, contract=contract)

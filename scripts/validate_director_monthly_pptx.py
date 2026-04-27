@@ -56,15 +56,55 @@ REPORT_SCHEMA_VERSION = "monthly_platform.pptx_contract_report.v1"
 
 
 def _slide_title(slide) -> str:
-    """Best-effort extraction of the slide's headline text. The current
-    production builder doesn't always populate the title placeholder,
-    so we fall back to the first non-empty text frame in shape order."""
+    """Extract the slide's title text.
+
+    Order of attempts:
+      1. The placeholder whose ``placeholder_format.idx`` is 144 (the
+         template-anchored title placeholder used by build_deck_from_excel.py).
+      2. The placeholder whose ``placeholder_format.type`` is TITLE
+         (PowerPoint's standard title placeholder type).
+      3. The first non-empty text frame in shape order — fallback for
+         slides without a title placeholder (e.g. legal/cover slides
+         that draw their headline as a free textbox).
+    """
+    title_idx_match: str | None = None
+    title_type_match: str | None = None
+    first_frame: str | None = None
+
     for shape in slide.shapes:
-        if shape.has_text_frame:
-            txt = shape.text_frame.text.strip()
-            if txt:
-                return txt.split("\n")[0].strip()
-    return ""
+        if not shape.has_text_frame:
+            continue
+        text = shape.text_frame.text.strip()
+        if not text:
+            continue
+        first_line = text.split("\n")[0].strip()
+
+        try:
+            ph_fmt = shape.placeholder_format
+        except (ValueError, AttributeError):
+            ph_fmt = None
+
+        if ph_fmt is not None:
+            try:
+                if ph_fmt.idx == 144 and title_idx_match is None:
+                    title_idx_match = first_line
+            except (ValueError, AttributeError):
+                pass
+            try:
+                # PowerPoint's PP_PLACEHOLDER.TITLE = 13 (and CTR_TITLE = 14)
+                if (
+                    ph_fmt.type is not None
+                    and ph_fmt.type in (13, 14)
+                    and title_type_match is None
+                ):
+                    title_type_match = first_line
+            except (ValueError, AttributeError):
+                pass
+
+        if first_frame is None:
+            first_frame = first_line
+
+    return title_idx_match or title_type_match or first_frame or ""
 
 
 def _slide_table_count(slide) -> int:

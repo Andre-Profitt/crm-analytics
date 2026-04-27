@@ -1,0 +1,1208 @@
+{
+  "schema_version": "monthly_platform.deck_binding_report.v1",
+  "profile_id": "director_monthly",
+  "deck_contract_path": "<sanitized>/crm-analytics/config/deck_contract.yaml",
+  "workbook_contract_path": "<sanitized>/crm-analytics/config/director_workbook_contract.yaml",
+  "workbook_path": "<workbook-anchor>",
+  "resolved_at": "2026-04-27T12:48:56.616050+00:00",
+  "status": "pass",
+  "binding_count": 64,
+  "pass_count": 64,
+  "warning_count": 0,
+  "fail_count": 0,
+  "blockers": [],
+  "bindings": [
+    {
+      "slide_id": "cover",
+      "slide_number": 1,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "cover",
+      "slide_number": 1,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "cover",
+      "slide_number": 1,
+      "kind": "source_note",
+      "id": "analysis_scope",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "executive_summary",
+      "slide_number": 2,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "executive_summary",
+      "slide_number": 2,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "executive_summary",
+      "slide_number": 2,
+      "kind": "takeaway",
+      "id": "executive_summary_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "{territory}: {open_arr_unweighted_eur} open ({open_arr_weighted_eur} weighted) across {open_deal_count} deals.",
+      "max_chars": 220,
+      "required_metrics": [
+        "open_arr_unweighted",
+        "open_arr_weighted",
+        "open_deal_count"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "since_last_review",
+      "slide_number": 3,
+      "kind": "source_note",
+      "id": "movement_window",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "since_last_review",
+      "slide_number": 3,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "since_last_review",
+      "slide_number": 3,
+      "kind": "takeaway",
+      "id": "since_last_review_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "Since {prior_snapshot_date}: {net_movement_eur} net change across {movement_event_count} events.",
+      "max_chars": 150,
+      "required_metrics": [
+        "net_movement_eur",
+        "movement_event_count"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "since_last_review",
+      "slide_number": 3,
+      "kind": "table",
+      "id": "tbl_since_last_review",
+      "sheet": "Q1 Movement",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "account",
+          "kind": "source_column",
+          "physical_column": "Account",
+          "status": "pass"
+        },
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "owner",
+          "kind": "source_column",
+          "physical_column": "Owner",
+          "status": "pass"
+        },
+        {
+          "column_id": "stage",
+          "kind": "source_column",
+          "physical_column": "Stage",
+          "status": "pass"
+        },
+        {
+          "column_id": "movement",
+          "kind": "source_column",
+          "physical_column": "Movement",
+          "status": "pass"
+        },
+        {
+          "column_id": "old_close",
+          "kind": "source_column",
+          "physical_column": "Old Close",
+          "status": "pass"
+        },
+        {
+          "column_id": "new_close",
+          "kind": "source_column",
+          "physical_column": "New Close",
+          "status": "pass"
+        },
+        {
+          "column_id": "changed_on",
+          "kind": "source_column",
+          "physical_column": "Changed On",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        }
+      ],
+      "filters": {},
+      "max_rows": 12,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "q1_promised_delivered",
+      "slide_number": 4,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q1_promised_delivered",
+      "slide_number": 4,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q1_promised_delivered",
+      "slide_number": 4,
+      "kind": "takeaway",
+      "id": "q1_promised_delivered_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "Q1 opened at {q1_opening_arr_eur} across {q1_opening_deal_count} deals. Committed (stage 4+): {q1_committed_arr_eur}.",
+      "max_chars": 200,
+      "required_metrics": [
+        "q1_opening_arr",
+        "q1_opening_deal_count",
+        "q1_committed_arr"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "q1_loss_drivers",
+      "slide_number": 5,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q1_loss_drivers",
+      "slide_number": 5,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q1_loss_drivers",
+      "slide_number": 5,
+      "kind": "source_note",
+      "id": "period",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q1_loss_drivers",
+      "slide_number": 5,
+      "kind": "takeaway",
+      "id": "q1_loss_drivers_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "{q1_loss_count} Q1 Land losses, {q1_loss_arr_eur}. {q1_losses_missing_reason} missing reason code.",
+      "max_chars": 150,
+      "required_metrics": [
+        "q1_loss_count",
+        "q1_loss_arr",
+        "q1_losses_missing_reason"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "q1_loss_drivers",
+      "slide_number": 5,
+      "kind": "table",
+      "id": "tbl_q1_loss_reasons",
+      "sheet": "Won Lost FY26",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "reason",
+          "kind": "source_column",
+          "physical_column": "Reason",
+          "status": "pass"
+        },
+        {
+          "column_id": "count",
+          "kind": "computed",
+          "computed": "row_count",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Type": "Land",
+        "Stage": "Closed Lost",
+        "Close Date": {
+          "period": "q1"
+        }
+      },
+      "max_rows": 10,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "q1_loss_drivers",
+      "slide_number": 5,
+      "kind": "table",
+      "id": "tbl_q1_loss_stage_reached",
+      "sheet": "Won Lost FY26",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "stage",
+          "kind": "source_column",
+          "physical_column": "Stage",
+          "status": "pass"
+        },
+        {
+          "column_id": "count",
+          "kind": "computed",
+          "computed": "row_count",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Type": "Land",
+        "Stage": "Closed Lost",
+        "Close Date": {
+          "period": "q1"
+        }
+      },
+      "max_rows": 10,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "q2_outlook",
+      "slide_number": 6,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q2_outlook",
+      "slide_number": 6,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q2_outlook",
+      "slide_number": 6,
+      "kind": "source_note",
+      "id": "period",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q2_outlook",
+      "slide_number": 6,
+      "kind": "takeaway",
+      "id": "q2_outlook_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "Q2 book {q2_open_arr_unweighted_eur} unweighted, {q2_open_arr_weighted_eur} weighted. {q2_open_deal_count} deals closing Apr-Jun.",
+      "max_chars": 200,
+      "required_metrics": [
+        "q2_open_arr_unweighted",
+        "q2_open_arr_weighted",
+        "q2_open_deal_count"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "top_open_opportunities",
+      "slide_number": 7,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "top_open_opportunities",
+      "slide_number": 7,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "top_open_opportunities",
+      "slide_number": 7,
+      "kind": "takeaway",
+      "id": "top_open_opportunities_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "Top {top_n} open deals = {top_n_arr_eur}. {top_account} leads at {top_account_arr_eur}; top 5 = {top_5_share_pct} of this book.",
+      "max_chars": 180,
+      "required_metrics": [
+        "top_n",
+        "top_n_arr",
+        "top_account",
+        "top_account_arr",
+        "top_5_share_pct"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "top_open_opportunities",
+      "slide_number": 7,
+      "kind": "table",
+      "id": "tbl_top_open_opportunities",
+      "sheet": "Pipeline Open FY26",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "account",
+          "kind": "source_column",
+          "physical_column": "Account",
+          "status": "pass"
+        },
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "owner",
+          "kind": "source_column",
+          "physical_column": "Owner",
+          "status": "pass"
+        },
+        {
+          "column_id": "stage",
+          "kind": "source_column",
+          "physical_column": "Stage",
+          "status": "pass"
+        },
+        {
+          "column_id": "close",
+          "kind": "source_column",
+          "physical_column": "Close Date",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        },
+        {
+          "column_id": "probability",
+          "kind": "source_column",
+          "physical_column": "Probability %",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Type": "Land"
+      },
+      "max_rows": 7,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "deal_risk_triage",
+      "slide_number": 8,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "deal_risk_triage",
+      "slide_number": 8,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "deal_risk_triage",
+      "slide_number": 8,
+      "kind": "takeaway",
+      "id": "deal_risk_triage_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "Top {risk_top_n} Q2-Q3 deals at risk, {risk_arr_eur} exposed.",
+      "max_chars": 150,
+      "required_metrics": [
+        "risk_top_n",
+        "risk_arr"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "deal_risk_triage",
+      "slide_number": 8,
+      "kind": "table",
+      "id": "tbl_deal_risk_triage",
+      "sheet": "Pipeline Inspection",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "owner",
+          "kind": "source_column",
+          "physical_column": "Owner",
+          "status": "pass"
+        },
+        {
+          "column_id": "stage",
+          "kind": "source_column",
+          "physical_column": "Stage",
+          "status": "pass"
+        },
+        {
+          "column_id": "forecast_category",
+          "kind": "source_column",
+          "physical_column": "Forecast Category",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr_weighted",
+          "kind": "source_column",
+          "physical_column": "ARR Weighted (EUR)",
+          "status": "pass"
+        },
+        {
+          "column_id": "close",
+          "kind": "source_column",
+          "physical_column": "Close Date",
+          "status": "pass"
+        },
+        {
+          "column_id": "push_count",
+          "kind": "source_column",
+          "physical_column": "Push Count",
+          "status": "pass"
+        },
+        {
+          "column_id": "score",
+          "kind": "source_column",
+          "physical_column": "Score",
+          "status": "pass"
+        },
+        {
+          "column_id": "priority",
+          "kind": "source_column",
+          "physical_column": "Priority",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Close Date": {
+          "period": "q2_q3"
+        }
+      },
+      "max_rows": 6,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "owner_coaching",
+      "slide_number": 9,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "owner_coaching",
+      "slide_number": 9,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "owner_coaching",
+      "slide_number": 9,
+      "kind": "takeaway",
+      "id": "owner_coaching_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "{coach_owner_count} owners carry {coach_total_pushes} pushes across {coach_total_arr_eur}. Coach in this order.",
+      "max_chars": 150,
+      "required_metrics": [
+        "coach_owner_count",
+        "coach_total_pushes",
+        "coach_total_arr"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "owner_coaching",
+      "slide_number": 9,
+      "kind": "table",
+      "id": "tbl_owner_coaching",
+      "sheet": "Pipeline Open FY26",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "owner",
+          "kind": "source_column",
+          "physical_column": "Owner",
+          "status": "pass"
+        },
+        {
+          "column_id": "deal_count",
+          "kind": "computed",
+          "computed": "row_count",
+          "status": "pass"
+        },
+        {
+          "column_id": "total_arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        },
+        {
+          "column_id": "total_pushes",
+          "kind": "source_column",
+          "physical_column": "Push Count",
+          "status": "pass"
+        },
+        {
+          "column_id": "avg_pushes",
+          "kind": "source_column",
+          "physical_column": "Push Count",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Type": "Land"
+      },
+      "max_rows": 8,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "pushed_deals",
+      "slide_number": 10,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "pushed_deals",
+      "slide_number": 10,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "pushed_deals",
+      "slide_number": 10,
+      "kind": "source_note",
+      "id": "salesforce_drill_link",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "pushed_deals",
+      "slide_number": 10,
+      "kind": "takeaway",
+      "id": "pushed_deals_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "{pushed_deal_count} open deals pushed. {pushed_top_owner} owns {pushed_top_owner_count} of the most-pushed deals; pattern review.",
+      "max_chars": 180,
+      "required_metrics": [
+        "pushed_deal_count",
+        "pushed_top_owner",
+        "pushed_top_owner_count"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "pushed_deals",
+      "slide_number": 10,
+      "kind": "link",
+      "id": "salesforce_pushed_deals",
+      "label": "Open in Salesforce",
+      "binding_type": "external_link",
+      "link_kind": "salesforce_list_view",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q1_slippage",
+      "slide_number": 11,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q1_slippage",
+      "slide_number": 11,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "q1_slippage",
+      "slide_number": 11,
+      "kind": "takeaway",
+      "id": "q1_slippage_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "{slipped_deal_count} deals slipped out of Q1 ({slipped_arr_eur}). {pushed_since_count} pushed since.",
+      "max_chars": 150,
+      "required_metrics": [
+        "slipped_deal_count",
+        "slipped_arr",
+        "pushed_since_count"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "q1_slippage",
+      "slide_number": 11,
+      "kind": "table",
+      "id": "tbl_q1_slippage",
+      "sheet": "Q1 Movement",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "account",
+          "kind": "source_column",
+          "physical_column": "Account",
+          "status": "pass"
+        },
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "owner",
+          "kind": "source_column",
+          "physical_column": "Owner",
+          "status": "pass"
+        },
+        {
+          "column_id": "stage",
+          "kind": "source_column",
+          "physical_column": "Stage",
+          "status": "pass"
+        },
+        {
+          "column_id": "old_close",
+          "kind": "source_column",
+          "physical_column": "Old Close",
+          "status": "pass"
+        },
+        {
+          "column_id": "new_close",
+          "kind": "source_column",
+          "physical_column": "New Close",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Movement": {
+          "in": [
+            "Push",
+            "Slip"
+          ]
+        }
+      },
+      "max_rows": 12,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "forecast_accuracy",
+      "slide_number": 12,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "forecast_accuracy",
+      "slide_number": 12,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "forecast_accuracy",
+      "slide_number": 12,
+      "kind": "source_note",
+      "id": "period",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "forecast_accuracy",
+      "slide_number": 12,
+      "kind": "takeaway",
+      "id": "forecast_accuracy_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "{closed_won_count} {closed_won_unit} closed-won ({closed_won_arr_eur}).",
+      "max_chars": 150,
+      "required_metrics": [
+        "closed_won_count",
+        "closed_won_unit",
+        "closed_won_arr"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "forecast_mix",
+      "slide_number": 13,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "forecast_mix",
+      "slide_number": 13,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "forecast_mix",
+      "slide_number": 13,
+      "kind": "takeaway",
+      "id": "forecast_mix_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "Forecast mix: {forecast_mix_total_arr_eur} across {forecast_mix_deal_count} open deals. Commit = {forecast_commit_arr_eur} ({forecast_commit_pct}).",
+      "max_chars": 180,
+      "required_metrics": [
+        "forecast_mix_total_arr",
+        "forecast_mix_deal_count",
+        "forecast_commit_arr",
+        "forecast_commit_pct"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "forecast_mix",
+      "slide_number": 13,
+      "kind": "table",
+      "id": "tbl_forecast_mix",
+      "sheet": "Commit Items",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "category",
+          "kind": "source_column",
+          "physical_column": "Forecast Category",
+          "status": "pass"
+        },
+        {
+          "column_id": "deal_count",
+          "kind": "computed",
+          "computed": "row_count",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr_wtd",
+          "kind": "source_column",
+          "physical_column": "Forecast ARR Wtd (EUR)",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr_unwtd",
+          "kind": "source_column",
+          "physical_column": "ARR Unwtd (EUR)",
+          "status": "pass"
+        }
+      ],
+      "filters": {},
+      "max_rows": 8,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "commercial_approvals",
+      "slide_number": 14,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "commercial_approvals",
+      "slide_number": 14,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "commercial_approvals",
+      "slide_number": 14,
+      "kind": "takeaway",
+      "id": "commercial_approvals_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "{approved_2026_count} approved 2026; {pending_approval_count} pending; {candidate_count} candidate.",
+      "max_chars": 180,
+      "required_metrics": [
+        "approved_2026_count",
+        "pending_approval_count",
+        "candidate_count"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "commercial_approvals",
+      "slide_number": 14,
+      "kind": "table",
+      "id": "tbl_approvals_approved_2026",
+      "sheet": "Commercial Approval",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "account",
+          "kind": "source_column",
+          "physical_column": "Account",
+          "status": "pass"
+        },
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        },
+        {
+          "column_id": "approval_date",
+          "kind": "source_column",
+          "physical_column": "Approval Date",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Status": "Approved 2026"
+      },
+      "max_rows": 5,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "commercial_approvals",
+      "slide_number": 14,
+      "kind": "table",
+      "id": "tbl_approvals_pending",
+      "sheet": "Commercial Approval",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "account",
+          "kind": "source_column",
+          "physical_column": "Account",
+          "status": "pass"
+        },
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "stage",
+          "kind": "source_column",
+          "physical_column": "Stage",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        },
+        {
+          "column_id": "next_step",
+          "kind": "source_column",
+          "physical_column": "Next Step",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Status": "Pending Approval"
+      },
+      "max_rows": 5,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "commercial_approvals",
+      "slide_number": 14,
+      "kind": "table",
+      "id": "tbl_approvals_candidate",
+      "sheet": "Commercial Approval",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "account",
+          "kind": "source_column",
+          "physical_column": "Account",
+          "status": "pass"
+        },
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "stage",
+          "kind": "source_column",
+          "physical_column": "Stage",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Status": "Candidate"
+      },
+      "max_rows": 5,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "commercial_approvals",
+      "slide_number": 14,
+      "kind": "table",
+      "id": "tbl_approvals_other",
+      "sheet": "Commercial Approval",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "account",
+          "kind": "source_column",
+          "physical_column": "Account",
+          "status": "pass"
+        },
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "status",
+          "kind": "source_column",
+          "physical_column": "Status",
+          "status": "pass"
+        },
+        {
+          "column_id": "arr",
+          "kind": "source_column",
+          "physical_column": "ARR Unweighted (EUR)",
+          "status": "pass"
+        }
+      ],
+      "filters": {
+        "Status": {
+          "not_in": [
+            "Approved 2026",
+            "Pending Approval",
+            "Candidate"
+          ]
+        }
+      },
+      "max_rows": 5,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "renewals",
+      "slide_number": 15,
+      "kind": "source_note",
+      "id": "snapshot_date",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "renewals",
+      "slide_number": 15,
+      "kind": "source_note",
+      "id": "territory",
+      "binding_type": "source_note",
+      "status": "pass"
+    },
+    {
+      "slide_id": "renewals",
+      "slide_number": 15,
+      "kind": "takeaway",
+      "id": "renewals_takeaway",
+      "binding_type": "generated_takeaway",
+      "template": "{renewal_count} renewals due FY26, {renewal_acv_eur} ACV ({renewal_q2_count} in Q2, {renewal_q3_count} in Q3).",
+      "max_chars": 180,
+      "required_metrics": [
+        "renewal_count",
+        "renewal_acv",
+        "renewal_q2_count",
+        "renewal_q3_count"
+      ],
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "renewals",
+      "slide_number": 15,
+      "kind": "table",
+      "id": "tbl_renewals",
+      "sheet": "Renewals FY26",
+      "binding_type": "direct_workbook_table",
+      "evidence_only": false,
+      "columns": [
+        {
+          "column_id": "close",
+          "kind": "source_column",
+          "physical_column": "Close Date",
+          "status": "pass"
+        },
+        {
+          "column_id": "account",
+          "kind": "source_column",
+          "physical_column": "Account",
+          "status": "pass"
+        },
+        {
+          "column_id": "opportunity",
+          "kind": "source_column",
+          "physical_column": "Opportunity",
+          "status": "pass"
+        },
+        {
+          "column_id": "owner",
+          "kind": "source_column",
+          "physical_column": "Owner",
+          "status": "pass"
+        },
+        {
+          "column_id": "stage",
+          "kind": "source_column",
+          "physical_column": "Stage",
+          "status": "pass"
+        },
+        {
+          "column_id": "acv",
+          "kind": "source_column",
+          "physical_column": "ACV Unweighted (EUR)",
+          "status": "pass"
+        },
+        {
+          "column_id": "probability",
+          "kind": "source_column",
+          "physical_column": "Probability %",
+          "status": "pass"
+        },
+        {
+          "column_id": "comments",
+          "kind": "source_column",
+          "physical_column": "Comments",
+          "status": "pass"
+        }
+      ],
+      "filters": {},
+      "max_rows": 8,
+      "status": "pass",
+      "detail": ""
+    },
+    {
+      "slide_id": "legal_notice",
+      "slide_number": 16,
+      "kind": "static",
+      "id": "legal_notice_static",
+      "binding_type": "legal_text",
+      "status": "pass"
+    }
+  ]
+}

@@ -745,7 +745,7 @@ def slide_cover(prs, director, territory, snapshot_date):
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_1])
     # Director name front and centre, territory underneath, period subtle.
     _set_ph(slide, 24, f"{director}, {territory}")
-    _set_ph(slide, 20, "Monthly Pipeline Review")
+    _set_ph(slide, 20, "Sales Director Monthly Pipeline Review")
     _set_ph(
         slide,
         22,
@@ -939,19 +939,11 @@ def slide_month_over_month(
         return f"{sign}{_fmt_eur(d)}"
 
     slide = prs.slides.add_slide(prs.slide_layouts[LY_TITLE_CONTENT])
-    _set_ph(
-        slide,
-        144,
-        f"Since last review ({prior['period']}): what moved",
-    )
+    _set_ph(slide, 144, "Since Last Review")
     _set_ph(
         slide,
         145,
-        (
-            "Change in the six headline numbers versus the prior snapshot. "
-            "Currency-converted values (ARR) may shift between runs due to "
-            "ARR shifts between snapshots reflect FX movement."
-        ),
+        f"Since last review ({prior['period']}): what moved",
     )
 
     rows = [
@@ -1026,7 +1018,7 @@ def slide_executive_summary(
     prs, pipeline, won_lost, renewals, kpis, territory, pi_data=None
 ):
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
-    _set_ph(slide, 144, f"Exec. Summary | {territory}")
+    _set_ph(slide, 144, "Executive Summary")
 
     # Pipeline KPIs — both ARR types
     total_opp_arr = sum(_unw(r) for r in pipeline)
@@ -1110,7 +1102,7 @@ def slide_q1_promised_vs_delivered(prs, q1_summary, territory):
         return
 
     slide = prs.slides.add_slide(prs.slide_layouts[LY_4COL_GRAD])
-    _set_ph(slide, 144, f"Q1 Promised vs Delivered | {territory}")
+    _set_ph(slide, 144, "Q1 Promised vs Delivered")
 
     promised = q1_summary.get("promised_arr", 0)
     won_arr = q1_summary.get("won_arr", 0)
@@ -1590,14 +1582,19 @@ def slide_quarter_outlook(
     qtr_won_arr = sum(_unw(r) for r in qtr_won)
     qtr_lost_arr = sum(_unw(r) for r in qtr_lost)
 
-    _set_ph(
-        slide,
-        144,
-        f"{q_label} book {_fmt_eur(qtr_arr)} unweighted, {_fmt_eur(qtr_fc_arr)} weighted. "
-        f"{len(qtr)} deals closing {month_range_label}.",
-    )
+    _set_ph(slide, 144, f"{q_label} Outlook")
     if q_label == "Q3":
         _set_ph(slide, 145, "No Q2 Land pipeline. Showing Q3 forward book.")
+    else:
+        _set_ph(
+            slide,
+            145,
+            (
+                f"{q_label} book {_fmt_eur(qtr_arr)} unweighted, "
+                f"{_fmt_eur(qtr_fc_arr)} weighted. "
+                f"{len(qtr)} deals closing {month_range_label}."
+            ),
+        )
     _set_ph(slide, 42, f"{q_label} Outlook | {territory}")
     _set_ph(slide, 56, f"{q_label} Outlook | {territory}")
     _set_ph(slide, 58, f"{q_label} Outlook | {territory}")
@@ -1723,7 +1720,7 @@ def slide_forecast_accuracy(prs, won_lost, pipeline, territory):
     pipe_deals = [r for r in pipeline if r.get("Forecast Category") == "Pipeline"]
     pipe_arr = sum(_unw(r) for r in pipe_deals)
 
-    _set_ph(slide, 144, f"Forecast Accuracy | {territory}")
+    _set_ph(slide, 144, "Forecast Accuracy")
 
     _set_ph(slide, 42, f"Forecast Accuracy | {territory}")
     _set_ph(slide, 56, f"Forecast Accuracy | {territory}")
@@ -1944,7 +1941,7 @@ def slide_top_deals(prs, pipeline):
 
     total_arr = sum(_unw(r) for r in top)
     if not top:
-        _set_ph(slide, 144, "Key Deals")
+        _set_ph(slide, 144, "Top Open Opportunities")
         _set_ph(
             slide,
             145,
@@ -1956,19 +1953,15 @@ def slide_top_deals(prs, pipeline):
     biggest_arr = _unw(biggest)
     biggest_account = str(biggest.get("Account") or "")
     top5_share = sum(_unw(r) for r in top[:5]) / total_arr if total_arr else 0
+    _set_ph(slide, 144, "Top Open Opportunities")
     _set_ph(
         slide,
-        144,
+        145,
         (
             f"Key {len(top)} open deals = {_fmt_eur(total_arr)}. "
             f"{biggest_account} leads at {_fmt_eur(biggest_arr)}; "
             f"top 5 = {top5_share * 100:.0f}% of this book."
         ),
-    )
-    _set_ph(
-        slide,
-        145,
-        "Open opportunities sorted by deal size. Focus: are these progressing or stalling?",
     )
 
     if top:
@@ -2036,11 +2029,7 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
     fwd_deals = [d for d in risk_deals if _in_forward(d)]
 
     if not fwd_deals:
-        _set_ph(
-            slide,
-            144,
-            f"Key Deals at Risk in {FQ['current']['label']}-{FQ['forward']['label']}, no flags",
-        )
+        _set_ph(slide, 144, "Deal Risk Triage")
         _set_ph(
             slide,
             145,
@@ -2050,15 +2039,11 @@ def slide_deal_risk_scoring(prs, risk_deals, territory):
 
     top = fwd_deals[:10]
     total_arr = sum(d["arr"] for d in top)
-    _set_ph(
-        slide,
-        144,
-        f"Key {len(top)} {FQ['current']['label']}-{FQ['forward']['label']} Deals at Risk, {_fmt_eur(total_arr)} exposed",
-    )
+    _set_ph(slide, 144, "Deal Risk Triage")
     _set_ph(
         slide,
         145,
-        "Deals most likely to slip or miss this quarter, ranked by risk severity.",
+        f"Key {len(top)} {FQ['current']['label']}-{FQ['forward']['label']} Deals at Risk, {_fmt_eur(total_arr)} exposed.",
     )
 
     rows = [
@@ -2277,7 +2262,7 @@ def slide_win_loss_diagnostic(prs, won_lost, territory, dashboard_path=None):
     total_arr = sum(loss["arr"] for loss in losses)
 
     if total_n == 0:
-        _set_ph(slide, 144, f"Why We Lost Q1 | {territory}")
+        _set_ph(slide, 144, "Q1 Loss Drivers")
         _set_ph(slide, 145, "No Q1 Land losses in scope.")
         return
 
@@ -2289,14 +2274,8 @@ def slide_win_loss_diagnostic(prs, won_lost, territory, dashboard_path=None):
         if uncoded
         else f"{total_n} Q1 Land losses, {_fmt_eur(total_arr)}."
     )
-    _set_ph(slide, 144, headline)
-    _set_ph(
-        slide,
-        145,
-        "Left: loss reasons. "
-        "Right: highest stage reached before loss. Early-stage = qualification gap; "
-        "late-stage = execution gap.",
-    )
+    _set_ph(slide, 144, "Q1 Loss Drivers")
+    _set_ph(slide, 145, headline)
 
     # Left table: loss reasons
     from collections import defaultdict
@@ -2411,18 +2390,14 @@ def slide_owner_coaching(prs, slip_owners, risk_deals, territory):
     ranked = sorted(slip_owners, key=_score, reverse=True)[:3]
     total_pushes = sum(o["pushes"] for o in ranked)
     total_arr = sum(o["arr"] for o in ranked)
+    _set_ph(slide, 144, "Owner Coaching Priorities")
     _set_ph(
         slide,
-        144,
+        145,
         (
             f"{len(ranked)} owners carry {total_pushes} pushes across "
             f"{_fmt_eur(total_arr)}. Coach in this order."
         ),
-    )
-    _set_ph(
-        slide,
-        145,
-        "Owners with the highest push exposure this period. Use for 1:1 conversation prep.",
     )
 
     tbl = [
@@ -2654,7 +2629,7 @@ def slide_commercial_approvals(prs, approvals, territory):
     n_pending = len(pending)
     n_missing = len(missing)
     if n_approved == 0 and n_pending == 0 and n_missing == 0:
-        _set_ph(slide, 144, "Commercial Approvals: none this cycle")
+        _set_ph(slide, 144, "Commercial Approvals")
     else:
         parts = []
         if n_approved:
@@ -2663,9 +2638,10 @@ def slide_commercial_approvals(prs, approvals, territory):
             parts.append(f"{n_pending} pending")
         if n_missing:
             parts.append(f"{n_missing} missing Stage 3+")
+        _set_ph(slide, 144, "Commercial Approvals")
         _set_ph(
             slide,
-            144,
+            145,
             "Commercial Approvals: " + ", ".join(parts) + ".",
         )
 
@@ -2929,16 +2905,17 @@ def slide_renewals(prs, renewals):
         q_breakdown = ", ".join(
             f"{by_q[q]} in {q}" for q in ("Q1", "Q2", "Q3", "Q4") if by_q[q]
         )
+        _set_ph(slide, 144, "FY26 Renewals")
         _set_ph(
             slide,
-            144,
+            145,
             (
                 f"{len(annual)} renewals due {_fy_label}, {_fmt_eur(total_acv)} ACV "
                 f"({q_breakdown})."
             ),
         )
     else:
-        _set_ph(slide, 144, f"Renewals {_fy_label}: none this cycle")
+        _set_ph(slide, 144, "FY26 Renewals")
     if annual:
         _set_ph(
             slide,
@@ -3134,9 +3111,7 @@ def slide_pushed_deals(prs, pi_data):
     exposed = sum(_wtd(r) for r in pushed)
     critical = len([r for r in pushed if int(r.get("Push Count") or 0) >= 5])
 
-    _set_ph(
-        slide, 144, f"Pushed Deals: {total} deals | {_fmt_eur(exposed)} exposed ARR"
-    )
+    _set_ph(slide, 144, "Pushed Deals")
     _set_ph(slide, 42, "Total Pushed")
     _set_ph(slide, 56, "Avg Pushes")
     _set_ph(slide, 58, "Exposed ARR")
@@ -3362,9 +3337,7 @@ def slide_pushed_deals_with_link(prs, pi_data, territory, q1_movement=None):
     tiers = _push_tiers(pi_data)
     owner_callout = _top_pushed_owner(pi_data)
 
-    _set_ph(
-        slide, 144, f"Pushed Deals: {total} deals | {_fmt_eur(exposed)} exposed ARR"
-    )
+    _set_ph(slide, 144, "Pushed Deals")
     _set_ph(slide, 42, "Pushed Deals Summary")
     _set_ph(slide, 56, "Pushed Deals Summary")
     _set_ph(slide, 58, "Pushed Deals Summary")
@@ -3419,15 +3392,11 @@ def slide_q1_movement(prs, q1_movement):
     slipped_arr = sum(_unw(r) for r in slipped)
     sum(_unw(r) for r in pushed)
 
-    _set_ph(
-        slide,
-        144,
-        f"{len(slipped)} deals slipped out of Q1 ({_fmt_eur(slipped_arr)}). {len(pushed)} pushed since.",
-    )
+    _set_ph(slide, 144, "Q1 Slippage")
     _set_ph(
         slide,
         145,
-        "Deals that had Q1 close dates and moved, plus post-Q1 close date changes",
+        f"{len(slipped)} deals slipped out of Q1 ({_fmt_eur(slipped_arr)}). {len(pushed)} pushed since.",
     )
 
     # Top slipped + pushed by ARR
@@ -3475,7 +3444,7 @@ def slide_forecast_combined(prs, won_lost, pipeline, pi_data, territory):
         _unw(r) for r in pipeline if r.get("Forecast Category") == "Commit"
     )
 
-    _set_ph(slide, 144, f"Forecast Accuracy | {territory}")
+    _set_ph(slide, 144, "Forecast Accuracy")
     _set_ph(slide, 42, f"Forecast Accuracy - {territory}")
     _set_ph(slide, 56, f"Forecast Accuracy - {territory}")
     _set_ph(slide, 58, f"Forecast Accuracy - {territory}")
@@ -3507,19 +3476,15 @@ def slide_forecast_combined(prs, won_lost, pipeline, pi_data, territory):
         total_pi_arr = sum(b["arr"] for b in fc.values())
         commit_arr = fc.get("Commit", {}).get("arr", 0.0)
         commit_share = commit_arr / total_pi_arr if total_pi_arr else 0
+        _set_ph(slide2, 144, "Forecast Mix")
         _set_ph(
             slide2,
-            144,
+            145,
             (
                 f"Forecast Breakdown: {_fmt_eur(total_pi_arr)} across {len(pi_data)} "
                 f"open deals. Commit = {_fmt_eur(commit_arr)} "
                 f"({commit_share * 100:.0f}%)."
             ),
-        )
-        _set_ph(
-            slide2,
-            145,
-            "Commit is the floor you can bank; Best Case + Pipeline is the upside.",
         )
 
         rows = [["Category", "Deals", "ARR (mEUR)"]]
