@@ -57,6 +57,7 @@ from scripts.monthly_platform import brand_contract  # noqa: E402
 from scripts.monthly_platform import deck_binding_resolver  # noqa: E402
 from scripts.monthly_platform import deck_contract  # noqa: E402
 from scripts.monthly_platform import director_workbook_contract  # noqa: E402
+from scripts.monthly_platform import lineage  # noqa: E402  (Track J-Lite)
 from scripts.validate_deck_render import validate_render  # noqa: E402
 from scripts.validate_deck_visual_regression import (  # noqa: E402
     DEFAULT_BASELINE_PATH,
@@ -117,6 +118,8 @@ def build_release_packet(
     visual_baseline_path: Path = DEFAULT_BASELINE_PATH,
     visual_regions_path: Path = DEFAULT_REGIONS_PATH,
     skip_visual: bool = False,
+    lineage_dir: Path | None = None,
+    lineage_emitter: lineage.LineageEmitter | None = None,
 ) -> dict[str, Any]:
     deck = deck_contract.load(deck_contract_path)
     workbook_c = director_workbook_contract.load(workbook_contract_path)
@@ -124,8 +127,44 @@ def build_release_packet(
     summaries: list[dict[str, Any]] = []
     detail_reports: dict[str, Any] = {}
 
+    # Optional Track J-Lite lineage emission. When ``lineage_dir`` is
+    # provided (and no caller-supplied emitter), wrap every validator
+    # stage in OpenLineage START / COMPLETE events.
+    emitter: lineage.LineageEmitter | None = lineage_emitter
+    if emitter is None and lineage_dir is not None:
+        emitter = lineage.LineageEmitter(out_dir=lineage_dir)
+
+    contract_inputs = [
+        ds
+        for ds in (
+            lineage.file_dataset(deck.path),
+            lineage.file_dataset(workbook_c.path),
+        )
+        if ds is not None
+    ]
+
+    def _open(stage: str, *, inputs=None, outputs=None) -> None:
+        if emitter is not None:
+            emitter.start_job(stage, inputs=inputs or [], outputs=outputs or [])
+
+    def _close(stage: str, status: str, summary: dict[str, Any], **extra) -> None:
+        if emitter is None:
+            return
+        ol_status = "COMPLETE" if status in ("pass", "skipped") else "FAIL"
+        emitter.complete_job(
+            stage,
+            status=ol_status,
+            result_facets={
+                "validator_status": status,
+                "blockers": summary.get("blockers", 0),
+                "warnings": summary.get("warnings", 0),
+                **{k: v for k, v in extra.items() if v is not None},
+            },
+        )
+
     # 1. deck_contract structural
-    findings, deck_report = deck_contract.validate(deck, workbook_contract=workbook_c)
+    _open("deck_contract", inputs=contract_inputs)
+    _, deck_report = deck_contract.validate(deck, workbook_contract=workbook_c)
     summaries.append(
         _summarise(
             "deck_contract",
@@ -136,8 +175,10 @@ def build_release_packet(
         )
     )
     detail_reports["deck_contract"] = deck_report
+    _close("deck_contract", deck_report["status"], summaries[-1])
 
     # 2. workbook_contract structural
+    _open("director_workbook_contract", inputs=contract_inputs[1:2])
     _, wbc_report = director_workbook_contract.validate(workbook_c)
     summaries.append(
         _summarise(
@@ -150,8 +191,14 @@ def build_release_packet(
         )
     )
     detail_reports["director_workbook_contract"] = wbc_report
+    _close("director_workbook_contract", wbc_report["status"], summaries[-1])
 
     # 3. real workbook validation
+    workbook_ds = lineage.file_dataset(workbook)
+    _open(
+        "director_workbook_validation",
+        inputs=[contract_inputs[1]] + ([workbook_ds] if workbook_ds else []),
+    )
     real_wb_report = validate_real_workbook(workbook, contract=workbook_c)
     summaries.append(
         _summarise(
@@ -168,8 +215,13 @@ def build_release_packet(
         )
     )
     detail_reports["director_workbook_validation"] = real_wb_report
+    _close("director_workbook_validation", real_wb_report["status"], summaries[-1])
 
     # 4. binding resolver
+    _open(
+        "deck_bindings",
+        inputs=contract_inputs + ([workbook_ds] if workbook_ds else []),
+    )
     binding_report = deck_binding_resolver.resolve(
         workbook_path=workbook, deck=deck, workbook=workbook_c
     )
@@ -183,8 +235,14 @@ def build_release_packet(
         )
     )
     detail_reports["deck_bindings"] = binding_report
+    _close("deck_bindings", binding_report["status"], summaries[-1])
 
     # 5. PPTX contract
+    pptx_ds = lineage.file_dataset(pptx)
+    _open(
+        "pptx_contract",
+        inputs=[contract_inputs[0]] + ([pptx_ds] if pptx_ds else []),
+    )
     pptx_report = validate_pptx(pptx, contract=deck)
     summaries.append(
         _summarise(
@@ -197,8 +255,16 @@ def build_release_packet(
         )
     )
     detail_reports["pptx_contract"] = pptx_report
+    _close("pptx_contract", pptx_report["status"], summaries[-1])
 
     # 6. brand fingerprint
+    template_ds = lineage.file_dataset(
+        REPO_ROOT / "assets" / "SimCorp_PPT_Template.pptx"
+    )
+    _open(
+        "brand_fingerprint",
+        inputs=[contract_inputs[0]] + ([template_ds] if template_ds else []),
+    )
     brand_report = brand_contract.validate_brand(deck)
     summaries.append(
         _summarise(
@@ -215,8 +281,13 @@ def build_release_packet(
         )
     )
     detail_reports["brand_fingerprint"] = brand_report.as_dict()
+    _close("brand_fingerprint", brand_report.status, summaries[-1])
 
     # 7. render gates
+    _open(
+        "deck_render",
+        inputs=[contract_inputs[0]] + ([pptx_ds] if pptx_ds else []),
+    )
     render_report = validate_render(pptx, contract=deck)
     summaries.append(
         _summarise(
@@ -228,9 +299,16 @@ def build_release_packet(
         )
     )
     detail_reports["deck_render"] = render_report
+    _close("deck_render", render_report["status"], summaries[-1])
 
     # 8. visual regression (optional — needs soffice)
     if not skip_visual:
+        baseline_ds = lineage.file_dataset(visual_baseline_path)
+        regions_ds = lineage.file_dataset(visual_regions_path)
+        _open(
+            "deck_visual_regression",
+            inputs=[ds for ds in (baseline_ds, regions_ds, pptx_ds) if ds is not None],
+        )
         regions = _load_regions(visual_regions_path)
         snapshot = hash_deck(pptx, contract=deck, regions=regions, dpi=100)
         visual_report = verify_against_baseline(snapshot, visual_baseline_path)
@@ -244,12 +322,23 @@ def build_release_packet(
             )
         )
         detail_reports["deck_visual_regression"] = visual_report
+        _close("deck_visual_regression", visual_report["status"], summaries[-1])
     else:
         summaries.append(
             _summarise(
                 "deck_visual_regression", "skipped", 0, 0, reason="--skip-visual"
             )
         )
+        if emitter is not None:
+            emitter.start_job("deck_visual_regression")
+            emitter.complete_job(
+                "deck_visual_regression",
+                status="ABORT",
+                result_facets={
+                    "validator_status": "skipped",
+                    "reason": "--skip-visual",
+                },
+            )
 
     # Aggregate decision
     total_blockers = sum(int(s["blockers"]) for s in summaries)
@@ -278,7 +367,7 @@ def build_release_packet(
         "produced_pptx": _digest_of(pptx),
     }
 
-    return {
+    report: dict[str, Any] = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "publish_decision": decision,
@@ -292,6 +381,42 @@ def build_release_packet(
         "artifact_digests": artifact_digests,
         "detail_reports": detail_reports,
     }
+
+    # If lineage was emitted, materialise lineage_index.json and the
+    # slide_to_source_map.json into the same out_dir, and surface their
+    # paths + run_id in the packet for downstream waiver/release tooling.
+    if emitter is not None:
+        index = lineage.build_lineage_index(emitter.events_dir, run_id=emitter.run_id)
+        index_path = emitter.out_dir / "lineage_index.json"
+        index_path.write_text(
+            json.dumps(index, indent=2, default=str) + "\n", encoding="utf-8"
+        )
+
+        slide_map = lineage.build_slide_to_source_map(
+            deck,
+            binding_report=binding_report,
+            workbook_path=workbook,
+            workbook_contract_path=workbook_c.path,
+        )
+        slide_map_path = emitter.out_dir / "slide_to_source_map.json"
+        slide_map_path.write_text(
+            json.dumps(slide_map, indent=2, default=str) + "\n", encoding="utf-8"
+        )
+
+        report["lineage"] = {
+            "run_id": emitter.run_id,
+            "out_dir": str(emitter.out_dir),
+            "events_dir": str(emitter.events_dir),
+            "lineage_index_path": str(index_path),
+            "slide_to_source_map_path": str(slide_map_path),
+            "event_count": len(emitter.all_events()),
+            "job_count": index["summary"]["job_count"],
+            "dataset_count": index["summary"]["dataset_count"],
+            "slide_count": slide_map["slide_count"],
+            "distinct_dataset_count": slide_map["distinct_dataset_count"],
+        }
+
+    return report
 
 
 def render_markdown(report: dict[str, Any]) -> str:
@@ -346,6 +471,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--md-out", type=Path, default=None)
     parser.add_argument("--show-summaries", action="store_true")
+    parser.add_argument(
+        "--lineage-dir",
+        type=Path,
+        default=None,
+        help=(
+            "When set, emit OpenLineage START/COMPLETE events per "
+            "validator stage plus lineage_index.json + slide_to_source_map.json."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not args.workbook.exists():
@@ -363,6 +497,7 @@ def main(argv: list[str] | None = None) -> int:
         visual_baseline_path=args.visual_baseline,
         visual_regions_path=args.visual_regions,
         skip_visual=args.skip_visual,
+        lineage_dir=args.lineage_dir,
     )
 
     if args.out:
@@ -387,6 +522,14 @@ def main(argv: list[str] | None = None) -> int:
         f"({report['validators_pass']}/{report['validator_count']} pass, "
         f"{report['blocker_total']} blockers, {report['warning_total']} warnings)"
     )
+    if "lineage" in report:
+        ln = report["lineage"]
+        print(
+            f"lineage: run_id={ln['run_id']} "
+            f"events={ln['event_count']} jobs={ln['job_count']} "
+            f"datasets={ln['dataset_count']} "
+            f"slides={ln['slide_count']} -> {ln['out_dir']}"
+        )
     return 0 if report["publish_decision"] == "publish_ready" else 1
 
 

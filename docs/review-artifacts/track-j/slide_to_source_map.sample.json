@@ -1,0 +1,851 @@
+{
+  "schema_version": "monthly_platform.slide_to_source_map.v1",
+  "captured_at": "2026-04-27T22:55:07.428102+00:00",
+  "profile_id": "director_monthly",
+  "deck_contract_path": "/Users/test/crm-analytics/config/deck_contract.yaml",
+  "workbook_path": "/Users/test/Downloads/jesper-tyrer-2026-04-20.xlsx",
+  "workbook_contract_path": "/Users/test/crm-analytics/config/director_workbook_contract.yaml",
+  "slide_count": 16,
+  "distinct_dataset_count": 7,
+  "slides": [
+    {
+      "slide_id": "cover",
+      "slide_number": 1,
+      "title": "Sales Director Monthly Pipeline Review",
+      "layout": "cover",
+      "purpose": "Cover \u2014 director identity, territory, scope, snapshot.",
+      "definition": null,
+      "period": null,
+      "population": null,
+      "sources": [
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        },
+        {
+          "kind": "source_note",
+          "id": "analysis_scope"
+        }
+      ]
+    },
+    {
+      "slide_id": "executive_summary",
+      "slide_number": 2,
+      "title": "Executive Summary",
+      "layout": "kpi_cards",
+      "purpose": "KPI cards + narrative bullets for the director's headline numbers.",
+      "definition": "final_open_pipeline",
+      "period": {
+        "role": "open",
+        "start": "2026-04-01",
+        "end": "2026-09-30"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "current_close_date"
+      },
+      "sources": [
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "open_arr_unweighted",
+            "open_arr_weighted",
+            "open_deal_count"
+          ],
+          "template": "{territory}: {open_arr_unweighted_eur} open ({open_arr_weighted_eur} weighted) across {open_deal_count} deals.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "since_last_review",
+      "slide_number": 3,
+      "title": "Since Last Review",
+      "layout": "table_with_takeaway",
+      "purpose": "Movement table \u2014 what changed between prior_snapshot_date and snapshot_date.",
+      "definition": null,
+      "period": null,
+      "population": null,
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_since_last_review",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Q1 Movement",
+          "physical_columns": [
+            "<computed:bucket_label>",
+            "<computed:bucket_label>",
+            "<computed:bucket_label>",
+            "<computed:bucket_arr_impact>"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "net_movement_eur",
+            "movement_event_count"
+          ],
+          "template": "Since {prior_snapshot_date}: {net_movement_eur} net change across {movement_event_count} events.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "movement_window"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        }
+      ]
+    },
+    {
+      "slide_id": "q1_promised_delivered",
+      "slide_number": 4,
+      "title": "Q1 Promised vs Delivered",
+      "layout": "kpi_cards",
+      "purpose": "KPI cards comparing Q1 opening pipeline to Q1 closed outcome.",
+      "definition": "opening_pipeline",
+      "period": {
+        "role": "q1",
+        "start": "2026-01-01",
+        "end": "2026-03-31"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "q1_historical_snapshot"
+      },
+      "sources": [
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "q1_opening_arr",
+            "q1_opening_deal_count",
+            "q1_committed_arr"
+          ],
+          "template": "Q1 opened at {q1_opening_arr_eur} across {q1_opening_deal_count} deals. Committed (stage 4+): {q1_committed_arr_eur}.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "q1_loss_drivers",
+      "slide_number": 5,
+      "title": "Q1 Loss Drivers",
+      "layout": "dual_table",
+      "purpose": "Two tables \u2014 loss reason breakdown + stage reached for losses.",
+      "definition": "closed_outcome",
+      "period": {
+        "role": "q1",
+        "start": "2026-01-01",
+        "end": "2026-03-31"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "q1_historical_snapshot"
+      },
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_q1_loss_reasons",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Won Lost FY26",
+          "physical_columns": [
+            "Reason",
+            "<computed:row_count>",
+            "ARR Unweighted (EUR)"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "table",
+          "table_id": "tbl_q1_loss_stage_reached",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Won Lost FY26",
+          "physical_columns": [
+            "Stage",
+            "<computed:row_count>",
+            "ARR Unweighted (EUR)"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "q1_loss_count",
+            "q1_loss_arr",
+            "q1_losses_missing_reason"
+          ],
+          "template": "{q1_loss_count} Q1 Land losses, {q1_loss_arr_eur}. {q1_losses_missing_reason} missing reason code.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        },
+        {
+          "kind": "source_note",
+          "id": "period"
+        }
+      ]
+    },
+    {
+      "slide_id": "q2_outlook",
+      "slide_number": 6,
+      "title": "Q2 Outlook",
+      "layout": "kpi_cards",
+      "purpose": "KPI cards for Q2 book \u2014 unweighted, weighted, deal count.",
+      "definition": "final_open_pipeline",
+      "period": {
+        "role": "q2",
+        "start": "2026-04-01",
+        "end": "2026-06-30"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "current_close_date"
+      },
+      "sources": [
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "q2_open_arr_unweighted",
+            "q2_open_arr_weighted",
+            "q2_open_deal_count"
+          ],
+          "template": "Q2 book {q2_open_arr_unweighted_eur} unweighted, {q2_open_arr_weighted_eur} weighted. {q2_open_deal_count} deals closing Apr-Jun.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        },
+        {
+          "kind": "source_note",
+          "id": "period"
+        }
+      ]
+    },
+    {
+      "slide_id": "top_open_opportunities",
+      "slide_number": 7,
+      "title": "Top Open Opportunities",
+      "layout": "table_with_takeaway",
+      "purpose": "Top-N open Land deals by unweighted ARR.",
+      "definition": "final_open_pipeline",
+      "period": {
+        "role": "open",
+        "start": "2026-04-01",
+        "end": "2026-09-30"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "current_close_date"
+      },
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_top_open_opportunities",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Pipeline Open FY26",
+          "physical_columns": [
+            "Account",
+            "Opportunity",
+            "Owner",
+            "Stage",
+            "Close Date",
+            "<computed:days_to_close>",
+            "ARR Unweighted (EUR)",
+            "ARR Weighted (EUR)"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "top_n",
+            "top_n_arr",
+            "top_account",
+            "top_account_arr",
+            "top_5_share_pct"
+          ],
+          "template": "Top {top_n} open deals = {top_n_arr_eur}. {top_account} leads at {top_account_arr_eur}; top 5 = {top_5_share_pct} of this book.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "deal_risk_triage",
+      "slide_number": 8,
+      "title": "Deal Risk Triage",
+      "layout": "table_with_takeaway",
+      "purpose": "Top Q2-Q3 deals at risk by Pipeline Inspection score/priority.",
+      "definition": "final_open_pipeline",
+      "period": {
+        "role": "q2_q3",
+        "start": "2026-04-01",
+        "end": "2026-09-30"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "current_close_date"
+      },
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_deal_risk_triage",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Pipeline Inspection",
+          "physical_columns": [
+            "<computed:row_count>",
+            "Score",
+            "Opportunity",
+            "Opportunity",
+            "Stage",
+            "Close Date",
+            "ARR Weighted (EUR)",
+            "<computed:readiness_status>"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "risk_top_n",
+            "risk_arr"
+          ],
+          "template": "Top {risk_top_n} Q2-Q3 deals at risk, {risk_arr_eur} exposed.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "owner_coaching",
+      "slide_number": 9,
+      "title": "Owner Coaching Priorities",
+      "layout": "table_with_takeaway",
+      "purpose": "Owner-level rollup of pushes + open ARR for coaching priorities.",
+      "definition": "final_open_pipeline",
+      "period": {
+        "role": "open",
+        "start": "2026-04-01",
+        "end": "2026-09-30"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "current_close_date"
+      },
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_owner_coaching",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Pipeline Open FY26",
+          "physical_columns": [
+            "Owner",
+            "<computed:row_count>",
+            "ARR Unweighted (EUR)",
+            "Push Count",
+            "<computed:readiness_status>",
+            "<computed:readiness_status>"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "coach_owner_count",
+            "coach_total_pushes",
+            "coach_total_arr"
+          ],
+          "template": "{coach_owner_count} owners carry {coach_total_pushes} pushes across {coach_total_arr_eur}. Coach in this order.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "pushed_deals",
+      "slide_number": 10,
+      "title": "Pushed Deals",
+      "layout": "kpi_cards_with_link",
+      "purpose": "Pushed-deal headline + Salesforce link for live drill.",
+      "definition": null,
+      "period": null,
+      "population": null,
+      "sources": [
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "pushed_deal_count",
+            "pushed_top_owner",
+            "pushed_top_owner_count"
+          ],
+          "template": "{pushed_deal_count} open deals pushed. {pushed_top_owner} owns {pushed_top_owner_count} of the most-pushed deals; pattern review.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        },
+        {
+          "kind": "source_note",
+          "id": "salesforce_drill_link"
+        },
+        {
+          "kind": "link",
+          "id": "salesforce_pushed_deals",
+          "label": "Open in Salesforce",
+          "link_kind": "salesforce_list_view"
+        }
+      ]
+    },
+    {
+      "slide_id": "q1_slippage",
+      "slide_number": 11,
+      "title": "Q1 Slippage",
+      "layout": "table_with_takeaway",
+      "purpose": "Deals that slipped out of Q1 + their post-slip behavior.",
+      "definition": "historical_trending_delta",
+      "period": {
+        "role": "q1",
+        "start": "2026-01-01",
+        "end": "2026-03-31"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "q1_original_close_date"
+      },
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_q1_slippage",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Q1 Movement",
+          "physical_columns": [
+            "Account",
+            "Opportunity",
+            "Movement",
+            "Old Close",
+            "New Close",
+            "Changed On",
+            "ARR Unweighted (EUR)"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "slipped_deal_count",
+            "slipped_arr",
+            "pushed_since_count"
+          ],
+          "template": "{slipped_deal_count} deals slipped out of Q1 ({slipped_arr_eur}). {pushed_since_count} pushed since.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "forecast_accuracy",
+      "slide_number": 12,
+      "title": "Forecast Accuracy",
+      "layout": "kpi_cards",
+      "purpose": "KPI cards comparing forecast commitments to closed outcomes.",
+      "definition": "closed_outcome",
+      "period": {
+        "role": "q1",
+        "start": "2026-01-01",
+        "end": "2026-03-31"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "q1_historical_snapshot"
+      },
+      "sources": [
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "closed_won_count",
+            "closed_won_unit",
+            "closed_won_arr"
+          ],
+          "template": "{closed_won_count} {closed_won_unit} closed-won ({closed_won_arr_eur}).",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        },
+        {
+          "kind": "source_note",
+          "id": "period"
+        }
+      ]
+    },
+    {
+      "slide_id": "forecast_mix",
+      "slide_number": 13,
+      "title": "Forecast Mix",
+      "layout": "table_with_takeaway",
+      "purpose": "Open Land pipeline by forecast category.",
+      "definition": "final_open_pipeline",
+      "period": {
+        "role": "open",
+        "start": "2026-04-01",
+        "end": "2026-09-30"
+      },
+      "population": {
+        "type": "Land",
+        "territory": "${territory}",
+        "close_date_scope": "current_close_date"
+      },
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_forecast_mix",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Commit Items",
+          "physical_columns": [
+            "Forecast Category",
+            "<computed:row_count>",
+            "Forecast ARR Wtd (EUR)"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "forecast_mix_total_arr",
+            "forecast_mix_deal_count",
+            "forecast_commit_arr",
+            "forecast_commit_pct"
+          ],
+          "template": "Forecast mix: {forecast_mix_total_arr_eur} across {forecast_mix_deal_count} open deals. Commit = {forecast_commit_arr_eur} ({forecast_commit_pct}).",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "commercial_approvals",
+      "slide_number": 14,
+      "title": "Commercial Approvals",
+      "layout": "quad_table",
+      "purpose": "Approval status \u2014 distinguish approved-2026, pending approval, candidate.",
+      "definition": null,
+      "period": null,
+      "population": null,
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_approvals_approved_2026",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Commercial Approval",
+          "physical_columns": [
+            "Lead Scope",
+            "<computed:row_count>",
+            "ARR Unweighted (EUR)",
+            "ARR Unweighted (EUR)"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "table",
+          "table_id": "tbl_approvals_pending",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Commercial Approval",
+          "physical_columns": [
+            "Lead Scope",
+            "<computed:row_count>",
+            "ARR Unweighted (EUR)",
+            "ARR Unweighted (EUR)"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "table",
+          "table_id": "tbl_approvals_candidate",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Commercial Approval",
+          "physical_columns": [
+            "Opportunity",
+            "ARR Unweighted (EUR)",
+            "Next Step"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "table",
+          "table_id": "tbl_approvals_other",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Commercial Approval",
+          "physical_columns": [
+            "Opportunity",
+            "ARR Unweighted (EUR)"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "approved_2026_count",
+            "pending_approval_count",
+            "candidate_count"
+          ],
+          "template": "{approved_2026_count} approved 2026; {pending_approval_count} pending; {candidate_count} candidate.",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "renewals",
+      "slide_number": 15,
+      "title": "FY26 Renewals",
+      "layout": "table_with_takeaway",
+      "purpose": "FY26 renewal exposure by close date.",
+      "definition": "final_open_pipeline",
+      "period": {
+        "role": "fy26",
+        "start": "2026-01-01",
+        "end": "2026-12-31"
+      },
+      "population": {
+        "type": "Renewal",
+        "territory": "${territory}",
+        "close_date_scope": "current_close_date"
+      },
+      "sources": [
+        {
+          "kind": "table",
+          "table_id": "tbl_renewals",
+          "binding_type": "direct_workbook_table",
+          "source": "director_workbook",
+          "sheet": "Renewals FY26",
+          "physical_columns": [
+            "Close Date",
+            "Account",
+            "Opportunity",
+            "Owner",
+            "Stage",
+            "ACV Unweighted (EUR)",
+            "Probability %",
+            "Comments"
+          ],
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "takeaway",
+          "binding_type": "generated_takeaway",
+          "required_metrics": [
+            "renewal_count",
+            "renewal_acv",
+            "renewal_q2_count",
+            "renewal_q3_count"
+          ],
+          "template": "{renewal_count} renewals due FY26, {renewal_acv_eur} ACV ({renewal_q2_count} in Q2, {renewal_q3_count} in Q3).",
+          "resolution_status": "pass"
+        },
+        {
+          "kind": "source_note",
+          "id": "snapshot_date"
+        },
+        {
+          "kind": "source_note",
+          "id": "territory"
+        }
+      ]
+    },
+    {
+      "slide_id": "legal_notice",
+      "slide_number": 16,
+      "title": "Legal Notice",
+      "layout": "legal",
+      "purpose": "Static SimCorp legal disclaimer slide.",
+      "definition": null,
+      "period": null,
+      "population": null,
+      "sources": [
+        {
+          "kind": "static",
+          "binding_type": "legal_text"
+        }
+      ]
+    }
+  ],
+  "distinct_datasets": [
+    {
+      "dataset_name": "director_workbook::Commercial Approval",
+      "kind": "workbook_sheet",
+      "sheet": "Commercial Approval",
+      "consumed_by_slides": [
+        "commercial_approvals"
+      ]
+    },
+    {
+      "dataset_name": "director_workbook::Commit Items",
+      "kind": "workbook_sheet",
+      "sheet": "Commit Items",
+      "consumed_by_slides": [
+        "forecast_mix"
+      ]
+    },
+    {
+      "dataset_name": "director_workbook::Pipeline Inspection",
+      "kind": "workbook_sheet",
+      "sheet": "Pipeline Inspection",
+      "consumed_by_slides": [
+        "deal_risk_triage"
+      ]
+    },
+    {
+      "dataset_name": "director_workbook::Pipeline Open FY26",
+      "kind": "workbook_sheet",
+      "sheet": "Pipeline Open FY26",
+      "consumed_by_slides": [
+        "top_open_opportunities",
+        "owner_coaching"
+      ]
+    },
+    {
+      "dataset_name": "director_workbook::Q1 Movement",
+      "kind": "workbook_sheet",
+      "sheet": "Q1 Movement",
+      "consumed_by_slides": [
+        "since_last_review",
+        "q1_slippage"
+      ]
+    },
+    {
+      "dataset_name": "director_workbook::Renewals FY26",
+      "kind": "workbook_sheet",
+      "sheet": "Renewals FY26",
+      "consumed_by_slides": [
+        "renewals"
+      ]
+    },
+    {
+      "dataset_name": "director_workbook::Won Lost FY26",
+      "kind": "workbook_sheet",
+      "sheet": "Won Lost FY26",
+      "consumed_by_slides": [
+        "q1_loss_drivers"
+      ]
+    }
+  ]
+}

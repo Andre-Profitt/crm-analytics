@@ -134,6 +134,7 @@ class CatalogResult:
             "waiver_loader_findings": self.waiver_findings,
             "artifact_digests": self.artifact_digests,
             "release_packet_summaries": self.release_packet.get("summaries", []),
+            "lineage": self.release_packet.get("lineage"),
         }
 
 
@@ -147,14 +148,17 @@ def build_release_catalog(
     waiver_dir: Path | None = None,
     run_id: str | None = None,
     skip_visual: bool = False,
+    lineage_dir: Path | None = None,
 ) -> CatalogResult:
-    # 1. Run all validators via Track G-Lite.
+    # 1. Run all validators via Track G-Lite. Optional Track J-Lite
+    # lineage events emit when ``lineage_dir`` is provided.
     packet = build_release_packet(
         workbook=workbook,
         pptx=pptx,
         deck_contract_path=deck_contract_path,
         workbook_contract_path=workbook_contract_path,
         skip_visual=skip_visual,
+        lineage_dir=lineage_dir,
     )
 
     # 2. Load policy + waivers.

@@ -33,6 +33,7 @@ name: Track E — contract validators
       - "scripts/build_release_catalog.py"
       - "scripts/monthly_platform/release_catalog.py"
       - "scripts/monthly_platform/waivers.py"
+      - "scripts/monthly_platform/lineage.py"
       - "config/deck_visual_regions.yaml"
       - "config/release_policy.yaml"
       - "config/waivers/**"
@@ -40,6 +41,7 @@ name: Track E — contract validators
       - "tests/test_track_g_*.py"
       - "tests/test_track_k_*.py"
       - "tests/test_track_em2_*.py"
+      - "tests/test_track_j_*.py"
       - "assets/SimCorp_PPT_Template.pptx"
       - "tests/test_track_e_*.py"
       - "tests/test_track_f_*.py"
@@ -90,6 +92,7 @@ jobs:
             tests/test_track_g_*.py \
             tests/test_track_em2_*.py \
             tests/test_track_k_*.py \
+            tests/test_track_j_*.py \
             -v
 
       - name: Surface Track E test summary on failure

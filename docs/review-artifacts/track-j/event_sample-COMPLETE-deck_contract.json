@@ -1,0 +1,30 @@
+{
+  "eventType": "COMPLETE",
+  "eventTime": "2026-04-27T22:55:07.095296+00:00",
+  "producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json",
+  "run": {
+    "runId": "59fb3528-b778-4b05-a9e8-e6d50dc047fa",
+    "facets": {
+      "timing": {
+        "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+        "start_seq": 1,
+        "start_time": "2026-04-27T22:55:07.072894+00:00",
+        "end_time": "2026-04-27T22:55:07.095296+00:00"
+      },
+      "result": {
+        "_producer": "https://github.com/anthropic-internal/crm-analytics/track-j-lite",
+        "validator_status": "pass",
+        "blockers": 0,
+        "warnings": 0
+      }
+    }
+  },
+  "job": {
+    "namespace": "crm-analytics.monthly-release",
+    "name": "deck_contract"
+  },
+  "inputs": [],
+  "outputs": [],
+  "_seq": 2
+}

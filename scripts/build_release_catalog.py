@@ -43,6 +43,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--md-out", type=Path, default=None)
     parser.add_argument("--show-applied", action="store_true")
+    parser.add_argument(
+        "--lineage-dir",
+        type=Path,
+        default=None,
+        help=(
+            "When set, emit Track J-Lite OpenLineage events plus "
+            "lineage_index.json + slide_to_source_map.json into this dir."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not args.workbook.exists():
@@ -61,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         waiver_dir=args.waiver_dir,
         run_id=args.run_id,
         skip_visual=args.skip_visual,
+        lineage_dir=args.lineage_dir,
     )
 
     if args.out:
