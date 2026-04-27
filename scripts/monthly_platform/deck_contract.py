@@ -85,7 +85,7 @@ class DeckContract:
 
     @property
     def director_monthly(self) -> dict[str, Any]:
-        return self.profiles["director_monthly"]
+        return self.profiles.get("director_monthly", {})
 
     @property
     def director_monthly_slides(self) -> list[dict[str, Any]]:
