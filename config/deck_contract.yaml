@@ -1,33 +1,32 @@
-# Track E — Deck Contract (Milestone 1)
+# Track E — Deck Contract (Milestone 1, retargeted to director_monthly)
 #
-# Single source of truth for the source-backed monthly review deck. Defines:
-#   - the SimCorp brand template the deck is built from
-#   - the validated warehouse marts the deck is allowed to read
-#   - per-slide bindings (id, slide_number, title, layout, required text,
-#     metric/table bindings to mart columns)
+# Single source of truth for the director-facing Sales Director Monthly
+# review deck. Anchored against:
+#   - jesper-tyrer-LAND.pptx (2026-04-20 APAC, Rebekka-aligned, v2->v13 chain)
+#   - jesper-tyrer-2026-04-20.xlsx (13-sheet APAC live director workbook)
+#   - build_sd_monthly_deck_v2.py builder lineage
 #
-# Anchored against the v20d ETL spine freeze (2026-04-30). Every mart
-# referenced here has a Pandera schema in `schemas/pandera/` and a
-# Frictionless Table Schema in `schemas/table_schema/`.
+# Reading B confirmed by GPT 2026-04-26: govern the stakeholder-facing
+# director deck FIRST. The 6-slide source-backed control deck is
+# declared as profiles.control_deck with status: deferred.
 #
-# This contract is consumed by:
-#   - scripts/validate_deck_contract.py (structural + cross-reference checks)
-#   - scripts/validate_deck_bindings.py (resolves bindings against a real
-#     warehouse run directory)
-#
-# Track E does NOT modify the PowerPoint builder. Track F (template-first
-# builder) is the consumer that switches `Presentation()` to
-# `Presentation(brand.template)` and replaces hard-coded RGB constants with
-# tokens loaded from this contract.
+# Hard NO-GOs in this milestone (preserved from the original Track E
+# scope, see docs/2026-04-26-track-e-deck-contract-design.md):
+#   - No edits to build_sd_monthly_deck_v2.py or any build_*.py.
+#   - No template-first builder (Track F).
+#   - No render/visual regression gates (Track F).
+#   - No release catalog or waivers (Track K).
+#   - No OpenLineage events (Track J).
 
-schema_version: monthly_platform.deck_contract.v1
+schema_version: monthly_platform.deck_contract.v2
 
+# ----------------------------------------------------------------------
+# Brand block (preserved from M1 scaffold; SHA computed 2026-04-26)
+# ----------------------------------------------------------------------
 brand:
   template: assets/SimCorp_PPT_Template.pptx
   expected_template_sha256: 7834561e83403c4c2f7b1150953a860c23c8e1caf81ef3c7f2fefb0446514195
   expected_template_size_bytes: 9058051
-  # Theme tokens are intentionally minimal in M1. Track F will move
-  # builder RGB constants here under `theme.colors.*` and `theme.fonts.*`.
   theme:
     fonts:
       heading: SimCorp Sans
@@ -47,262 +46,937 @@ brand:
       green: "#188A73"
       white: "#FFFFFF"
 
-# Validated warehouse tables the deck is allowed to read. Each entry pins:
-#   - path: relative to the warehouse run directory
-#     (output/source_backed_warehouse/<snapshot_date>/<run_id>/)
-#   - schema_id: Pandera/Frictionless schema id (matches the TABLE_ID
-#     constant in the corresponding schemas/pandera/<id>.py module).
-#
-# The validator cross-checks that every mart referenced in slides[] resolves
-# to one of these keys, and that every column referenced is declared on the
-# named Pandera schema.
+# ----------------------------------------------------------------------
+# Director profiles registry — operational presets stay external.
+# ----------------------------------------------------------------------
+director_profiles:
+  source: config/sales_director_md1_presets.json
+  required_count: 9
+  required_fields:
+    - director
+    - territory
+    - region
+    - salesforce_filters
+    - output_slug
+
+# ----------------------------------------------------------------------
+# Data sources the deck profiles can bind to.
+# ----------------------------------------------------------------------
 data_sources:
-  marts:
-    source_run_summary:
-      path: marts/source_run_summary.parquet
-      schema_id: mart_source_run_summary
-      description: One row per (snapshot_date, run_id). Status, source counts, finding counts, baseline + distribution rollups.
-    director_source_health:
-      path: marts/director_source_health.parquet
-      schema_id: mart_director_source_health
-      description: Per-director source-health rollup. ok / warning / blocked counts, total rows, total findings.
-    source_quality_findings:
-      path: staged/source_quality_findings.parquet
-      schema_id: staged_source_quality_findings
-      description: Track B/C source-quality findings (non-distribution). Severity, issue, evidence, owner.
-    distribution_findings:
-      path: staged/distribution_findings.parquet
-      schema_id: staged_distribution_findings
-      description: Track D distribution findings. Severity, issue, evidence, owner.
-    source_requirements:
-      path: staged/source_requirements.parquet
-      schema_id: staged_source_requirements
-      description: Source contract requirements per source.
-    source_quality_audit:
-      path: raw/source_quality_audit.parquet
-      schema_id: raw_source_quality_audit
-      description: Per-source extract status + row counts (raw audit mirror).
-    salesforce_extract_plan:
-      path: raw/salesforce_extract_plan.parquet
-      schema_id: raw_salesforce_extract_plan
-      description: Configured/territory extract scope.
+  director_workbook:
+    type: excel_workbook
+    contract: config/director_workbook_contract.yaml
+    description: APAC pilot pattern — 13-sheet live director workbook produced upstream of the deck builder by the cadence pipeline.
+    required_sheets:
+      - Summary
+      - Pipeline Open FY26
+      - Won Lost FY26
+      - Commercial Approval
+      - Renewals FY26
+      - Pipeline Inspection
+      - Activity Volume
+      - Commit Items
+      - Q1 Movement
+      - Stage History
+      - Forecast Category History
+      - Q1 Snapshot Trend
+      - Q2 Snapshot Trend
+  warehouse:
+    type: parquet_warehouse
+    description: v20d ETL spine warehouse (Track I). Referenced for cross-checks (source readiness on cover); not the primary feed in M1.
+    required_marts:
+      - mart_source_run_summary
+      - mart_director_source_health
+      - staged_source_quality_findings
+      - staged_distribution_findings
 
-# Slide bindings. Slide identity (id + slide_number + title) is the contract
-# the deck builder MUST satisfy; the metric/table bindings are the contract
-# the data layer MUST satisfy. Every metric/table column must resolve to a
-# real column on the named Pandera schema.
-#
-# `id` is the stable identifier; do not renumber casually. `slide_number`
-# is the 1-based position in the rendered deck and must be unique across the
-# contract. `layout` is a logical name (Track F maps these to actual
-# SimCorp template layouts).
-slides:
-  - id: cover
-    slide_number: 1
-    title: Monthly Sales Director Operating Review
-    purpose: Cover slide — snapshot identity, headline ARR/deal counts, truth status, publish gate, run id.
-    layout: simcorp_title_summary
-    required_takeaway: true
-    max_takeaway_chars: 200
-    required_source_notes:
-      - snapshot_date
-      - run_id
-    required_text:
-      - "Source-backed"
-      - "Truth Status"
-    metrics:
-      - id: snapshot_date
-        mart: source_run_summary
-        column: snapshot_date
-        aggregation: scalar
-      - id: run_id
-        mart: source_run_summary
-        column: run_id
-        aggregation: scalar
-      - id: run_status
-        mart: source_run_summary
-        column: status
-        aggregation: scalar
-      - id: director_count
-        mart: director_source_health
-        column: director
-        aggregation: distinct_count
-      - id: high_finding_count
-        mart: source_run_summary
-        column: high_finding_count
-        aggregation: scalar
+# ----------------------------------------------------------------------
+# Deck profiles. director_monthly is active and primary; control_deck is
+# declared but deferred (the 6-slide source-backed control deck).
+# ----------------------------------------------------------------------
+profiles:
+  director_monthly:
+    status: active
+    priority: primary_release_artifact
+    builder_lineage: scripts/build_sd_monthly_deck_v2.py
+    anchor_artifact: output/simcorp_director_decks/2026-04-20/land-only/jesper-tyrer-LAND.pptx
+    anchor_workbook: output/director_live_workbooks/2026-04-20/jesper-tyrer.xlsx
+    expected_slide_count: 18
+    layout: simcorp_director_monthly
 
-  - id: publish_gate
-    slide_number: 2
-    title: Publish gate status is green across the evidence chain
-    purpose: Source-backed publish gate matrix — truth packet, source gate, high blockers, tie-out, distribution.
-    layout: simcorp_content
-    required_takeaway: true
-    max_takeaway_chars: 200
-    required_source_notes:
-      - snapshot_date
-      - run_id
-    required_text:
-      - "Publish gate"
-    metrics:
-      - id: run_status
-        mart: source_run_summary
-        column: status
-        aggregation: scalar
-      - id: source_count
-        mart: source_run_summary
-        column: source_count
-        aggregation: scalar
-      - id: ok_source_count
-        mart: source_run_summary
-        column: ok_source_count
-        aggregation: scalar
-      - id: warning_source_count
-        mart: source_run_summary
-        column: warning_source_count
-        aggregation: scalar
-      - id: blocked_source_count
-        mart: source_run_summary
-        column: blocked_source_count
-        aggregation: scalar
-      - id: high_finding_count
-        mart: source_run_summary
-        column: high_finding_count
-        aggregation: scalar
-      - id: distribution_finding_count
-        mart: source_run_summary
-        column: distribution_finding_count
-        aggregation: scalar
-      - id: distribution_high_finding_count
-        mart: source_run_summary
-        column: distribution_high_finding_count
-        aggregation: scalar
-    tables:
-      - id: tbl_publish_gate_matrix
-        mart: source_run_summary
-        columns:
-          - status
-          - source_count
-          - ok_source_count
-          - warning_source_count
-          - blocked_source_count
-          - high_finding_count
+    # Run metadata — set by the cadence runner; the validator requires
+    # presentation_month, snapshot_date, prior_snapshot_date, and
+    # analysis_scope to be populated for any released deck.
+    run_metadata:
+      presentation_month: "2026-04"
+      snapshot_date: "2026-04-22"
+      prior_snapshot_date: "2026-04-20"
+      analysis_scope: "Q1-Q3 FY26"
 
-  - id: regional_pipeline
-    slide_number: 3
-    title: Regional open pipeline is traceable to director bundles
-    purpose: Regional rollup — connects open pipeline to director-level source bundles.
-    layout: simcorp_content
-    required_takeaway: true
-    max_takeaway_chars: 200
-    required_source_notes:
-      - snapshot_date
-      - run_id
-    required_text:
-      - "director bundles"
-    metrics:
-      - id: director_count
-        mart: director_source_health
-        column: director
-        aggregation: distinct_count
-      - id: total_row_count
-        mart: director_source_health
-        column: total_row_count
-        aggregation: sum
-      - id: total_finding_count
-        mart: director_source_health
-        column: total_finding_count
-        aggregation: sum
-    tables:
-      - id: tbl_regional_director_health
-        mart: director_source_health
-        columns:
-          - director
-          - source_count
-          - ok_source_count
-          - warning_source_count
-          - blocked_source_count
-          - total_row_count
-          - total_finding_count
+    # 18 stable slide IDs verified against jesper-tyrer-LAND.pptx
+    # (2026-04-26: 18 slides, table counts match this registry).
+    slides:
+      - id: cover
+        slide_number: 1
+        title: Sales Director Monthly Pipeline Review
+        purpose: Cover — director identity, territory, scope, snapshot.
+        layout: cover
+        required_takeaway:
+          required: false
+        required_source_notes: [snapshot_date, territory, analysis_scope]
 
-  - id: director_book
-    slide_number: 4
-    title: "Director book view: pipeline, risk, and tie-out health"
-    purpose: Per-director book — pipeline value, risk indicators, source-health tie-out.
-    layout: simcorp_content
-    required_takeaway: true
-    max_takeaway_chars: 200
-    required_source_notes:
-      - snapshot_date
-      - run_id
-      - director
-    required_text:
-      - "Director book"
-    metrics:
-      - id: director_count
-        mart: director_source_health
-        column: director
-        aggregation: distinct_count
-    tables:
-      - id: tbl_director_book
-        mart: director_source_health
-        columns:
-          - director
-          - source_count
-          - ok_source_count
-          - warning_source_count
-          - blocked_source_count
-          - total_finding_count
-      - id: tbl_director_findings
-        mart: source_quality_findings
-        columns:
-          - severity
-          - issue
-          - evidence
-          - owner
+      - id: executive_summary
+        slide_number: 2
+        title: Executive Summary
+        purpose: KPI cards + narrative bullets for the director's headline numbers.
+        layout: kpi_cards
+        required_takeaway:
+          required: true
+          max_chars: 220
+          template: "{territory}: {open_arr_unweighted_eur} open ({open_arr_weighted_eur} weighted) across {open_deal_count} deals."
+          required_metrics:
+            [open_arr_unweighted, open_arr_weighted, open_deal_count]
+        required_source_notes: [snapshot_date, territory]
+        period: { role: open, start: "2026-04-01", end: "2026-09-30" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: current_close_date,
+          }
+        definition: final_open_pipeline
 
-  - id: quarter_display
-    slide_number: 5
-    title: "Quarter display logic: current quarter unless fallback is required"
-    purpose: Documents the quarter-display convention (current quarter; fallback to prior when ARR=0).
-    layout: simcorp_content
-    required_takeaway: true
-    max_takeaway_chars: 200
-    required_source_notes:
-      - snapshot_date
-      - run_id
-    required_text:
-      - "Quarter display logic"
-      - "fallback"
-    metrics:
-      - id: snapshot_date
-        mart: source_run_summary
-        column: snapshot_date
-        aggregation: scalar
+      - id: since_last_review
+        slide_number: 3
+        title: Since Last Review
+        purpose: Movement table — what changed between prior_snapshot_date and snapshot_date.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 150
+          template: "Since {prior_snapshot_date}: {net_movement_eur} net change across {movement_event_count} events."
+          required_metrics: [net_movement_eur, movement_event_count]
+        required_source_notes: [movement_window, snapshot_date]
+        movement_window:
+          { from: "${prior_snapshot_date}", to: "${snapshot_date}" }
+        tables:
+          - id: tbl_since_last_review
+            source: director_workbook
+            sheet: Q1 Movement
+            max_rows: 12
+            sort:
+              - { field: Changed On, order: desc }
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - { id: owner, header: Owner, source_column: Owner }
+              - { id: stage, header: Stage, source_column: Stage }
+              - { id: movement, header: Movement, source_column: Movement }
+              - {
+                  id: old_close,
+                  header: Old Close,
+                  source_column: Old Close,
+                  format: yyyy_mm_dd,
+                }
+              - {
+                  id: new_close,
+                  header: New Close,
+                  source_column: New Close,
+                  format: yyyy_mm_dd,
+                }
+              - {
+                  id: changed_on,
+                  header: Changed,
+                  source_column: Changed On,
+                  format: yyyy_mm_dd,
+                }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  format: eur_compact,
+                }
 
-  - id: leadership_readout
-    slide_number: 6
-    title: "Leadership readout: clean source chain, ready for standard deck production"
-    purpose: Closing leadership summary — source chain status, hand-off to think-cell / standard PPT production.
-    layout: simcorp_content
-    required_takeaway: true
-    max_takeaway_chars: 200
-    required_source_notes:
-      - snapshot_date
-      - run_id
-    required_text:
-      - "think-cell"
-      - "source chain"
-    metrics:
-      - id: run_status
-        mart: source_run_summary
-        column: status
-        aggregation: scalar
-      - id: high_finding_count
-        mart: source_run_summary
-        column: high_finding_count
-        aggregation: scalar
-      - id: distribution_high_finding_count
-        mart: source_run_summary
-        column: distribution_high_finding_count
-        aggregation: scalar
+      - id: q1_promised_delivered
+        slide_number: 4
+        title: Q1 Promised vs Delivered
+        purpose: KPI cards comparing Q1 opening pipeline to Q1 closed outcome.
+        layout: kpi_cards
+        required_takeaway:
+          required: true
+          max_chars: 200
+          template: "Q1 opened at {q1_opening_arr_eur} across {q1_opening_deal_count} deals. Committed (stage 4+): {q1_committed_arr_eur}."
+          required_metrics:
+            [q1_opening_arr, q1_opening_deal_count, q1_committed_arr]
+        required_source_notes: [snapshot_date, territory]
+        period: { role: q1, start: "2026-01-01", end: "2026-03-31" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: q1_historical_snapshot,
+          }
+        definition: opening_pipeline
+
+      - id: q1_forecast_variance
+        slide_number: 5
+        title: Q1 Forecast Variance
+        purpose: Variance bridge — opening Q1 pipeline -> final Q1 outcome.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 150
+          template: "Q1 pipeline {q1_variance_direction} {q1_variance_arr_eur}; net change {q1_net_change_eur}."
+          required_metrics:
+            [q1_variance_arr, q1_net_change, q1_variance_direction]
+        required_source_notes: [snapshot_date, territory, period]
+        period: { role: q1, start: "2026-01-01", end: "2026-03-31" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: q1_historical_snapshot,
+          }
+        definition: historical_trending_delta
+        tables:
+          - id: tbl_q1_forecast_variance
+            source: director_workbook
+            sheet: Q1 Snapshot Trend
+            max_rows: 8
+            sort:
+              - { field: q1_change_to_close, order: asc, aggregation: sum }
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - {
+                  id: opening_arr,
+                  header: Opening,
+                  snapshot_role: q1_open_snapshot,
+                  format: eur_compact,
+                }
+              - {
+                  id: closing_arr,
+                  header: Closing,
+                  snapshot_role: q1_close_snapshot,
+                  format: eur_compact,
+                }
+              - {
+                  id: net_change,
+                  header: Net Change,
+                  snapshot_role: q1_change_to_close,
+                  format: eur_compact,
+                }
+
+      - id: q1_loss_drivers
+        slide_number: 6
+        title: Q1 Loss Drivers
+        purpose: Two tables — loss reason breakdown + stage reached for losses.
+        layout: dual_table
+        required_takeaway:
+          required: true
+          max_chars: 150
+          template: "{q1_loss_count} Q1 Land losses, {q1_loss_arr_eur}. {q1_losses_missing_reason} missing reason code."
+          required_metrics:
+            [q1_loss_count, q1_loss_arr, q1_losses_missing_reason]
+        required_source_notes: [snapshot_date, territory, period]
+        period: { role: q1, start: "2026-01-01", end: "2026-03-31" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: q1_historical_snapshot,
+          }
+        definition: closed_outcome
+        tables:
+          - id: tbl_q1_loss_reasons
+            source: director_workbook
+            sheet: Won Lost FY26
+            filters:
+              Type: Land
+              Stage: Closed Lost
+              Close Date: { period: q1 }
+            max_rows: 10
+            sort:
+              - { field: ARR Unweighted (EUR), order: desc }
+            columns:
+              - { id: reason, header: Reason, source_column: Reason }
+              - { id: count, header: Count, computed: row_count }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  aggregation: sum,
+                  format: eur_compact,
+                }
+          - id: tbl_q1_loss_stage_reached
+            source: director_workbook
+            sheet: Won Lost FY26
+            filters:
+              Type: Land
+              Stage: Closed Lost
+              Close Date: { period: q1 }
+            max_rows: 10
+            columns:
+              - { id: stage, header: Stage Reached, source_column: Stage }
+              - { id: count, header: Count, computed: row_count }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  aggregation: sum,
+                  format: eur_compact,
+                }
+
+      - id: q2_outlook
+        slide_number: 7
+        title: Q2 Outlook
+        purpose: KPI cards for Q2 book — unweighted, weighted, deal count.
+        layout: kpi_cards
+        required_takeaway:
+          required: true
+          max_chars: 200
+          template: "Q2 book {q2_open_arr_unweighted_eur} unweighted, {q2_open_arr_weighted_eur} weighted. {q2_open_deal_count} deals closing Apr-Jun."
+          required_metrics:
+            [q2_open_arr_unweighted, q2_open_arr_weighted, q2_open_deal_count]
+        required_source_notes: [snapshot_date, territory, period]
+        period: { role: q2, start: "2026-04-01", end: "2026-06-30" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: current_close_date,
+          }
+        definition: final_open_pipeline
+
+      - id: q2_deal_readiness
+        slide_number: 8
+        title: Q2 Deal Readiness
+        purpose: Per-deal Q2 readiness — days to close, last activity, stage, next step.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 180
+          template: "{territory}: {q2_open_deal_count} Q2 deals, {q2_open_arr_unweighted_eur} open ARR. {q2_readiness_summary}."
+          required_metrics:
+            [q2_open_deal_count, q2_open_arr_unweighted, q2_readiness_summary]
+        required_source_notes: [snapshot_date, territory, period]
+        period: { role: q2, start: "2026-04-01", end: "2026-06-30" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: current_close_date,
+          }
+        definition: final_open_pipeline
+        tables:
+          - id: tbl_q2_deal_readiness
+            source: director_workbook
+            sheet: Pipeline Open FY26
+            filters:
+              Type: Land
+              Close Date: { period: q2 }
+            max_rows: 7
+            sort:
+              - { field: Close Date, order: asc }
+              - { field: ARR Unweighted (EUR), order: desc }
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - { id: stage, header: Stage, source_column: Stage }
+              - {
+                  id: close,
+                  header: Close,
+                  source_column: Close Date,
+                  format: yyyy_mm_dd,
+                }
+              - { id: days, header: Days, computed: days_to_close }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  format: eur_compact,
+                }
+              - {
+                  id: last_activity,
+                  header: Last Activity,
+                  source_column: Last Activity,
+                  joined_from: Activity Volume,
+                }
+              - { id: readiness, header: Readiness, computed: readiness_status }
+
+      - id: top_open_opportunities
+        slide_number: 9
+        title: Top Open Opportunities
+        purpose: Top-N open Land deals by unweighted ARR.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 180
+          template: "Top {top_n} open deals = {top_n_arr_eur}. {top_account} leads at {top_account_arr_eur}; top 5 = {top_5_share_pct} of this book."
+          required_metrics:
+            [top_n, top_n_arr, top_account, top_account_arr, top_5_share_pct]
+        required_source_notes: [snapshot_date, territory]
+        period: { role: open, start: "2026-04-01", end: "2026-09-30" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: current_close_date,
+          }
+        definition: final_open_pipeline
+        tables:
+          - id: tbl_top_open_opportunities
+            source: director_workbook
+            sheet: Pipeline Open FY26
+            filters:
+              Type: Land
+            max_rows: 7
+            sort:
+              - { field: ARR Unweighted (EUR), order: desc }
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 28,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 32,
+                }
+              - { id: owner, header: Owner, source_column: Owner }
+              - { id: stage, header: Stage, source_column: Stage }
+              - {
+                  id: close,
+                  header: Close,
+                  source_column: Close Date,
+                  format: yyyy_mm_dd,
+                }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  format: eur_compact,
+                }
+              - {
+                  id: probability,
+                  header: Prob %,
+                  source_column: Probability %,
+                }
+
+      - id: deal_risk_triage
+        slide_number: 10
+        title: Deal Risk Triage
+        purpose: Top Q2-Q3 deals at risk by Pipeline Inspection score/priority.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 150
+          template: "Top {risk_top_n} Q2-Q3 deals at risk, {risk_arr_eur} exposed."
+          required_metrics: [risk_top_n, risk_arr]
+        required_source_notes: [snapshot_date, territory]
+        period: { role: q2_q3, start: "2026-04-01", end: "2026-09-30" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: current_close_date,
+          }
+        definition: final_open_pipeline
+        tables:
+          - id: tbl_deal_risk_triage
+            source: director_workbook
+            sheet: Pipeline Inspection
+            filters:
+              Close Date: { period: q2_q3 }
+            max_rows: 6
+            sort:
+              - { field: Score, order: desc }
+              - { field: ARR Weighted (EUR), order: desc }
+            columns:
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 32,
+                }
+              - { id: owner, header: Owner, source_column: Owner }
+              - { id: stage, header: Stage, source_column: Stage }
+              - {
+                  id: forecast_category,
+                  header: Forecast,
+                  source_column: Forecast Category,
+                }
+              - {
+                  id: arr_weighted,
+                  header: Wtd ARR,
+                  source_column: ARR Weighted (EUR),
+                  format: eur_compact,
+                }
+              - {
+                  id: close,
+                  header: Close,
+                  source_column: Close Date,
+                  format: yyyy_mm_dd,
+                }
+              - { id: push_count, header: Pushes, source_column: Push Count }
+              - { id: score, header: Score, source_column: Score }
+              - { id: priority, header: Priority, source_column: Priority }
+
+      - id: owner_coaching
+        slide_number: 11
+        title: Owner Coaching Priorities
+        purpose: Owner-level rollup of pushes + open ARR for coaching priorities.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 150
+          template: "{coach_owner_count} owners carry {coach_total_pushes} pushes across {coach_total_arr_eur}. Coach in this order."
+          required_metrics:
+            [coach_owner_count, coach_total_pushes, coach_total_arr]
+        required_source_notes: [snapshot_date, territory]
+        period: { role: open, start: "2026-04-01", end: "2026-09-30" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: current_close_date,
+          }
+        definition: final_open_pipeline
+        tables:
+          - id: tbl_owner_coaching
+            source: director_workbook
+            sheet: Pipeline Open FY26
+            filters:
+              Type: Land
+            group_by: Owner
+            max_rows: 8
+            sort:
+              - { field: Push Count, order: desc, aggregation: sum }
+              - { field: ARR Unweighted (EUR), order: desc, aggregation: sum }
+            columns:
+              - { id: owner, header: Owner, source_column: Owner }
+              - { id: deal_count, header: Deals, computed: row_count }
+              - {
+                  id: total_arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  aggregation: sum,
+                  format: eur_compact,
+                }
+              - {
+                  id: total_pushes,
+                  header: Pushes,
+                  source_column: Push Count,
+                  aggregation: sum,
+                }
+              - {
+                  id: avg_pushes,
+                  header: Avg Push,
+                  source_column: Push Count,
+                  aggregation: mean,
+                  format: number_1dp,
+                }
+
+      - id: pushed_deals
+        slide_number: 12
+        title: Pushed Deals
+        purpose: Pushed-deal headline + Salesforce link for live drill.
+        layout: kpi_cards_with_link
+        required_takeaway:
+          required: true
+          max_chars: 180
+          template: "{pushed_deal_count} open deals pushed. {pushed_top_owner} owns {pushed_top_owner_count} of the most-pushed deals; pattern review."
+          required_metrics:
+            [pushed_deal_count, pushed_top_owner, pushed_top_owner_count]
+        required_source_notes: [snapshot_date, territory, salesforce_drill_link]
+        required_links:
+          - id: salesforce_pushed_deals
+            label: Open in Salesforce
+            kind: salesforce_list_view
+
+      - id: q1_slippage
+        slide_number: 13
+        title: Q1 Slippage
+        purpose: Deals that slipped out of Q1 + their post-slip behavior.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 150
+          template: "{slipped_deal_count} deals slipped out of Q1 ({slipped_arr_eur}). {pushed_since_count} pushed since."
+          required_metrics:
+            [slipped_deal_count, slipped_arr, pushed_since_count]
+        required_source_notes: [snapshot_date, territory]
+        period: { role: q1, start: "2026-01-01", end: "2026-03-31" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: q1_original_close_date,
+          }
+        definition: historical_trending_delta
+        tables:
+          - id: tbl_q1_slippage
+            source: director_workbook
+            sheet: Q1 Movement
+            filters:
+              Movement: { in: [Push, Slip] }
+            max_rows: 12
+            sort:
+              - { field: ARR Unweighted (EUR), order: desc }
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - { id: owner, header: Owner, source_column: Owner }
+              - { id: stage, header: Stage, source_column: Stage }
+              - {
+                  id: old_close,
+                  header: Old Close,
+                  source_column: Old Close,
+                  format: yyyy_mm_dd,
+                }
+              - {
+                  id: new_close,
+                  header: New Close,
+                  source_column: New Close,
+                  format: yyyy_mm_dd,
+                }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  format: eur_compact,
+                }
+
+      - id: forecast_accuracy
+        slide_number: 14
+        title: Forecast Accuracy
+        purpose: KPI cards comparing forecast commitments to closed outcomes.
+        layout: kpi_cards
+        required_takeaway:
+          required: true
+          max_chars: 150
+          template: "{closed_won_count} {closed_won_unit} closed-won ({closed_won_arr_eur})."
+          required_metrics: [closed_won_count, closed_won_unit, closed_won_arr]
+        required_source_notes: [snapshot_date, territory, period]
+        period: { role: q1, start: "2026-01-01", end: "2026-03-31" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: q1_historical_snapshot,
+          }
+        definition: closed_outcome
+
+      - id: forecast_mix
+        slide_number: 15
+        title: Forecast Mix
+        purpose: Open Land pipeline by forecast category.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 180
+          template: "Forecast mix: {forecast_mix_total_arr_eur} across {forecast_mix_deal_count} open deals. Commit = {forecast_commit_arr_eur} ({forecast_commit_pct})."
+          required_metrics:
+            [
+              forecast_mix_total_arr,
+              forecast_mix_deal_count,
+              forecast_commit_arr,
+              forecast_commit_pct,
+            ]
+        required_source_notes: [snapshot_date, territory]
+        period: { role: open, start: "2026-04-01", end: "2026-09-30" }
+        population:
+          {
+            type: Land,
+            territory: "${territory}",
+            close_date_scope: current_close_date,
+          }
+        definition: final_open_pipeline
+        tables:
+          - id: tbl_forecast_mix
+            source: director_workbook
+            sheet: Commit Items
+            group_by: Forecast Category
+            max_rows: 8
+            sort:
+              - { field: Forecast ARR Wtd (EUR), order: desc, aggregation: sum }
+            columns:
+              - {
+                  id: category,
+                  header: Category,
+                  source_column: Forecast Category,
+                }
+              - { id: deal_count, header: Deals, computed: row_count }
+              - {
+                  id: arr_wtd,
+                  header: Wtd ARR,
+                  source_column: Forecast ARR Wtd (EUR),
+                  aggregation: sum,
+                  format: eur_compact,
+                }
+              - {
+                  id: arr_unwtd,
+                  header: Unwtd ARR,
+                  source_column: ARR Unwtd (EUR),
+                  aggregation: sum,
+                  format: eur_compact,
+                }
+
+      - id: commercial_approvals
+        slide_number: 16
+        title: Commercial Approvals
+        purpose: Approval status — distinguish approved-2026, pending approval, candidate.
+        layout: quad_table
+        required_takeaway:
+          required: true
+          max_chars: 180
+          template: "{approved_2026_count} approved 2026; {pending_approval_count} pending; {candidate_count} candidate."
+          required_metrics:
+            [approved_2026_count, pending_approval_count, candidate_count]
+        required_source_notes: [snapshot_date, territory]
+        tables:
+          - id: tbl_approvals_approved_2026
+            source: director_workbook
+            sheet: Commercial Approval
+            filters: { Status: Approved 2026 }
+            max_rows: 5
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  format: eur_compact,
+                }
+              - {
+                  id: approval_date,
+                  header: Approved,
+                  source_column: Approval Date,
+                  format: yyyy_mm_dd,
+                }
+          - id: tbl_approvals_pending
+            source: director_workbook
+            sheet: Commercial Approval
+            filters: { Status: Pending Approval }
+            max_rows: 5
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - { id: stage, header: Stage, source_column: Stage }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  format: eur_compact,
+                }
+              - {
+                  id: next_step,
+                  header: Next Step,
+                  source_column: Next Step,
+                  max_chars: 36,
+                }
+          - id: tbl_approvals_candidate
+            source: director_workbook
+            sheet: Commercial Approval
+            filters: { Status: Candidate }
+            max_rows: 5
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - { id: stage, header: Stage, source_column: Stage }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  format: eur_compact,
+                }
+          - id: tbl_approvals_other
+            source: director_workbook
+            sheet: Commercial Approval
+            filters:
+              {
+                Status:
+                  { not_in: [Approved 2026, Pending Approval, Candidate] },
+              }
+            max_rows: 5
+            columns:
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - { id: status, header: Status, source_column: Status }
+              - {
+                  id: arr,
+                  header: ARR,
+                  source_column: ARR Unweighted (EUR),
+                  format: eur_compact,
+                }
+
+      - id: renewals
+        slide_number: 17
+        title: FY26 Renewals
+        purpose: FY26 renewal exposure by close date.
+        layout: table_with_takeaway
+        required_takeaway:
+          required: true
+          max_chars: 180
+          template: "{renewal_count} renewals due FY26, {renewal_acv_eur} ACV ({renewal_q2_count} in Q2, {renewal_q3_count} in Q3)."
+          required_metrics:
+            [renewal_count, renewal_acv, renewal_q2_count, renewal_q3_count]
+        required_source_notes: [snapshot_date, territory]
+        period: { role: fy26, start: "2026-01-01", end: "2026-12-31" }
+        population:
+          {
+            type: Renewal,
+            territory: "${territory}",
+            close_date_scope: current_close_date,
+          }
+        definition: final_open_pipeline
+        tables:
+          - id: tbl_renewals
+            source: director_workbook
+            sheet: Renewals FY26
+            max_rows: 8
+            sort:
+              - { field: Close Date, order: asc }
+            columns:
+              - {
+                  id: close,
+                  header: Close,
+                  source_column: Close Date,
+                  format: yyyy_mm_dd,
+                }
+              - {
+                  id: account,
+                  header: Account,
+                  source_column: Account,
+                  max_chars: 24,
+                }
+              - {
+                  id: opportunity,
+                  header: Opportunity,
+                  source_column: Opportunity,
+                  max_chars: 28,
+                }
+              - { id: owner, header: Owner, source_column: Owner }
+              - { id: stage, header: Stage, source_column: Stage }
+              - {
+                  id: acv,
+                  header: ACV,
+                  source_column: ACV Unweighted (EUR),
+                  format: eur_compact,
+                }
+              - {
+                  id: probability,
+                  header: Prob %,
+                  source_column: Probability %,
+                }
+              - {
+                  id: comments,
+                  header: Comments,
+                  source_column: Comments,
+                  max_chars: 36,
+                }
+
+      - id: legal_notice
+        slide_number: 18
+        title: Legal Notice
+        purpose: Static SimCorp legal disclaimer slide.
+        layout: legal
+        required_takeaway:
+          required: false
+        required_source_notes: []
+        static: true
+
+  control_deck:
+    status: deferred
+    priority: internal_control_artifact
+    builder_lineage: scripts/build_source_backed_deck.py
+    expected_slide_count: 6
+    note: |
+      The 6-slide source-backed control deck (the previous Track E target).
+      Reading B confirmed (2026-04-26): defer this profile to a later
+      milestone after director_monthly is solid. The control deck is an
+      ETL trust artifact, not a stakeholder deliverable.

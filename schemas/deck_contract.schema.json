@@ -1,35 +1,41 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://crm-analytics.simcorp.local/schemas/deck_contract.schema.json",
-  "title": "monthly_platform.deck_contract.v1",
-  "description": "Track E deck contract — single source of truth for what the source-backed monthly review deck is allowed to show. Cross-reference checks (mart/column existence, schema_id match, template path) are enforced by scripts/monthly_platform/deck_contract.py on top of this structural schema.",
+  "title": "monthly_platform.deck_contract.v2",
+  "description": "Track E deck contract (v2). Retargeted from the 6-slide source-backed control deck to the director-facing Sales Director Monthly deck per Reading B (2026-04-26). Profiles register multiple deck shapes; director_monthly is active and primary, control_deck is declared but deferred. Cross-reference checks (workbook sheet/column existence, mart/column existence, schema_id registration, template digest) are enforced by scripts/monthly_platform/deck_contract.py on top of this structural schema.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "brand", "data_sources", "slides"],
+  "required": ["schema_version", "brand", "data_sources", "profiles"],
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "monthly_platform.deck_contract.v1"
+      "const": "monthly_platform.deck_contract.v2"
     },
+    "brand": { "$ref": "#/$defs/brand" },
+    "director_profiles": { "$ref": "#/$defs/director_profiles_ref" },
+    "data_sources": { "$ref": "#/$defs/data_sources" },
+    "profiles": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": { "$ref": "#/$defs/profile" }
+      },
+      "additionalProperties": false,
+      "description": "Map of profile_id -> profile. At least one profile must have status: active."
+    }
+  },
+  "$defs": {
     "brand": {
       "type": "object",
       "additionalProperties": false,
       "required": ["template", "expected_template_sha256"],
       "properties": {
-        "template": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Path to the SimCorp PowerPoint template, relative to the repo root."
-        },
+        "template": { "type": "string", "minLength": 1 },
         "expected_template_sha256": {
           "type": "string",
-          "pattern": "^[a-f0-9]{64}$",
-          "description": "SHA-256 of the template file. Validator computes the actual digest and rejects mismatches."
+          "pattern": "^[a-f0-9]{64}$"
         },
-        "expected_template_size_bytes": {
-          "type": "integer",
-          "minimum": 1
-        },
+        "expected_template_size_bytes": { "type": "integer", "minimum": 1 },
         "theme": {
           "type": "object",
           "additionalProperties": false,
@@ -49,44 +55,120 @@
         }
       }
     },
+    "director_profiles_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "required_count", "required_fields"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "required_count": { "type": "integer", "minimum": 1 },
+        "required_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "description": "Pointer to the external director presets file (e.g. config/sales_director_md1_presets.json). Validator checks the file exists and contains the required count/fields."
+    },
     "data_sources": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["marts"],
+      "minProperties": 1,
       "properties": {
-        "marts": {
-          "type": "object",
-          "minProperties": 1,
-          "patternProperties": {
-            "^[a-z][a-z0-9_]*$": { "$ref": "#/$defs/mart" }
-          },
-          "additionalProperties": false
+        "director_workbook": { "$ref": "#/$defs/data_source_workbook" },
+        "warehouse": { "$ref": "#/$defs/data_source_warehouse" }
+      }
+    },
+    "data_source_workbook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "contract", "required_sheets"],
+      "properties": {
+        "type": { "const": "excel_workbook" },
+        "contract": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "required_sheets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
         }
       }
     },
-    "slides": {
-      "type": "array",
-      "minItems": 1,
-      "items": { "$ref": "#/$defs/slide" }
-    }
-  },
-  "$defs": {
-    "mart": {
+    "data_source_warehouse": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "schema_id"],
+      "required": ["type", "required_marts"],
       "properties": {
-        "path": {
+        "type": { "const": "parquet_warehouse" },
+        "description": { "type": "string" },
+        "required_marts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "expected_slide_count"],
+      "properties": {
+        "status": {
           "type": "string",
-          "minLength": 1,
-          "description": "Path relative to the warehouse run directory."
+          "enum": ["active", "deferred", "archived"]
         },
-        "schema_id": {
+        "priority": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Pandera/Frictionless TABLE_ID. Validator verifies the schema is registered."
+          "enum": [
+            "primary_release_artifact",
+            "internal_control_artifact",
+            "experimental"
+          ]
         },
-        "description": { "type": "string" }
+        "builder_lineage": { "type": "string" },
+        "anchor_artifact": { "type": "string" },
+        "anchor_workbook": { "type": "string" },
+        "expected_slide_count": { "type": "integer", "minimum": 1 },
+        "layout": { "type": "string" },
+        "note": { "type": "string" },
+        "run_metadata": { "$ref": "#/$defs/run_metadata" },
+        "slides": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/slide" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "active" } } },
+          "then": { "required": ["slides", "run_metadata"] }
+        }
+      ]
+    },
+    "run_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["presentation_month", "snapshot_date", "analysis_scope"],
+      "properties": {
+        "presentation_month": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}$"
+        },
+        "snapshot_date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "prior_snapshot_date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "analysis_scope": { "type": "string", "minLength": 1 }
       }
     },
     "slide": {
@@ -105,34 +187,41 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]*$"
         },
-        "slide_number": {
-          "type": "integer",
-          "minimum": 1
-        },
+        "slide_number": { "type": "integer", "minimum": 1 },
         "title": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "maxLength": 48,
+          "description": "Stable slide title. Currency, deal counts, warning glyphs, and dynamic numbers belong in generated_takeaway, not here."
         },
         "purpose": { "type": "string" },
-        "layout": {
-          "type": "string",
-          "minLength": 1
+        "layout": { "type": "string", "minLength": 1 },
+        "static": {
+          "type": "boolean",
+          "description": "Set true for slides whose content does not vary per run (e.g. legal notice). Static slides are exempt from period/population/movement_window checks."
         },
-        "required_takeaway": { "type": "boolean" },
-        "max_takeaway_chars": {
-          "type": "integer",
-          "minimum": 1
-        },
+        "required_takeaway": { "$ref": "#/$defs/takeaway_spec" },
         "required_source_notes": {
           "type": "array",
-          "minItems": 1,
-          "items": { "type": "string", "minLength": 1 },
-          "uniqueItems": true
+          "minItems": 0,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
         },
-        "required_text": {
+        "required_links": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "uniqueItems": true
+          "items": { "$ref": "#/$defs/link_spec" }
+        },
+        "period": { "$ref": "#/$defs/period" },
+        "population": { "$ref": "#/$defs/population" },
+        "movement_window": { "$ref": "#/$defs/movement_window" },
+        "definition": {
+          "type": "string",
+          "enum": [
+            "opening_pipeline",
+            "final_open_pipeline",
+            "closed_outcome",
+            "historical_trending_delta"
+          ]
         },
         "metrics": {
           "type": "array",
@@ -142,26 +231,103 @@
           "type": "array",
           "items": { "$ref": "#/$defs/table_binding" }
         }
+      }
+    },
+    "takeaway_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "max_chars": { "type": "integer", "minimum": 1, "maximum": 400 },
+        "template": { "type": "string", "minLength": 1 },
+        "required_metrics": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
       },
-      "anyOf": [{ "required": ["metrics"] }, { "required": ["tables"] }]
+      "allOf": [
+        {
+          "if": { "properties": { "required": { "const": true } } },
+          "then": { "required": ["max_chars", "template", "required_metrics"] }
+        }
+      ]
+    },
+    "link_spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "kind"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "label": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "salesforce_list_view",
+            "salesforce_report",
+            "sharepoint",
+            "external_url"
+          ]
+        }
+      }
+    },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "start", "end"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["q1", "q2", "q3", "q4", "q2_q3", "fy26", "open"]
+        },
+        "start": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "end": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+      }
+    },
+    "population": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "territory", "close_date_scope"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["Land", "Renewal", "Land+Renewal", "Other"]
+        },
+        "territory": { "type": "string", "minLength": 1 },
+        "close_date_scope": {
+          "type": "string",
+          "enum": [
+            "current_close_date",
+            "q1_original_close_date",
+            "q1_historical_snapshot",
+            "current_q1_close_date"
+          ]
+        }
+      }
+    },
+    "movement_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 }
+      }
     },
     "metric_binding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "mart", "column", "aggregation"],
+      "required": ["id", "source", "aggregation"],
       "properties": {
-        "id": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "source": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$"
+          "enum": ["director_workbook", "warehouse"]
         },
-        "mart": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$"
-        },
-        "column": {
-          "type": "string",
-          "minLength": 1
-        },
+        "sheet": { "type": "string", "minLength": 1 },
+        "mart": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "column": { "type": "string", "minLength": 1 },
         "aggregation": {
           "type": "string",
           "enum": [
@@ -171,31 +337,118 @@
             "max",
             "mean",
             "count",
-            "distinct_count"
+            "distinct_count",
+            "row_count"
           ]
+        },
+        "filters": {
+          "type": "object",
+          "description": "Free-form filter map; semantics resolved by the binding resolver."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "source": { "const": "director_workbook" } }
+          },
+          "then": { "required": ["sheet", "column"] }
+        },
+        {
+          "if": { "properties": { "source": { "const": "warehouse" } } },
+          "then": { "required": ["mart", "column"] }
+        }
+      ]
     },
     "table_binding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "mart", "columns"],
+      "required": ["id", "source", "columns"],
       "properties": {
-        "id": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "source": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$"
+          "enum": ["director_workbook", "warehouse"]
         },
-        "mart": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$"
+        "sheet": { "type": "string", "minLength": 1 },
+        "mart": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "filters": {
+          "type": "object",
+          "description": "Free-form filter map; the binding resolver verifies referenced columns exist on the source."
+        },
+        "group_by": { "type": "string", "minLength": 1 },
+        "max_rows": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "sort": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "order"],
+            "properties": {
+              "field": { "type": "string", "minLength": 1 },
+              "order": { "type": "string", "enum": ["asc", "desc"] },
+              "aggregation": {
+                "type": "string",
+                "enum": ["sum", "min", "max", "mean", "count", "row_count"]
+              }
+            }
+          }
         },
         "columns": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string", "minLength": 1 },
-          "uniqueItems": true
+          "items": { "$ref": "#/$defs/table_column" }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "source": { "const": "director_workbook" } }
+          },
+          "then": { "required": ["sheet"] }
+        },
+        {
+          "if": { "properties": { "source": { "const": "warehouse" } } },
+          "then": { "required": ["mart"] }
+        }
+      ]
+    },
+    "table_column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "header"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "header": { "type": "string", "minLength": 1 },
+        "source_column": { "type": "string", "minLength": 1 },
+        "computed": {
+          "type": "string",
+          "enum": ["row_count", "days_to_close", "readiness_status"]
+        },
+        "snapshot_role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Reference to a semantic role declared in director_workbook_contract.yaml::snapshot_roles. Resolved to a physical column at run time by the binding resolver using dynamic_column_patterns. Use for trend-snapshot sheets (Q1/Q2 Snapshot Trend) where physical column names depend on snapshot dates."
+        },
+        "joined_from": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Sheet name to enrich from (e.g. Activity Volume)."
+        },
+        "aggregation": {
+          "type": "string",
+          "enum": ["sum", "min", "max", "mean", "count", "row_count"]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["eur_compact", "yyyy_mm_dd", "number_1dp", "percent", "raw"]
+        },
+        "max_chars": { "type": "integer", "minimum": 4, "maximum": 80 }
+      },
+      "anyOf": [
+        { "required": ["source_column"] },
+        { "required": ["computed"] },
+        { "required": ["snapshot_role"] }
+      ]
     }
   }
 }

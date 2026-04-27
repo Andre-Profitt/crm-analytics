@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crm-analytics.simcorp.local/schemas/director_workbook_contract.schema.json",
+  "title": "monthly_platform.director_workbook_contract.v1",
+  "description": "Track E workbook contract — declares the sheets, columns, and dynamic-column patterns for the live director workbook produced upstream of build_sd_monthly_deck_v2.py. Cross-reference checks (sheet existence, column existence in a real workbook, dynamic-pattern resolution) are enforced by scripts/validate_director_workbook_contract.py + the binding resolver on top of this structural schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "sheets"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "monthly_platform.director_workbook_contract.v1"
+    },
+    "description": { "type": "string" },
+    "required_metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "locator"],
+        "properties": {
+          "source": { "type": "string", "minLength": 1 },
+          "locator": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "sheets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sheet" }
+    },
+    "snapshot_roles": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/snapshot_role" }
+    }
+  },
+  "$defs": {
+    "sheet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "purpose"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1 },
+        "layout": {
+          "type": "string",
+          "enum": ["row_table", "kpi_block", "trend_snapshot"]
+        },
+        "header_row": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "expected_min_rows": { "type": "integer", "minimum": 0 },
+        "expected_min_columns": { "type": "integer", "minimum": 1 },
+        "expected_max_columns": { "type": "integer", "minimum": 1 },
+        "required_columns": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "dynamic_column_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/dynamic_pattern" }
+        },
+        "expected_status_values": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "expected_movement_values": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "dynamic_pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "pattern"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "pattern": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Templated header pattern with one or more ${var} placeholders."
+        },
+        "format": {
+          "type": "string",
+          "enum": ["yyyy_mm_dd", "raw"]
+        }
+      }
+    },
+    "snapshot_role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sheet", "pattern_kind", "role_description"],
+      "properties": {
+        "sheet": { "type": "string", "minLength": 1 },
+        "pattern_kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "role_description": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
