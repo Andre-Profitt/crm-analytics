@@ -36,6 +36,12 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "expected_template_size_bytes": { "type": "integer", "minimum": 1 },
+        "expected_slide_master_count": { "type": "integer", "minimum": 1 },
+        "required_layouts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
         "theme": {
           "type": "object",
           "additionalProperties": false,

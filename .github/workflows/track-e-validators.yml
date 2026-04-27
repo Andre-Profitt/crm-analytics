@@ -19,12 +19,16 @@ name: Track E — contract validators
       - "scripts/monthly_platform/deck_contract.py"
       - "scripts/monthly_platform/director_workbook_contract.py"
       - "scripts/monthly_platform/deck_binding_resolver.py"
+      - "scripts/monthly_platform/brand_contract.py"
       - "scripts/validate_deck_contract.py"
       - "scripts/validate_track_e_workbook_contract.py"
       - "scripts/validate_track_e_workbook.py"
       - "scripts/validate_deck_bindings.py"
       - "scripts/validate_director_monthly_pptx.py"
+      - "scripts/validate_deck_brand.py"
+      - "assets/SimCorp_PPT_Template.pptx"
       - "tests/test_track_e_*.py"
+      - "tests/test_track_f_*.py"
       - ".github/workflows/track-e-validators.yml"
   workflow_dispatch:
 
@@ -56,10 +60,13 @@ jobs:
       - name: Validate director workbook contract structurally
         run: python3 scripts/validate_track_e_workbook_contract.py --show-findings
 
+      - name: Validate SimCorp template brand fingerprint (Track F F4)
+        run: python3 scripts/validate_deck_brand.py --show-findings
+
       - name: Run Track E tests
         # Live-anchor tests skip automatically when the workbook/PPTX
         # in ~/Downloads/ are absent (they are not committed).
-        run: python3 -m pytest tests/test_track_e_*.py -v
+        run: python3 -m pytest tests/test_track_e_*.py tests/test_track_f_*.py -v
 
       - name: Surface Track E test summary on failure
         if: failure()

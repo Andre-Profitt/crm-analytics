@@ -21,6 +21,13 @@ brand:
       amber: '#FB9B2A'
       green: '#188A73'
       white: '#FFFFFF'
+  expected_slide_master_count: 1
+  required_layouts:
+  - Title 1
+  - Title and Content
+  - 2 x content w/ gradient line
+  - 4 x content w/ gradient line
+  - End slide with disclaimer 1
 director_profiles:
   source: config/sales_director_md1_presets.json
   required_count: 9
