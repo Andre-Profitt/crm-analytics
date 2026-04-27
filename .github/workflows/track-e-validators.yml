@@ -29,8 +29,10 @@ name: Track E — contract validators
       - "scripts/validate_deck_render.py"
       - "scripts/validate_deck_visual_regression.py"
       - "scripts/render_deck_to_images.py"
+      - "scripts/build_release_packet.py"
       - "config/deck_visual_regions.yaml"
       - "tests/fixtures/track_f/**"
+      - "tests/test_track_g_*.py"
       - "assets/SimCorp_PPT_Template.pptx"
       - "tests/test_track_e_*.py"
       - "tests/test_track_f_*.py"
@@ -71,7 +73,7 @@ jobs:
       - name: Run Track E tests
         # Live-anchor tests skip automatically when the workbook/PPTX
         # in ~/Downloads/ are absent (they are not committed).
-        run: python3 -m pytest tests/test_track_e_*.py tests/test_track_f_*.py -v
+        run: python3 -m pytest tests/test_track_e_*.py tests/test_track_f_*.py tests/test_track_g_*.py -v
 
       - name: Surface Track E test summary on failure
         if: failure()
