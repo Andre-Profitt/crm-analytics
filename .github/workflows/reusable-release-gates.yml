@@ -1,0 +1,53 @@
+name: Release gates (reusable)
+
+# Reusable workflow that runs the Track E/F/G-Lite/K/J-Lite gates
+# end-to-end. Designed to be called via `uses:` from any other workflow
+# (PR check, nightly, manual dispatch, monthly publish) so the gate
+# definition lives in exactly one place. See
+# `.github/workflows/track-e-validators.yml` for the canonical
+# pull-request consumer.
+
+"on":
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version to use.
+        required: false
+        default: "3.13"
+        type: string
+      test-paths:
+        description: >-
+          Pytest path patterns to run. Quoted, space-separated.
+          Defaults to every release-pipeline track.
+        required: false
+        default: >-
+          tests/test_track_e_*.py
+          tests/test_track_f_*.py
+          tests/test_track_g_*.py
+          tests/test_track_em2_*.py
+          tests/test_track_k_*.py
+          tests/test_track_j_*.py
+        type: string
+      pytest-extra-args:
+        description: Extra args appended to the pytest invocation.
+        required: false
+        default: "-v"
+        type: string
+
+jobs:
+  release-gates:
+    name: Release-pipeline gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Set up CRM Analytics
+        uses: ./.github/actions/setup-crm-analytics
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Run release gates
+        uses: ./.github/actions/run-release-gates
+        with:
+          test-paths: ${{ inputs.test-paths }}
+          pytest-extra-args: ${{ inputs.pytest-extra-args }}
