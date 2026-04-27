@@ -49,24 +49,53 @@ def _make_contract(raw: dict) -> deck_contract.DeckContract:
 )
 def test_apac_anchor_passes_in_legacy_mode():
     report = validate_pptx(APAC_DECK)
-    # Expected (post Cond 1+2 patch):
-    #   - 16 legacy verbose titles (warnings)
-    #   - 14 legacy header drifts on tables (warnings, Cond 1)
-    #   - 1 missing required link (warning, M1 transition)
+    # Expected (post Track F F3 — Salesforce drill-through link, 2026-04-27):
+    #   - 16-slide live anchor
+    #   - 0 legacy verbose titles  (closed by F1)
+    #   - 0 legacy header drifts   (closed by F2)
+    #   - 0 missing required link  (closed by F3)
     #   - 0 blockers
+    #   - 15 stable titles (every non-static slide; cover + 14 narrative slides)
     assert report["status"] == "pass", report["findings"]
-    assert report["actual_slide_count"] == 18
-    assert report["legacy_verbose_title_count"] == 16
-    assert any(
-        f["code"] == "missing_required_link_transition" for f in report["findings"]
+    assert report["actual_slide_count"] == 16
+    assert report["legacy_verbose_title_count"] == 0, (
+        "F1 acceptance gate: builder must emit stable contract titles, "
+        f"got {report['legacy_verbose_title_count']} legacy verbose titles"
     )
-    # Cond 1: header validator runs and emits legacy_header_drift warnings
-    # on the slides whose production headers differ from the stable contract.
+    assert report["stable_title_count"] == 15
+    # F3: builder now emits a real Salesforce Lightning Opportunity list
+    # hyperlink on slide 10 (pushed_deals). The kind-aware link check
+    # should accept it; no missing_required_link_transition warnings.
+    assert not any(
+        f["code"] == "missing_required_link_transition" for f in report["findings"]
+    ), (
+        "F3 acceptance gate: pushed_deals slide must emit a satisfying "
+        "Salesforce drill-through hyperlink"
+    )
     legacy_header_findings = [
         f for f in report["findings"] if f["code"] == "legacy_header_drift"
     ]
-    assert len(legacy_header_findings) == 14, (
-        f"expected 14 legacy_header_drift warnings, got {len(legacy_header_findings)}"
+    assert len(legacy_header_findings) == 0, (
+        f"F2 acceptance gate: every table must match stable contract headers "
+        f"(or header_pattern_sets for dynamic-date tables), got "
+        f"{len(legacy_header_findings)} legacy_header_drift warnings"
+    )
+    # Slide 3 (since_last_review) has dynamic-date columns and matches
+    # via header_pattern_sets — counts as pass_pattern, not warning.
+    pattern_passes = sum(
+        1
+        for s in report["slides"]
+        for tr in (s.get("header_results") or [])
+        if tr.get("status") == "pass_pattern"
+    )
+    assert pattern_passes == 1, (
+        f"expected 1 header_pattern_sets match (slide 3 since_last_review), "
+        f"got {pattern_passes}"
+    )
+    # Total warnings should be zero post-F1+F2+F3.
+    assert report["warning_count"] == 0, (
+        f"expected 0 warnings post-F3, got {report['warning_count']}: "
+        f"{report['findings']}"
     )
 
 
@@ -75,13 +104,18 @@ def test_apac_anchor_passes_in_legacy_mode():
     reason="Live APAC pptx not present.",
 )
 def test_title_neither_stable_nor_legacy_blocks():
-    # Drop legacy_title_patterns so the verbose title can't match.
+    # Post Track F F1: the produced deck emits stable titles. To exercise
+    # the blocker path we MUTATE the stable title in the contract so the
+    # produced "Owner Coaching Priorities" no longer matches stable, and
+    # also drop legacy_title_patterns so it can't fall back. Result:
+    # title_neither_stable_nor_legacy blocker.
     raw = yaml.safe_load(CANONICAL_DECK.read_text(encoding="utf-8"))
     slide = next(
         s
         for s in raw["profiles"]["director_monthly"]["slides"]
         if s["id"] == "owner_coaching"
     )
+    slide["title"] = "Some Different Stable Title"
     slide.pop("legacy_title_patterns", None)
     contract = _make_contract(raw)
     report = validate_pptx(APAC_DECK, contract=contract)
@@ -146,18 +180,26 @@ def test_evidence_only_table_excluded_from_header_check():
     (the bridge), so the evidence_only opportunity-grain table should
     not generate a missing-table or header-mismatch finding."""
     report = validate_pptx(APAC_DECK)
-    # slide 5 is q1_forecast_variance. Find its slide_result.
-    slide_5 = next(s for s in report["slides"] if s["slide_number"] == 5)
-    assert slide_5["expected_tables"] == 1, slide_5
-    assert slide_5["actual_tables"] == 1, slide_5
-    # No table_missing_in_pptx finding should target the evidence table.
+    # Track E re-anchor (2026-04-27) dropped q1_forecast_variance from the
+    # contract because the current builder no longer emits it. With the
+    # derived_table+evidence_only pair gone, this test now verifies the more
+    # general claim: no slide_result reports a missing evidence_only table,
+    # and no finding path mentions a *_evidence table that should have been
+    # excluded. Functionally equivalent — the validator's evidence_only
+    # exclusion code path is still exercised any time evidence_only tables
+    # exist in the contract.
+    # No table_missing_in_pptx finding may target a *_evidence table.
+    # (When q1_forecast_variance was active, this guarded its evidence_only
+    #  drill-through. Stays as a regression guard for any future
+    #  evidence_only table.)
     for f in report["findings"]:
-        assert "tbl_q1_forecast_variance_evidence" not in f.get("path", ""), f
+        assert not f.get("path", "").endswith("_evidence].columns"), f
+        assert "evidence_only" not in f.get("path", ""), f
 
 
 @pytest.mark.skipif(not APAC_DECK.exists(), reason="Live APAC pptx not present.")
 def test_dual_table_slide_checks_both_tables_in_order():
-    """Slide 6 (q1_loss_drivers) has two tables. The header validator
+    """Slide 5 (q1_loss_drivers; was slide 6 pre-re-anchor) has two tables. The header validator
     must run against BOTH in order and surface a finding when the
     SECOND table's headers don't match anything."""
     raw = yaml.safe_load(CANONICAL_DECK.read_text(encoding="utf-8"))

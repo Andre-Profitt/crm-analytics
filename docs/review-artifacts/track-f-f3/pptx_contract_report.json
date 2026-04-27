@@ -1,0 +1,458 @@
+{
+  "schema_version": "monthly_platform.pptx_contract_report.v1",
+  "pptx_path": "<pptx-anchor>",
+  "deck_contract_path": "<sanitized>/crm-analytics/config/deck_contract.yaml",
+  "validated_at": "2026-04-27T13:06:26.871864+00:00",
+  "status": "pass",
+  "blocker_count": 0,
+  "warning_count": 0,
+  "expected_slide_count": 16,
+  "actual_slide_count": 16,
+  "legacy_verbose_title_count": 0,
+  "stable_title_count": 15,
+  "title_mismatch_count": 0,
+  "slides": [
+    {
+      "slide_number": 1,
+      "slide_id": "cover",
+      "stable_title": "Sales Director Monthly Pipeline Review",
+      "actual_title": "Sales Director Monthly Pipeline Review",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 0,
+      "actual_tables": 0,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "n/a",
+      "header_results": [],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 2,
+      "slide_id": "executive_summary",
+      "stable_title": "Executive Summary",
+      "actual_title": "Executive Summary",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 0,
+      "actual_tables": 0,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "n/a",
+      "header_results": [],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 3,
+      "slide_id": "since_last_review",
+      "stable_title": "Since Last Review",
+      "actual_title": "Since Last Review",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 1,
+      "actual_tables": 1,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_since_last_review",
+          "order": 0,
+          "status": "pass_pattern",
+          "actual_headers": [
+            "Metric",
+            "2026-04-23",
+            "2026-04-27",
+            "Change"
+          ],
+          "matched_pattern": [
+            "Metric",
+            "\\d{4}-\\d{2}-\\d{2}",
+            "\\d{4}-\\d{2}-\\d{2}",
+            "Change"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 4,
+      "slide_id": "q1_promised_delivered",
+      "stable_title": "Q1 Promised vs Delivered",
+      "actual_title": "Q1 Promised vs Delivered",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 0,
+      "actual_tables": 0,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "n/a",
+      "header_results": [],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 5,
+      "slide_id": "q1_loss_drivers",
+      "stable_title": "Q1 Loss Drivers",
+      "actual_title": "Q1 Loss Drivers",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 2,
+      "actual_tables": 2,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_q1_loss_reasons",
+          "order": 0,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Loss Reason",
+            "Count",
+            "Lost ARR"
+          ]
+        },
+        {
+          "table_id": "tbl_q1_loss_stage_reached",
+          "order": 1,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Stage Reached Before Loss",
+            "Count",
+            "Lost ARR"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 6,
+      "slide_id": "q2_outlook",
+      "stable_title": "Q2 Outlook",
+      "actual_title": "Q2 Outlook",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 0,
+      "actual_tables": 0,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "n/a",
+      "header_results": [],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 7,
+      "slide_id": "top_open_opportunities",
+      "stable_title": "Top Open Opportunities",
+      "actual_title": "Top Open Opportunities",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 1,
+      "actual_tables": 1,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_top_open_opportunities",
+          "order": 0,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Account",
+            "Opportunity",
+            "Owner",
+            "Stage",
+            "Close Date",
+            "Age",
+            "ARR (mEUR)",
+            "ARR Wtd (mEUR)"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 8,
+      "slide_id": "deal_risk_triage",
+      "stable_title": "Deal Risk Triage",
+      "actual_title": "Deal Risk Triage",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 1,
+      "actual_tables": 1,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_deal_risk_triage",
+          "order": 0,
+          "status": "pass_stable",
+          "actual_headers": [
+            "#",
+            "Score",
+            "Account",
+            "Opportunity",
+            "Stage",
+            "Close",
+            "ARR (mEUR)",
+            "Reasons"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 9,
+      "slide_id": "owner_coaching",
+      "stable_title": "Owner Coaching Priorities",
+      "actual_title": "Owner Coaching Priorities",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 1,
+      "actual_tables": 1,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_owner_coaching",
+          "order": 0,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Owner",
+            "Deals",
+            "Open ARR",
+            "Pushes",
+            "Top Risk Signals",
+            "Coaching Focus"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 10,
+      "slide_id": "pushed_deals",
+      "stable_title": "Pushed Deals",
+      "actual_title": "Pushed Deals",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 0,
+      "actual_tables": 0,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "n/a",
+      "header_results": [],
+      "link_status": "pass",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 11,
+      "slide_id": "q1_slippage",
+      "stable_title": "Q1 Slippage",
+      "actual_title": "Q1 Slippage",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 1,
+      "actual_tables": 1,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_q1_slippage",
+          "order": 0,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Account",
+            "Opportunity",
+            "Movement",
+            "Old Close",
+            "New Close",
+            "Changed",
+            "ARR (mEUR)"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 12,
+      "slide_id": "forecast_accuracy",
+      "stable_title": "Forecast Accuracy",
+      "actual_title": "Forecast Accuracy",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 0,
+      "actual_tables": 0,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "n/a",
+      "header_results": [],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 13,
+      "slide_id": "forecast_mix",
+      "stable_title": "Forecast Mix",
+      "actual_title": "Forecast Mix",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 1,
+      "actual_tables": 1,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_forecast_mix",
+          "order": 0,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Category",
+            "Deals",
+            "ARR (mEUR)"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 14,
+      "slide_id": "commercial_approvals",
+      "stable_title": "Commercial Approvals",
+      "actual_title": "Commercial Approvals",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 4,
+      "actual_tables": 4,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_approvals_approved_2026",
+          "order": 0,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Region",
+            "# Approvals",
+            "Avg Deal Size (mEUR ARR)*",
+            "Actual Deal ARR Coverage (mEUR)"
+          ]
+        },
+        {
+          "table_id": "tbl_approvals_pending",
+          "order": 1,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Region",
+            "# Approvals",
+            "Avg Deal Size",
+            "Actual Deal ARR Coverage (mEUR)"
+          ]
+        },
+        {
+          "table_id": "tbl_approvals_candidate",
+          "order": 2,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Opportunity Name",
+            "Deal size (mEUR)",
+            "Approved subject to"
+          ]
+        },
+        {
+          "table_id": "tbl_approvals_other",
+          "order": 3,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Opportunity Name",
+            "ARR (mEUR)"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 15,
+      "slide_id": "renewals",
+      "stable_title": "FY26 Renewals",
+      "actual_title": "FY26 Renewals",
+      "title_status": "pass_stable",
+      "title_detail": "",
+      "expected_tables": 1,
+      "actual_tables": 1,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "pass",
+      "header_results": [
+        {
+          "table_id": "tbl_renewals",
+          "order": 0,
+          "status": "pass_stable",
+          "actual_headers": [
+            "Close Date",
+            "Account",
+            "Opportunity",
+            "Owner",
+            "Stage",
+            "ACV (EUR)",
+            "Probability",
+            "Commentary"
+          ]
+        }
+      ],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    },
+    {
+      "slide_number": 16,
+      "slide_id": "legal_notice",
+      "stable_title": "Legal Notice",
+      "actual_title": "",
+      "title_status": "pass_static",
+      "title_detail": "",
+      "expected_tables": 0,
+      "actual_tables": 0,
+      "table_status": "pass",
+      "table_detail": "",
+      "header_status": "n/a",
+      "header_results": [],
+      "link_status": "n/a",
+      "link_detail": "",
+      "status": "pass"
+    }
+  ],
+  "findings": []
+}

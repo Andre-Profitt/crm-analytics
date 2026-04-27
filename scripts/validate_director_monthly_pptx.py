@@ -56,15 +56,55 @@ REPORT_SCHEMA_VERSION = "monthly_platform.pptx_contract_report.v1"
 
 
 def _slide_title(slide) -> str:
-    """Best-effort extraction of the slide's headline text. The current
-    production builder doesn't always populate the title placeholder,
-    so we fall back to the first non-empty text frame in shape order."""
+    """Extract the slide's title text.
+
+    Order of attempts:
+      1. The placeholder whose ``placeholder_format.idx`` is 144 (the
+         template-anchored title placeholder used by build_deck_from_excel.py).
+      2. The placeholder whose ``placeholder_format.type`` is TITLE
+         (PowerPoint's standard title placeholder type).
+      3. The first non-empty text frame in shape order — fallback for
+         slides without a title placeholder (e.g. legal/cover slides
+         that draw their headline as a free textbox).
+    """
+    title_idx_match: str | None = None
+    title_type_match: str | None = None
+    first_frame: str | None = None
+
     for shape in slide.shapes:
-        if shape.has_text_frame:
-            txt = shape.text_frame.text.strip()
-            if txt:
-                return txt.split("\n")[0].strip()
-    return ""
+        if not shape.has_text_frame:
+            continue
+        text = shape.text_frame.text.strip()
+        if not text:
+            continue
+        first_line = text.split("\n")[0].strip()
+
+        try:
+            ph_fmt = shape.placeholder_format
+        except (ValueError, AttributeError):
+            ph_fmt = None
+
+        if ph_fmt is not None:
+            try:
+                if ph_fmt.idx == 144 and title_idx_match is None:
+                    title_idx_match = first_line
+            except (ValueError, AttributeError):
+                pass
+            try:
+                # PowerPoint's PP_PLACEHOLDER.TITLE = 13 (and CTR_TITLE = 14)
+                if (
+                    ph_fmt.type is not None
+                    and ph_fmt.type in (13, 14)
+                    and title_type_match is None
+                ):
+                    title_type_match = first_line
+            except (ValueError, AttributeError):
+                pass
+
+        if first_frame is None:
+            first_frame = first_line
+
+    return title_idx_match or title_type_match or first_frame or ""
 
 
 def _slide_table_count(slide) -> int:
@@ -206,6 +246,35 @@ def _validate_table_headers(
                     "order": idx,
                     "status": "pass_stable",
                     "actual_headers": actual_headers,
+                }
+            )
+            continue
+
+        # header_pattern_sets — canonical regex tuples for tables whose
+        # headers are dynamic-by-design (e.g. snapshot-date columns). A match
+        # is treated as pass_stable (the canonical contract form), NOT a
+        # warning. Checked before legacy_header_sets so canonical-pattern
+        # tables don't generate transition warnings.
+        pattern_sets = decl.get("header_pattern_sets") or []
+        matched_pattern: list[str] | None = None
+        for header_set in pattern_sets:
+            if len(header_set) != len(actual_headers):
+                continue
+            try:
+                if all(re.fullmatch(p, h) for p, h in zip(header_set, actual_headers)):
+                    matched_pattern = list(header_set)
+                    break
+            except re.error:
+                continue
+
+        if matched_pattern is not None:
+            per_table.append(
+                {
+                    "table_id": decl.get("id"),
+                    "order": idx,
+                    "status": "pass_pattern",
+                    "actual_headers": actual_headers,
+                    "matched_pattern": matched_pattern,
                 }
             )
             continue

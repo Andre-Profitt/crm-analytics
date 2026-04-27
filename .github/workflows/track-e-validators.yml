@@ -19,12 +19,30 @@ name: Track E — contract validators
       - "scripts/monthly_platform/deck_contract.py"
       - "scripts/monthly_platform/director_workbook_contract.py"
       - "scripts/monthly_platform/deck_binding_resolver.py"
+      - "scripts/monthly_platform/brand_contract.py"
       - "scripts/validate_deck_contract.py"
       - "scripts/validate_track_e_workbook_contract.py"
       - "scripts/validate_track_e_workbook.py"
       - "scripts/validate_deck_bindings.py"
       - "scripts/validate_director_monthly_pptx.py"
+      - "scripts/validate_deck_brand.py"
+      - "scripts/validate_deck_render.py"
+      - "scripts/validate_deck_visual_regression.py"
+      - "scripts/render_deck_to_images.py"
+      - "scripts/build_release_packet.py"
+      - "scripts/build_release_catalog.py"
+      - "scripts/monthly_platform/release_catalog.py"
+      - "scripts/monthly_platform/waivers.py"
+      - "config/deck_visual_regions.yaml"
+      - "config/release_policy.yaml"
+      - "config/waivers/**"
+      - "tests/fixtures/track_f/**"
+      - "tests/test_track_g_*.py"
+      - "tests/test_track_k_*.py"
+      - "tests/test_track_em2_*.py"
+      - "assets/SimCorp_PPT_Template.pptx"
       - "tests/test_track_e_*.py"
+      - "tests/test_track_f_*.py"
       - ".github/workflows/track-e-validators.yml"
   workflow_dispatch:
 
@@ -46,9 +64,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Track E validators only need: pyyaml, jsonschema, openpyxl,
-          # python-pptx, pytest. requirements.txt already covers these,
-          # so no separate install step is needed.
+          # requirements.txt covers runtime deps (pydantic, pyyaml,
+          # openpyxl, python-pptx). The validators + tests also need
+          # jsonschema, Pillow (Track F F6 image diffs), and pytest;
+          # install those explicitly here so the workflow doesn't
+          # depend on a separate dev-requirements file.
+          pip install pytest pytest-asyncio jsonschema Pillow
 
       - name: Validate deck contract structurally
         run: python3 scripts/validate_deck_contract.py --show-findings
@@ -56,10 +77,20 @@ jobs:
       - name: Validate director workbook contract structurally
         run: python3 scripts/validate_track_e_workbook_contract.py --show-findings
 
+      - name: Validate SimCorp template brand fingerprint (Track F F4)
+        run: python3 scripts/validate_deck_brand.py --show-findings
+
       - name: Run Track E tests
         # Live-anchor tests skip automatically when the workbook/PPTX
         # in ~/Downloads/ are absent (they are not committed).
-        run: python3 -m pytest tests/test_track_e_*.py -v
+        run: |
+          python3 -m pytest \
+            tests/test_track_e_*.py \
+            tests/test_track_f_*.py \
+            tests/test_track_g_*.py \
+            tests/test_track_em2_*.py \
+            tests/test_track_k_*.py \
+            -v
 
       - name: Surface Track E test summary on failure
         if: failure()

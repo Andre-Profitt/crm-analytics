@@ -1,0 +1,408 @@
+{
+  "schema_version": "monthly_platform.deck_visual_regression_baseline.v1",
+  "captured_at": "2026-04-27T14:35:27.731938+00:00",
+  "captured_from_pptx": "/Users/test/Downloads/jesper-tyrer-LAND.pptx",
+  "dpi": 100,
+  "slides": [
+    {
+      "slide_number": 1,
+      "slide_id": "cover",
+      "regions": [
+        {
+          "id": "full_slide",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.0,
+            1.0,
+            1.0
+          ],
+          "hash": "a6e43bec38f1feaa2eed8db535ae52350da29191ec72c3398d359ea15e77e1ed",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 0,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 750
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 2,
+      "slide_id": "executive_summary",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "da661617c1e7d0346c40beed6b7e1c2b6db4407100edc65e4f82d3a1a8e50b98",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 3,
+      "slide_id": "since_last_review",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "668d8d1ee43dd5591de54a463c10ddd36af6c22448ddc23b4d1ff907e0991c1a",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 4,
+      "slide_id": "q1_promised_delivered",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "ae8c630093f204330fe4cbd1dc784438a13a2a652b97b2392969b9b2400f4bf1",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 5,
+      "slide_id": "q1_loss_drivers",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "f297e58a6add387d3ad0fb3b1d97e02c022939d9537f70278435a348b2a0c88b",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 6,
+      "slide_id": "q2_outlook",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "7f633753b76bce2876c53548dc1b73e6a9594b4ef69a116f26e723137459cbe2",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 7,
+      "slide_id": "top_open_opportunities",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "c644038a7db7ec1c037b780ec58aac108dca494acf556259184c3989b9dbd3c6",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 8,
+      "slide_id": "deal_risk_triage",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "9ecc9a6ac1ce681f40b34a0fb8276c9eb04100df961df4a328f34192fcd7fe02",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 9,
+      "slide_id": "owner_coaching",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "c65157009a9ed70608d1974a199b6d6fbd4c9cc64ac51ba7dee842a8213e00aa",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 10,
+      "slide_id": "pushed_deals",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "1f9ff6f892b6fda689173464a5e37405562500f49403f6d161cc632261ad992d",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 11,
+      "slide_id": "q1_slippage",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "518b06d647aea23faafd27124aa29e88a4472471cf03fd5921046c68efd7805b",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 12,
+      "slide_id": "forecast_accuracy",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "8a02aac0f86ec3aa20b8954c8a1f6502c3ffcd9602a5e75185850edab2fe3600",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 13,
+      "slide_id": "forecast_mix",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "83fab2b7cef2dbc08b209ae95f3a0d6896966e91ed498ed39ec0713b7832e4bd",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 14,
+      "slide_id": "commercial_approvals",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "1ac04484423a970f02b5c707309b6c49e9485580be357700fffa31da96aaa8c7",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 15,
+      "slide_id": "renewals",
+      "regions": [
+        {
+          "id": "footer_band",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.92,
+            1.0,
+            0.08
+          ],
+          "hash": "227990a8b8437006f778c50f2626e4df3d037e88c3a780fe4e09f76665a62e41",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 690,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 60
+          }
+        }
+      ]
+    },
+    {
+      "slide_number": 16,
+      "slide_id": "legal_notice",
+      "regions": [
+        {
+          "id": "full_slide",
+          "kind": "frozen",
+          "bbox": [
+            0.0,
+            0.0,
+            1.0,
+            1.0
+          ],
+          "hash": "035dc5a0c8fff2db424af7e92399de0a535037b568e342da3c46e1744dc84574",
+          "pixel_geometry": {
+            "left": 0,
+            "top": 0,
+            "right": 1334,
+            "bottom": 750,
+            "width": 1334,
+            "height": 750
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -2,7 +2,7 @@
   "schema_version": "monthly_platform.director_workbook_validation.v1",
   "workbook_path": "<workbook-anchor>",
   "contract_path": "<sanitized>/crm-analytics/config/director_workbook_contract.yaml",
-  "validated_at": "2026-04-27T02:25:02.301919+00:00",
+  "validated_at": "2026-04-27T12:08:01.073042+00:00",
   "status": "pass",
   "blocker_count": 0,
   "warning_count": 0,

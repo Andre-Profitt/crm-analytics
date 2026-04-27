@@ -2,7 +2,7 @@
 
 - workbook: `<workbook-anchor>`
 - contract: `<sanitized>/crm-analytics/config/director_workbook_contract.yaml`
-- validated_at: 2026-04-27T02:25:02.301919+00:00
+- validated_at: 2026-04-27T12:08:01.073042+00:00
 - **status: pass**
 - blockers: 0 | warnings: 0
 - sheets: 13/13 present

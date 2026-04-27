@@ -2,23 +2,23 @@
   "schema_version": "monthly_platform.pptx_contract_report.v1",
   "pptx_path": "<pptx-anchor>",
   "deck_contract_path": "<sanitized>/crm-analytics/config/deck_contract.yaml",
-  "validated_at": "2026-04-27T02:25:03.595240+00:00",
+  "validated_at": "2026-04-27T12:08:02.354031+00:00",
   "status": "pass",
   "blocker_count": 0,
-  "warning_count": 31,
-  "expected_slide_count": 18,
-  "actual_slide_count": 18,
-  "legacy_verbose_title_count": 16,
-  "stable_title_count": 1,
+  "warning_count": 29,
+  "expected_slide_count": 16,
+  "actual_slide_count": 16,
+  "legacy_verbose_title_count": 15,
+  "stable_title_count": 0,
   "title_mismatch_count": 0,
   "slides": [
     {
       "slide_number": 1,
       "slide_id": "cover",
       "stable_title": "Sales Director Monthly Pipeline Review",
-      "actual_title": "Sales Director Monthly Pipeline Review",
-      "title_status": "pass_stable",
-      "title_detail": "",
+      "actual_title": "Monthly Pipeline Review",
+      "title_status": "warning_legacy",
+      "title_detail": "matched legacy pattern: '^Monthly Pipeline Review$'",
       "expected_tables": 0,
       "actual_tables": 0,
       "table_status": "pass",
@@ -27,13 +27,13 @@
       "header_results": [],
       "link_status": "n/a",
       "link_detail": "",
-      "status": "pass"
+      "status": "warning"
     },
     {
       "slide_number": 2,
       "slide_id": "executive_summary",
       "stable_title": "Executive Summary",
-      "actual_title": "Pipeline EUR 9.6M unweighted, EUR 3.8M weighted, across 12 deals. 12 deals. 33% in 1 - Prospecting.",
+      "actual_title": "Pipeline EUR 9.6M unweighted, EUR 3.8M weighted, across 8 deals. 38% in 3 - Engagement.",
       "title_status": "warning_legacy",
       "title_detail": "matched legacy pattern: '^Pipeline EUR.* (un)?weighted.*deals.*$'",
       "expected_tables": 0,
@@ -50,7 +50,7 @@
       "slide_number": 3,
       "slide_id": "since_last_review",
       "stable_title": "Since Last Review",
-      "actual_title": "Since last review (2026-04-20): what moved",
+      "actual_title": "Since last review (2026-04-23): what moved",
       "title_status": "warning_legacy",
       "title_detail": "matched legacy pattern: '^Since last review.*$'",
       "expected_tables": 1,
@@ -65,8 +65,8 @@
           "status": "warning_legacy",
           "actual_headers": [
             "Metric",
-            "2026-04-20",
-            "2026-04-22",
+            "2026-04-23",
+            "2026-04-27",
             "Change"
           ],
           "stable_headers": [
@@ -96,7 +96,7 @@
       "slide_number": 4,
       "slide_id": "q1_promised_delivered",
       "stable_title": "Q1 Promised vs Delivered",
-      "actual_title": "Q1 pipeline opened at EUR 17.1M across 27 deals. Committed (stage 4+): EUR 2.7M in 4 deals.",
+      "actual_title": "Q1 pipeline opened at EUR 17.1M across 14 deals. Committed (stage 4+): EUR 2.7M in 4 deals.",
       "title_status": "warning_legacy",
       "title_detail": "matched legacy pattern: '^Q1 pipeline opened at EUR.*$'",
       "expected_tables": 0,
@@ -111,33 +111,6 @@
     },
     {
       "slide_number": 5,
-      "slide_id": "q1_forecast_variance",
-      "stable_title": "Q1 Forecast Variance",
-      "actual_title": "Q1 Forecast Variance, EUR 6.6M shrank",
-      "title_status": "warning_legacy",
-      "title_detail": "matched legacy pattern: '^Q1 Forecast Variance.*$'",
-      "expected_tables": 1,
-      "actual_tables": 1,
-      "table_status": "pass",
-      "table_detail": "",
-      "header_status": "pass",
-      "header_results": [
-        {
-          "table_id": "tbl_q1_forecast_variance_bridge",
-          "order": 0,
-          "status": "pass_stable",
-          "actual_headers": [
-            "Bucket",
-            "ARR Impact"
-          ]
-        }
-      ],
-      "link_status": "n/a",
-      "link_detail": "",
-      "status": "warning"
-    },
-    {
-      "slide_number": 6,
       "slide_id": "q1_loss_drivers",
       "stable_title": "Q1 Loss Drivers",
       "actual_title": "14 Q1 Land losses, EUR 5.5M. 9 missing reason code.",
@@ -195,10 +168,10 @@
       "status": "warning"
     },
     {
-      "slide_number": 7,
+      "slide_number": 6,
       "slide_id": "q2_outlook",
       "stable_title": "Q2 Outlook",
-      "actual_title": "Q2 book EUR 5.0M unweighted, EUR 3.4M weighted. 6 deals closing Apr-Jun.",
+      "actual_title": "Q2 book EUR 5.0M unweighted, EUR 3.4M weighted. 5 deals closing Apr-Jun.",
       "title_status": "warning_legacy",
       "title_detail": "matched legacy pattern: '^Q2 book EUR.*$'",
       "expected_tables": 0,
@@ -212,69 +185,12 @@
       "status": "warning"
     },
     {
-      "slide_number": 8,
-      "slide_id": "q2_deal_readiness",
-      "stable_title": "Q2 Deal Readiness",
-      "actual_title": "Q2 APAC: 6 deals, EUR 5.0M. \u26a0 Zero recent activity across the entire Q2 book.",
-      "title_status": "warning_legacy",
-      "title_detail": "matched legacy pattern: '^Q2 .*: \\\\d+ deals.*$'",
-      "expected_tables": 1,
-      "actual_tables": 1,
-      "table_status": "pass",
-      "table_detail": "",
-      "header_status": "warning",
-      "header_results": [
-        {
-          "table_id": "tbl_q2_deal_readiness",
-          "order": 0,
-          "status": "warning_legacy",
-          "actual_headers": [
-            "Account",
-            "Opportunity",
-            "Stage",
-            "Close",
-            "Days",
-            "ARR",
-            "Last Activity",
-            "AuM",
-            "Readiness",
-            "Next Step"
-          ],
-          "stable_headers": [
-            "Account",
-            "Opportunity",
-            "Stage",
-            "Close",
-            "Days",
-            "ARR",
-            "Last Activity",
-            "Readiness"
-          ],
-          "matched_legacy": [
-            "Account",
-            "Opportunity",
-            "Stage",
-            "Close",
-            "Days",
-            "ARR",
-            "Last Activity",
-            "AuM",
-            "Readiness",
-            "Next Step"
-          ]
-        }
-      ],
-      "link_status": "n/a",
-      "link_detail": "",
-      "status": "warning"
-    },
-    {
-      "slide_number": 9,
+      "slide_number": 7,
       "slide_id": "top_open_opportunities",
       "stable_title": "Top Open Opportunities",
-      "actual_title": "Top 7 open deals = EUR 9.6M. Amova Asset Management leads at EUR 2.6M; top 5 = 89% of this book.",
+      "actual_title": "Key 7 open deals = EUR 9.6M. Amova Asset Management leads at EUR 2.6M; top 5 = 89% of this book.",
       "title_status": "warning_legacy",
-      "title_detail": "matched legacy pattern: '^Top \\\\d+ open deals.*$'",
+      "title_detail": "matched legacy pattern: '^(Top|Key) \\\\d+ open deals.*$'",
       "expected_tables": 1,
       "actual_tables": 1,
       "table_status": "pass",
@@ -292,7 +208,7 @@
             "Stage",
             "Close Date",
             "Age",
-            "ARR Unwtd (mEUR)",
+            "ARR (mEUR)",
             "ARR Wtd (mEUR)"
           ],
           "stable_headers": [
@@ -311,7 +227,7 @@
             "Stage",
             "Close Date",
             "Age",
-            "ARR Unwtd \\(mEUR\\)",
+            "ARR \\(mEUR\\)",
             "ARR Wtd \\(mEUR\\)"
           ]
         }
@@ -321,12 +237,12 @@
       "status": "warning"
     },
     {
-      "slide_number": 10,
+      "slide_number": 8,
       "slide_id": "deal_risk_triage",
       "stable_title": "Deal Risk Triage",
-      "actual_title": "Top 4 Q2-Q3 Deals at Risk, EUR 4.9M exposed",
+      "actual_title": "Key 4 Q2-Q3 Deals at Risk, EUR 4.9M exposed",
       "title_status": "warning_legacy",
-      "title_detail": "matched legacy pattern: '^Top \\\\d+ Q2.*Deals at Risk.*$'",
+      "title_detail": "matched legacy pattern: '^(Top|Key) \\\\d+ Q2.*Deals at Risk.*$'",
       "expected_tables": 1,
       "actual_tables": 1,
       "table_status": "pass",
@@ -375,10 +291,10 @@
       "status": "warning"
     },
     {
-      "slide_number": 11,
+      "slide_number": 9,
       "slide_id": "owner_coaching",
       "stable_title": "Owner Coaching Priorities",
-      "actual_title": "3 owners carry 50 pushes across EUR 22.0M. Coach in this order.",
+      "actual_title": "3 owners carry 50 pushes across EUR 21.8M. Coach in this order.",
       "title_status": "warning_legacy",
       "title_detail": "matched legacy pattern: '^\\\\d+ owners carry \\\\d+ pushes.*$'",
       "expected_tables": 1,
@@ -421,7 +337,7 @@
       "status": "warning"
     },
     {
-      "slide_number": 12,
+      "slide_number": 10,
       "slide_id": "pushed_deals",
       "stable_title": "Pushed Deals",
       "actual_title": "11 open deals pushed. Edwina Chow owns 5 of the most-pushed deals, pattern review recommended.",
@@ -438,10 +354,10 @@
       "status": "warning"
     },
     {
-      "slide_number": 13,
+      "slide_number": 11,
       "slide_id": "q1_slippage",
       "stable_title": "Q1 Slippage",
-      "actual_title": "9 deals slipped out of Q1 (EUR 9.4M). 7 pushed since.",
+      "actual_title": "8 deals slipped out of Q1 (EUR 9.4M). 5 pushed since.",
       "title_status": "warning_legacy",
       "title_detail": "matched legacy pattern: '^\\\\d+ deals slipped out of Q1.*$'",
       "expected_tables": 1,
@@ -461,7 +377,7 @@
             "Old Close",
             "New Close",
             "Changed",
-            "ARR Unweighted (mEUR)"
+            "ARR (mEUR)"
           ],
           "stable_headers": [
             "Account",
@@ -479,7 +395,7 @@
             "Old Close",
             "New Close",
             "Changed",
-            "ARR Unweighted \\(mEUR\\)"
+            "ARR \\(mEUR\\)"
           ]
         }
       ],
@@ -488,7 +404,7 @@
       "status": "warning"
     },
     {
-      "slide_number": 14,
+      "slide_number": 12,
       "slide_id": "forecast_accuracy",
       "stable_title": "Forecast Accuracy",
       "actual_title": "1 deal closed-won (EUR 1.9M).",
@@ -505,12 +421,12 @@
       "status": "warning"
     },
     {
-      "slide_number": 15,
+      "slide_number": 13,
       "slide_id": "forecast_mix",
       "stable_title": "Forecast Mix",
-      "actual_title": "Forecast mix: EUR 5.6M across 12 open deals. Commit = EUR 2.7M (48%).",
+      "actual_title": "Forecast Breakdown: EUR 5.6M across 12 open deals. Commit = EUR 2.7M (48%).",
       "title_status": "warning_legacy",
-      "title_detail": "matched legacy pattern: '^Forecast mix:.*$'",
+      "title_detail": "matched legacy pattern: '^Forecast (mix|Breakdown):.*$'",
       "expected_tables": 1,
       "actual_tables": 1,
       "table_status": "pass",
@@ -524,7 +440,7 @@
           "actual_headers": [
             "Category",
             "Deals",
-            "ARR mEUR"
+            "ARR (mEUR)"
           ],
           "stable_headers": [
             "Category",
@@ -535,7 +451,7 @@
           "matched_legacy": [
             "Category",
             "Deals",
-            "ARR mEUR"
+            "ARR \\(mEUR\\)"
           ]
         }
       ],
@@ -544,7 +460,7 @@
       "status": "warning"
     },
     {
-      "slide_number": 16,
+      "slide_number": 14,
       "slide_id": "commercial_approvals",
       "stable_title": "Commercial Approvals",
       "actual_title": "Commercial Approvals: 2 approved 2026, 1 pending.",
@@ -649,7 +565,7 @@
       "status": "warning"
     },
     {
-      "slide_number": 17,
+      "slide_number": 15,
       "slide_id": "renewals",
       "stable_title": "FY26 Renewals",
       "actual_title": "3 renewals due FY26, EUR 33.5M ACV (1 in Q2, 2 in Q3).",
@@ -702,7 +618,7 @@
       "status": "warning"
     },
     {
-      "slide_number": 18,
+      "slide_number": 16,
       "slide_id": "legal_notice",
       "stable_title": "Legal Notice",
       "actual_title": "",
@@ -723,188 +639,176 @@
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
+      "path": "slides[1].title",
+      "message": "slide 1 (cover) emits legacy verbose title 'Monthly Pipeline Review'; matches legacy_title_patterns. Update builder to emit stable title 'Sales Director Monthly Pipeline Review'."
+    },
+    {
+      "severity": "warning",
+      "code": "legacy_verbose_title",
       "path": "slides[2].title",
-      "message": "slide 2 (executive_summary) emits legacy verbose title 'Pipeline EUR 9.6M unweighted, EUR 3.8M weighted, across 12 deals. 12 deals. 33% in 1 - Prospecting.'; matches legacy_title_patterns. Update builder to emit stable title 'Executive Summary'."
+      "message": "slide 2 (executive_summary) emits legacy verbose title 'Pipeline EUR 9.6M unweighted, EUR 3.8M weighted, across 8 deals. 38% in 3 - Engagement.'; matches legacy_title_patterns. Update builder to emit stable title 'Executive Summary'."
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[3].title",
-      "message": "slide 3 (since_last_review) emits legacy verbose title 'Since last review (2026-04-20): what moved'; matches legacy_title_patterns. Update builder to emit stable title 'Since Last Review'."
+      "message": "slide 3 (since_last_review) emits legacy verbose title 'Since last review (2026-04-23): what moved'; matches legacy_title_patterns. Update builder to emit stable title 'Since Last Review'."
     },
     {
       "severity": "warning",
       "code": "legacy_header_drift",
       "path": "slides[3].tables[tbl_since_last_review].columns",
-      "message": "slide 3 (since_last_review) table 'tbl_since_last_review' headers match a legacy_header_sets entry rather than stable headers. actual=['Metric', '2026-04-20', '2026-04-22', 'Change'] stable=['Account', 'Opportunity', 'Owner', 'Stage', 'Movement', 'Old Close', 'New Close', 'Changed', 'ARR']"
+      "message": "slide 3 (since_last_review) table 'tbl_since_last_review' headers match a legacy_header_sets entry rather than stable headers. actual=['Metric', '2026-04-23', '2026-04-27', 'Change'] stable=['Account', 'Opportunity', 'Owner', 'Stage', 'Movement', 'Old Close', 'New Close', 'Changed', 'ARR']"
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[4].title",
-      "message": "slide 4 (q1_promised_delivered) emits legacy verbose title 'Q1 pipeline opened at EUR 17.1M across 27 deals. Committed (stage 4+): EUR 2.7M in 4 deals.'; matches legacy_title_patterns. Update builder to emit stable title 'Q1 Promised vs Delivered'."
+      "message": "slide 4 (q1_promised_delivered) emits legacy verbose title 'Q1 pipeline opened at EUR 17.1M across 14 deals. Committed (stage 4+): EUR 2.7M in 4 deals.'; matches legacy_title_patterns. Update builder to emit stable title 'Q1 Promised vs Delivered'."
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[5].title",
-      "message": "slide 5 (q1_forecast_variance) emits legacy verbose title 'Q1 Forecast Variance, EUR 6.6M shrank'; matches legacy_title_patterns. Update builder to emit stable title 'Q1 Forecast Variance'."
+      "message": "slide 5 (q1_loss_drivers) emits legacy verbose title '14 Q1 Land losses, EUR 5.5M. 9 missing reason code.'; matches legacy_title_patterns. Update builder to emit stable title 'Q1 Loss Drivers'."
+    },
+    {
+      "severity": "warning",
+      "code": "legacy_header_drift",
+      "path": "slides[5].tables[tbl_q1_loss_reasons].columns",
+      "message": "slide 5 (q1_loss_drivers) table 'tbl_q1_loss_reasons' headers match a legacy_header_sets entry rather than stable headers. actual=['Loss Reason', 'Count', 'Lost ARR'] stable=['Reason', 'Count', 'ARR']"
+    },
+    {
+      "severity": "warning",
+      "code": "legacy_header_drift",
+      "path": "slides[5].tables[tbl_q1_loss_stage_reached].columns",
+      "message": "slide 5 (q1_loss_drivers) table 'tbl_q1_loss_stage_reached' headers match a legacy_header_sets entry rather than stable headers. actual=['Stage Reached Before Loss', 'Count', 'Lost ARR'] stable=['Stage Reached', 'Count', 'ARR']"
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[6].title",
-      "message": "slide 6 (q1_loss_drivers) emits legacy verbose title '14 Q1 Land losses, EUR 5.5M. 9 missing reason code.'; matches legacy_title_patterns. Update builder to emit stable title 'Q1 Loss Drivers'."
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_header_drift",
-      "path": "slides[6].tables[tbl_q1_loss_reasons].columns",
-      "message": "slide 6 (q1_loss_drivers) table 'tbl_q1_loss_reasons' headers match a legacy_header_sets entry rather than stable headers. actual=['Loss Reason', 'Count', 'Lost ARR'] stable=['Reason', 'Count', 'ARR']"
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_header_drift",
-      "path": "slides[6].tables[tbl_q1_loss_stage_reached].columns",
-      "message": "slide 6 (q1_loss_drivers) table 'tbl_q1_loss_stage_reached' headers match a legacy_header_sets entry rather than stable headers. actual=['Stage Reached Before Loss', 'Count', 'Lost ARR'] stable=['Stage Reached', 'Count', 'ARR']"
+      "message": "slide 6 (q2_outlook) emits legacy verbose title 'Q2 book EUR 5.0M unweighted, EUR 3.4M weighted. 5 deals closing Apr-Jun.'; matches legacy_title_patterns. Update builder to emit stable title 'Q2 Outlook'."
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[7].title",
-      "message": "slide 7 (q2_outlook) emits legacy verbose title 'Q2 book EUR 5.0M unweighted, EUR 3.4M weighted. 6 deals closing Apr-Jun.'; matches legacy_title_patterns. Update builder to emit stable title 'Q2 Outlook'."
+      "message": "slide 7 (top_open_opportunities) emits legacy verbose title 'Key 7 open deals = EUR 9.6M. Amova Asset Management leads at EUR 2.6M; top 5 = 89% of this book.'; matches legacy_title_patterns. Update builder to emit stable title 'Top Open Opportunities'."
+    },
+    {
+      "severity": "warning",
+      "code": "legacy_header_drift",
+      "path": "slides[7].tables[tbl_top_open_opportunities].columns",
+      "message": "slide 7 (top_open_opportunities) table 'tbl_top_open_opportunities' headers match a legacy_header_sets entry rather than stable headers. actual=['Account', 'Opportunity', 'Owner', 'Stage', 'Close Date', 'Age', 'ARR (mEUR)', 'ARR Wtd (mEUR)'] stable=['Account', 'Opportunity', 'Owner', 'Stage', 'Close', 'ARR', 'Prob %']"
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[8].title",
-      "message": "slide 8 (q2_deal_readiness) emits legacy verbose title 'Q2 APAC: 6 deals, EUR 5.0M. \u26a0 Zero recent activity across the entire Q2 book.'; matches legacy_title_patterns. Update builder to emit stable title 'Q2 Deal Readiness'."
+      "message": "slide 8 (deal_risk_triage) emits legacy verbose title 'Key 4 Q2-Q3 Deals at Risk, EUR 4.9M exposed'; matches legacy_title_patterns. Update builder to emit stable title 'Deal Risk Triage'."
     },
     {
       "severity": "warning",
       "code": "legacy_header_drift",
-      "path": "slides[8].tables[tbl_q2_deal_readiness].columns",
-      "message": "slide 8 (q2_deal_readiness) table 'tbl_q2_deal_readiness' headers match a legacy_header_sets entry rather than stable headers. actual=['Account', 'Opportunity', 'Stage', 'Close', 'Days', 'ARR', 'Last Activity', 'AuM', 'Readiness', 'Next Step'] stable=['Account', 'Opportunity', 'Stage', 'Close', 'Days', 'ARR', 'Last Activity', 'Readiness']"
+      "path": "slides[8].tables[tbl_deal_risk_triage].columns",
+      "message": "slide 8 (deal_risk_triage) table 'tbl_deal_risk_triage' headers match a legacy_header_sets entry rather than stable headers. actual=['#', 'Score', 'Account', 'Opportunity', 'Stage', 'Close', 'ARR (mEUR)', 'Reasons'] stable=['Opportunity', 'Owner', 'Stage', 'Forecast', 'Wtd ARR', 'Close', 'Pushes', 'Score', 'Priority']"
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[9].title",
-      "message": "slide 9 (top_open_opportunities) emits legacy verbose title 'Top 7 open deals = EUR 9.6M. Amova Asset Management leads at EUR 2.6M; top 5 = 89% of this book.'; matches legacy_title_patterns. Update builder to emit stable title 'Top Open Opportunities'."
+      "message": "slide 9 (owner_coaching) emits legacy verbose title '3 owners carry 50 pushes across EUR 21.8M. Coach in this order.'; matches legacy_title_patterns. Update builder to emit stable title 'Owner Coaching Priorities'."
     },
     {
       "severity": "warning",
       "code": "legacy_header_drift",
-      "path": "slides[9].tables[tbl_top_open_opportunities].columns",
-      "message": "slide 9 (top_open_opportunities) table 'tbl_top_open_opportunities' headers match a legacy_header_sets entry rather than stable headers. actual=['Account', 'Opportunity', 'Owner', 'Stage', 'Close Date', 'Age', 'ARR Unwtd (mEUR)', 'ARR Wtd (mEUR)'] stable=['Account', 'Opportunity', 'Owner', 'Stage', 'Close', 'ARR', 'Prob %']"
+      "path": "slides[9].tables[tbl_owner_coaching].columns",
+      "message": "slide 9 (owner_coaching) table 'tbl_owner_coaching' headers match a legacy_header_sets entry rather than stable headers. actual=['Owner', 'Deals', 'Open ARR', 'Pushes', 'Top Risk Signals', 'Coaching Focus'] stable=['Owner', 'Deals', 'ARR', 'Pushes', 'Avg Push']"
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[10].title",
-      "message": "slide 10 (deal_risk_triage) emits legacy verbose title 'Top 4 Q2-Q3 Deals at Risk, EUR 4.9M exposed'; matches legacy_title_patterns. Update builder to emit stable title 'Deal Risk Triage'."
+      "message": "slide 10 (pushed_deals) emits legacy verbose title '11 open deals pushed. Edwina Chow owns 5 of the most-pushed deals, pattern review recommended.'; matches legacy_title_patterns. Update builder to emit stable title 'Pushed Deals'."
     },
     {
       "severity": "warning",
-      "code": "legacy_header_drift",
-      "path": "slides[10].tables[tbl_deal_risk_triage].columns",
-      "message": "slide 10 (deal_risk_triage) table 'tbl_deal_risk_triage' headers match a legacy_header_sets entry rather than stable headers. actual=['#', 'Score', 'Account', 'Opportunity', 'Stage', 'Close', 'ARR (mEUR)', 'Reasons'] stable=['Opportunity', 'Owner', 'Stage', 'Forecast', 'Wtd ARR', 'Close', 'Pushes', 'Score', 'Priority']"
+      "code": "missing_required_link_transition",
+      "path": "slides[10].required_links",
+      "message": "slide 10 (pushed_deals) missing required hyperlink (1 declared). Update builder to emit the Salesforce drill-through link."
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[11].title",
-      "message": "slide 11 (owner_coaching) emits legacy verbose title '3 owners carry 50 pushes across EUR 22.0M. Coach in this order.'; matches legacy_title_patterns. Update builder to emit stable title 'Owner Coaching Priorities'."
+      "message": "slide 11 (q1_slippage) emits legacy verbose title '8 deals slipped out of Q1 (EUR 9.4M). 5 pushed since.'; matches legacy_title_patterns. Update builder to emit stable title 'Q1 Slippage'."
     },
     {
       "severity": "warning",
       "code": "legacy_header_drift",
-      "path": "slides[11].tables[tbl_owner_coaching].columns",
-      "message": "slide 11 (owner_coaching) table 'tbl_owner_coaching' headers match a legacy_header_sets entry rather than stable headers. actual=['Owner', 'Deals', 'Open ARR', 'Pushes', 'Top Risk Signals', 'Coaching Focus'] stable=['Owner', 'Deals', 'ARR', 'Pushes', 'Avg Push']"
+      "path": "slides[11].tables[tbl_q1_slippage].columns",
+      "message": "slide 11 (q1_slippage) table 'tbl_q1_slippage' headers match a legacy_header_sets entry rather than stable headers. actual=['Account', 'Opportunity', 'Movement', 'Old Close', 'New Close', 'Changed', 'ARR (mEUR)'] stable=['Account', 'Opportunity', 'Owner', 'Stage', 'Old Close', 'New Close', 'ARR']"
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[12].title",
-      "message": "slide 12 (pushed_deals) emits legacy verbose title '11 open deals pushed. Edwina Chow owns 5 of the most-pushed deals, pattern review recommended.'; matches legacy_title_patterns. Update builder to emit stable title 'Pushed Deals'."
-    },
-    {
-      "severity": "warning",
-      "code": "missing_required_link_transition",
-      "path": "slides[12].required_links",
-      "message": "slide 12 (pushed_deals) missing required hyperlink (1 declared). Update builder to emit the Salesforce drill-through link."
+      "message": "slide 12 (forecast_accuracy) emits legacy verbose title '1 deal closed-won (EUR 1.9M).'; matches legacy_title_patterns. Update builder to emit stable title 'Forecast Accuracy'."
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[13].title",
-      "message": "slide 13 (q1_slippage) emits legacy verbose title '9 deals slipped out of Q1 (EUR 9.4M). 7 pushed since.'; matches legacy_title_patterns. Update builder to emit stable title 'Q1 Slippage'."
+      "message": "slide 13 (forecast_mix) emits legacy verbose title 'Forecast Breakdown: EUR 5.6M across 12 open deals. Commit = EUR 2.7M (48%).'; matches legacy_title_patterns. Update builder to emit stable title 'Forecast Mix'."
     },
     {
       "severity": "warning",
       "code": "legacy_header_drift",
-      "path": "slides[13].tables[tbl_q1_slippage].columns",
-      "message": "slide 13 (q1_slippage) table 'tbl_q1_slippage' headers match a legacy_header_sets entry rather than stable headers. actual=['Account', 'Opportunity', 'Movement', 'Old Close', 'New Close', 'Changed', 'ARR Unweighted (mEUR)'] stable=['Account', 'Opportunity', 'Owner', 'Stage', 'Old Close', 'New Close', 'ARR']"
+      "path": "slides[13].tables[tbl_forecast_mix].columns",
+      "message": "slide 13 (forecast_mix) table 'tbl_forecast_mix' headers match a legacy_header_sets entry rather than stable headers. actual=['Category', 'Deals', 'ARR (mEUR)'] stable=['Category', 'Deals', 'Wtd ARR', 'Unwtd ARR']"
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[14].title",
-      "message": "slide 14 (forecast_accuracy) emits legacy verbose title '1 deal closed-won (EUR 1.9M).'; matches legacy_title_patterns. Update builder to emit stable title 'Forecast Accuracy'."
+      "message": "slide 14 (commercial_approvals) emits legacy verbose title 'Commercial Approvals: 2 approved 2026, 1 pending.'; matches legacy_title_patterns. Update builder to emit stable title 'Commercial Approvals'."
+    },
+    {
+      "severity": "warning",
+      "code": "legacy_header_drift",
+      "path": "slides[14].tables[tbl_approvals_approved_2026].columns",
+      "message": "slide 14 (commercial_approvals) table 'tbl_approvals_approved_2026' headers match a legacy_header_sets entry rather than stable headers. actual=['Region', '# Approvals', 'Avg Deal Size (mEUR ARR)*', 'Actual Deal ARR Coverage (mEUR)'] stable=['Account', 'Opportunity', 'ARR', 'Approved']"
+    },
+    {
+      "severity": "warning",
+      "code": "legacy_header_drift",
+      "path": "slides[14].tables[tbl_approvals_pending].columns",
+      "message": "slide 14 (commercial_approvals) table 'tbl_approvals_pending' headers match a legacy_header_sets entry rather than stable headers. actual=['Region', '# Approvals', 'Avg Deal Size', 'Actual Deal ARR Coverage (mEUR)'] stable=['Account', 'Opportunity', 'Stage', 'ARR', 'Next Step']"
+    },
+    {
+      "severity": "warning",
+      "code": "legacy_header_drift",
+      "path": "slides[14].tables[tbl_approvals_candidate].columns",
+      "message": "slide 14 (commercial_approvals) table 'tbl_approvals_candidate' headers match a legacy_header_sets entry rather than stable headers. actual=['Opportunity Name', 'Deal size (mEUR)', 'Approved subject to'] stable=['Account', 'Opportunity', 'Stage', 'ARR']"
+    },
+    {
+      "severity": "warning",
+      "code": "legacy_header_drift",
+      "path": "slides[14].tables[tbl_approvals_other].columns",
+      "message": "slide 14 (commercial_approvals) table 'tbl_approvals_other' headers match a legacy_header_sets entry rather than stable headers. actual=['Opportunity Name', 'ARR (mEUR)'] stable=['Account', 'Opportunity', 'Status', 'ARR']"
     },
     {
       "severity": "warning",
       "code": "legacy_verbose_title",
       "path": "slides[15].title",
-      "message": "slide 15 (forecast_mix) emits legacy verbose title 'Forecast mix: EUR 5.6M across 12 open deals. Commit = EUR 2.7M (48%).'; matches legacy_title_patterns. Update builder to emit stable title 'Forecast Mix'."
+      "message": "slide 15 (renewals) emits legacy verbose title '3 renewals due FY26, EUR 33.5M ACV (1 in Q2, 2 in Q3).'; matches legacy_title_patterns. Update builder to emit stable title 'FY26 Renewals'."
     },
     {
       "severity": "warning",
       "code": "legacy_header_drift",
-      "path": "slides[15].tables[tbl_forecast_mix].columns",
-      "message": "slide 15 (forecast_mix) table 'tbl_forecast_mix' headers match a legacy_header_sets entry rather than stable headers. actual=['Category', 'Deals', 'ARR mEUR'] stable=['Category', 'Deals', 'Wtd ARR', 'Unwtd ARR']"
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_verbose_title",
-      "path": "slides[16].title",
-      "message": "slide 16 (commercial_approvals) emits legacy verbose title 'Commercial Approvals: 2 approved 2026, 1 pending.'; matches legacy_title_patterns. Update builder to emit stable title 'Commercial Approvals'."
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_header_drift",
-      "path": "slides[16].tables[tbl_approvals_approved_2026].columns",
-      "message": "slide 16 (commercial_approvals) table 'tbl_approvals_approved_2026' headers match a legacy_header_sets entry rather than stable headers. actual=['Region', '# Approvals', 'Avg Deal Size (mEUR ARR)*', 'Actual Deal ARR Coverage (mEUR)'] stable=['Account', 'Opportunity', 'ARR', 'Approved']"
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_header_drift",
-      "path": "slides[16].tables[tbl_approvals_pending].columns",
-      "message": "slide 16 (commercial_approvals) table 'tbl_approvals_pending' headers match a legacy_header_sets entry rather than stable headers. actual=['Region', '# Approvals', 'Avg Deal Size', 'Actual Deal ARR Coverage (mEUR)'] stable=['Account', 'Opportunity', 'Stage', 'ARR', 'Next Step']"
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_header_drift",
-      "path": "slides[16].tables[tbl_approvals_candidate].columns",
-      "message": "slide 16 (commercial_approvals) table 'tbl_approvals_candidate' headers match a legacy_header_sets entry rather than stable headers. actual=['Opportunity Name', 'Deal size (mEUR)', 'Approved subject to'] stable=['Account', 'Opportunity', 'Stage', 'ARR']"
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_header_drift",
-      "path": "slides[16].tables[tbl_approvals_other].columns",
-      "message": "slide 16 (commercial_approvals) table 'tbl_approvals_other' headers match a legacy_header_sets entry rather than stable headers. actual=['Opportunity Name', 'ARR (mEUR)'] stable=['Account', 'Opportunity', 'Status', 'ARR']"
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_verbose_title",
-      "path": "slides[17].title",
-      "message": "slide 17 (renewals) emits legacy verbose title '3 renewals due FY26, EUR 33.5M ACV (1 in Q2, 2 in Q3).'; matches legacy_title_patterns. Update builder to emit stable title 'FY26 Renewals'."
-    },
-    {
-      "severity": "warning",
-      "code": "legacy_header_drift",
-      "path": "slides[17].tables[tbl_renewals].columns",
-      "message": "slide 17 (renewals) table 'tbl_renewals' headers match a legacy_header_sets entry rather than stable headers. actual=['Close Date', 'Account', 'Opportunity', 'Owner', 'Stage', 'ACV (EUR)', 'Probability', 'Commentary'] stable=['Close', 'Account', 'Opportunity', 'Owner', 'Stage', 'ACV', 'Prob %', 'Comments']"
+      "path": "slides[15].tables[tbl_renewals].columns",
+      "message": "slide 15 (renewals) table 'tbl_renewals' headers match a legacy_header_sets entry rather than stable headers. actual=['Close Date', 'Account', 'Opportunity', 'Owner', 'Stage', 'ACV (EUR)', 'Probability', 'Commentary'] stable=['Close', 'Account', 'Opportunity', 'Owner', 'Stage', 'ACV', 'Prob %', 'Comments']"
     }
   ]
 }

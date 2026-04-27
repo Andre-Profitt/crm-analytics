@@ -1,0 +1,23 @@
+# Example waiver demonstrating the Track K format.
+#
+# Real waivers go alongside this file in config/waivers/<WV-id>.yaml.
+# Each waiver is a single YAML document with the fields below.
+#
+# This file is intentionally a no-op example — it carries an ID,
+# expiry, and owner, but its `gate` won't actually fire on the
+# canonical contract (template size matches expected). Listed here
+# so the waiver loader has at least one fixture to validate against.
+
+id: WV-2026-04-001
+gate: brand_fingerprint.template_size_mismatch
+owner: Sales Operations Engineering
+approved_by: Andre
+reason: |
+  Demonstration waiver. The brand fingerprint validator emits a warning
+  when the template file's byte size differs from the contract's
+  expected_template_size_bytes (the SHA mismatch is the actual blocker).
+  This waiver shows the format the release catalog accepts.
+severity_before: warning
+severity_after: info
+allowed_runs: []
+expires_on: 2026-12-31

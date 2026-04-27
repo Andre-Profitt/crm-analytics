@@ -1,0 +1,173 @@
+{
+  "schema_version": "monthly_platform.deck_render_report.v1",
+  "validated_at": "2026-04-27T14:37:31.200146+00:00",
+  "pptx_path": "<pptx-anchor>",
+  "deck_contract_path": "<sanitized>/crm-analytics/config/deck_contract.yaml",
+  "status": "pass",
+  "blocker_count": 0,
+  "warning_count": 0,
+  "slide_count": 16,
+  "slides": [
+    {
+      "slide_number": 1,
+      "slide_id": "cover",
+      "title_status": "n/a",
+      "title_top_in": null,
+      "table_status": "n/a",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 2,
+      "slide_id": "executive_summary",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "n/a",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 3,
+      "slide_id": "since_last_review",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 4,
+      "slide_id": "q1_promised_delivered",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "n/a",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 5,
+      "slide_id": "q1_loss_drivers",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 6,
+      "slide_id": "q2_outlook",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "n/a",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 7,
+      "slide_id": "top_open_opportunities",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 8,
+      "slide_id": "deal_risk_triage",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 9,
+      "slide_id": "owner_coaching",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 10,
+      "slide_id": "pushed_deals",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "n/a",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 11,
+      "slide_id": "q1_slippage",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 12,
+      "slide_id": "forecast_accuracy",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "n/a",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 13,
+      "slide_id": "forecast_mix",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 14,
+      "slide_id": "commercial_approvals",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 15,
+      "slide_id": "renewals",
+      "title_status": "pass",
+      "title_top_in": 0.295,
+      "table_status": "pass",
+      "overflowing_tables": [],
+      "footer_status": "pass",
+      "overall": "pass"
+    },
+    {
+      "slide_number": 16,
+      "slide_id": "legal_notice",
+      "title_status": "n/a",
+      "title_top_in": null,
+      "table_status": "n/a",
+      "overflowing_tables": [],
+      "footer_status": "n/a",
+      "overall": "pass"
+    }
+  ],
+  "findings": []
+}

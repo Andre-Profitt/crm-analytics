@@ -70,8 +70,47 @@ def test_canonical_contract_passes(canonical_deck, canonical_workbook_contract):
     assert report["status"] == "pass", [
         f.as_dict() for f in findings if f.severity == "blocker"
     ]
-    assert report["director_monthly_slide_count"] == 18
+    # 16 slides post Track E re-anchor (2026-04-27); was 18 before
+    # q1_forecast_variance and q2_deal_readiness were dropped to match
+    # current build_deck_from_excel.py output.
+    assert report["director_monthly_slide_count"] == 16
     assert report["blocker_count"] == 0
+
+
+# Synthetic-derived-table helper. The Track E re-anchor (2026-04-27) dropped
+# q1_forecast_variance from the active contract because the current builder
+# no longer emits that slide. The validator still supports
+# binding_type=derived_table as forward state — these tests inject a synthetic
+# derived table onto an existing slide to keep the validator code path
+# exercised against an active director_monthly profile.
+def _inject_synth_derived_table(
+    raw: dict,
+    *,
+    snapshot_role: str = "q1_opening",
+    transform_id: str = "q1_forecast_variance_bridge",
+) -> dict:
+    slide = next(
+        s
+        for s in raw["profiles"]["director_monthly"]["slides"]
+        if s["id"] == "q1_loss_drivers"
+    )
+    slide.setdefault("tables", []).append(
+        {
+            "id": "tbl_synth_derived",
+            "binding_type": "derived_table",
+            "display_grain": "bucket",
+            "source_grain": "opportunity",
+            "transform_id": transform_id,
+            "source": "director_workbook",
+            "sheet": "Q1 Snapshot Trend",
+            "snapshot_roles": {"opening_arr": snapshot_role},
+            "rows": [{"id": "row_a"}, {"id": "row_b"}],
+            "columns": [
+                {"id": "bucket", "header": "Bucket", "computed": "bucket_label"}
+            ],
+        }
+    )
+    return raw
 
 
 # ---------------------------------------------------------------------
@@ -178,16 +217,9 @@ def test_control_deck_active_is_warning(canonical_deck, canonical_workbook_contr
 def test_unknown_snapshot_role_in_derived_is_blocked(
     canonical_deck, canonical_workbook_contract
 ):
-    raw = copy.deepcopy(canonical_deck)
-    slide = next(
-        s
-        for s in raw["profiles"]["director_monthly"]["slides"]
-        if s["id"] == "q1_forecast_variance"
+    raw = _inject_synth_derived_table(
+        copy.deepcopy(canonical_deck), snapshot_role="not_a_role"
     )
-    derived = next(
-        t for t in slide["tables"] if t.get("binding_type") == "derived_table"
-    )
-    derived["snapshot_roles"]["opening_arr"] = "not_a_role"
     findings, report = _validate(raw, canonical_workbook_contract)
     assert report["status"] == "fail"
     assert _has(findings, "unknown_snapshot_role")
@@ -196,16 +228,9 @@ def test_unknown_snapshot_role_in_derived_is_blocked(
 def test_unknown_transform_for_derived_is_blocked(
     canonical_deck, canonical_workbook_contract
 ):
-    raw = copy.deepcopy(canonical_deck)
-    slide = next(
-        s
-        for s in raw["profiles"]["director_monthly"]["slides"]
-        if s["id"] == "q1_forecast_variance"
+    raw = _inject_synth_derived_table(
+        copy.deepcopy(canonical_deck), transform_id="no_such_transform"
     )
-    derived = next(
-        t for t in slide["tables"] if t.get("binding_type") == "derived_table"
-    )
-    derived["transform_id"] = "no_such_transform"
     findings, report = _validate(raw, canonical_workbook_contract)
     assert report["status"] == "fail"
     assert _has(findings, "unknown_transform")

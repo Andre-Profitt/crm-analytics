@@ -1,0 +1,52 @@
+# Track F / F6 — frozen regions for visual regression
+#
+# Each slide declares ordered regions to hash. Coordinates are normalised
+# (0.0 - 1.0) so they survive DPI changes. The validator crops the
+# rendered PNG to each region, hashes the cropped bytes, and compares
+# to the golden baseline manifest.
+#
+# Region kinds:
+#   - "frozen"   the brand chrome / static template area. Mismatch is a
+#                blocker (or warning during transition).
+#   - "dynamic"  documented dynamic-data area; NOT hashed; documented
+#                so future edits don't accidentally tighten it.
+#
+# Coordinates: (x_pct, y_pct, width_pct, height_pct)
+#   left/top from upper-left of the slide.
+#
+# F6 starts conservative — one frozen region per slide: the bottom 8%
+# strip of the slide where the SimCorp template footer/logo rendering
+# lives. That band rarely changes per run (footer text doesn't appear
+# on every slide today, but the template's brand chrome at the bottom
+# does). For static slides (cover / legal_notice) the entire slide is
+# frozen because the content is template-driven.
+
+schema_version: monthly_platform.deck_visual_regions.v1
+
+defaults:
+  frozen_regions:
+    - id: footer_band
+      kind: frozen
+      bbox: [0.0, 0.92, 1.0, 0.08] # bottom 8% strip
+
+slides:
+  cover:
+    frozen_regions:
+      - id: full_slide
+        kind: frozen
+        bbox: [0.0, 0.0, 1.0, 1.0]
+    note: |
+      Cover layout is template-driven brand chrome with director name +
+      snapshot date. The director name and date are dynamic, but the
+      whole-slide hash is stable enough to anchor the brand template
+      version. If the SimCorp template revises the cover layout, this
+      hash will detect it.
+  legal_notice:
+    frozen_regions:
+      - id: full_slide
+        kind: frozen
+        bbox: [0.0, 0.0, 1.0, 1.0]
+    note: |
+      Legal slide is entirely static template content. Whole-slide
+      regression catches any unintended drift (font swap, logo
+      replacement, disclaimer text edit).
