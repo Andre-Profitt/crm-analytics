@@ -1,0 +1,299 @@
+# Track E — Director workbook contract (Milestone 1)
+#
+# First-class data-source contract for the live director workbook the
+# Sales Director Monthly deck consumes. Anchored against
+# output/director_live_workbooks/2026-04-20/jesper-tyrer.xlsx
+# (APAC pilot, Rebekka-aligned, productionalized 2026-04-20).
+#
+# Used by:
+#   - config/deck_contract.yaml (every tables[].source: director_workbook
+#     binding resolves through this contract)
+#   - scripts/validate_director_workbook_contract.py (structural)
+#   - scripts/monthly_platform/deck_binding_resolver.py (runtime)
+#
+# Per the Track E design doc (docs/2026-04-26-track-e-deck-contract-design.md),
+# this contract governs the workbook AS IT EXISTS today. Materializing
+# these sheets into the warehouse is a separate later track and not in
+# M1 scope.
+
+schema_version: monthly_platform.director_workbook_contract.v1
+
+description: |
+  Live director workbook produced upstream of build_sd_monthly_deck_v2.py
+  by the cadence pipeline. 13 sheets, mix of pipeline data, history, and
+  trend snapshots. The directly-row-shaped sheets (Pipeline Open FY26,
+  Won Lost FY26, etc.) declare fixed required_columns. The trend sheets
+  (Q1/Q2 Snapshot Trend) carry dynamic per-snapshot columns and are
+  declared via dynamic_column_patterns plus a small set of stable anchors.
+
+# Identifying metadata required at runtime — the binding resolver verifies
+# these are present on the workbook (Summary sheet text, file metadata, etc.).
+required_metadata:
+  director: { source: Summary, locator: cell_a1_director_territory }
+  territory: { source: Summary, locator: cell_a1_director_territory }
+  reporting_period: { source: Summary, locator: cell_a2 }
+  extracted_at: { source: Summary, locator: cell_a3 }
+  methodology: { source: Summary, locator: cell_a4 }
+
+sheets:
+  - name: Summary
+    purpose: Director identity, methodology, and KPI rollup table.
+    expected_min_rows: 6
+    expected_max_columns: 3
+    layout: kpi_block
+    notes: |
+      Row 1: "<Director Name> (<Territory>)". Row 2: reporting period.
+      Row 3: extraction timestamp. Row 4: methodology footer. Row 6+: KPI / Value pairs.
+
+  - name: Pipeline Open FY26
+    purpose: Open FY26 pipeline (Land + Renewal) — primary deck data source.
+    expected_min_rows: 1
+    expected_min_columns: 22
+    required_columns:
+      - Account
+      - Opportunity
+      - Owner
+      - Stage
+      - Forecast Category
+      - Close Date
+      - ARR Unweighted (EUR)
+      - ARR Weighted (EUR)
+      - Probability %
+      - Push Count
+      - Type
+      - Lead Scope
+      - Industry
+      - Tier
+      - Sales Region
+      - Created
+      - Last Activity
+      - Next Step
+      - Last Modified
+      - Approved
+      - Approval Date
+      - Competitor
+
+  - name: Won Lost FY26
+    purpose: Closed (Won/Lost) deals for FY26.
+    expected_min_rows: 1
+    expected_min_columns: 12
+    required_columns:
+      - Account
+      - Opportunity
+      - Owner
+      - Stage
+      - Close Date
+      - ARR Unweighted (EUR)
+      - Type
+      - Reason
+      - Lost To Competitor
+      - Industry
+      - Sales Region
+      - Created
+
+  - name: Commercial Approval
+    purpose: Commercial approval pipeline — approved 2026 / pending / candidate / other.
+    expected_min_rows: 1
+    expected_min_columns: 10
+    required_columns:
+      - Account
+      - Opportunity
+      - Owner
+      - Stage
+      - Close Date
+      - ARR Unweighted (EUR)
+      - Status
+      - Approval Date
+      - Next Step
+      - Lead Scope
+    expected_status_values:
+      - Approved 2026
+      - Pending Approval
+      - Candidate
+      - Approved (prior year)
+
+  - name: Renewals FY26
+    purpose: FY26 renewal exposure.
+    expected_min_rows: 1
+    expected_min_columns: 8
+    required_columns:
+      - Close Date
+      - Account
+      - Opportunity
+      - Owner
+      - Stage
+      - ACV Unweighted (EUR)
+      - Probability %
+      - Comments
+
+  - name: Pipeline Inspection
+    purpose: Pipeline Inspection list view — score/priority for risk triage.
+    expected_min_rows: 1
+    expected_min_columns: 9
+    required_columns:
+      - Opportunity
+      - Owner
+      - Stage
+      - Forecast Category
+      - ARR Weighted (EUR)
+      - Close Date
+      - Push Count
+      - Score
+      - Priority
+
+  - name: Activity Volume
+    purpose: Per-deal activity rollup (90-day) for readiness signals.
+    expected_min_rows: 1
+    expected_min_columns: 8
+    required_columns:
+      - Account
+      - Opportunity
+      - Owner
+      - Tasks 90d
+      - Events 90d
+      - Total Touches 90d
+      - Last Activity
+      - Flag
+
+  - name: Commit Items
+    purpose: Commit/forecast-category items with weighted ARR and period.
+    expected_min_rows: 1
+    expected_min_columns: 9
+    required_columns:
+      - Account
+      - Opportunity
+      - Owner
+      - Forecast Category
+      - Forecast ARR Wtd (EUR)
+      - ARR Unwtd (EUR)
+      - Close Date
+      - Period
+      - Stage
+
+  - name: Q1 Movement
+    purpose: Q1 pipeline movement events (push, slip, etc.) with old/new close.
+    expected_min_rows: 1
+    expected_min_columns: 9
+    required_columns:
+      - Account
+      - Opportunity
+      - Owner
+      - Stage
+      - Movement
+      - Old Close
+      - New Close
+      - Changed On
+      - ARR Unweighted (EUR)
+    expected_movement_values:
+      - Push
+      - Slip
+      - Pull
+      - Created
+      - Closed
+      - Q1 Slipped
+      - Post-Q1 Push
+
+  - name: Stage History
+    purpose: Stage-change history events (long-form).
+    expected_min_rows: 1
+    expected_min_columns: 8
+    required_columns:
+      - Account
+      - Opportunity
+      - Owner
+      - Stage (live)
+      - From Stage
+      - To Stage
+      - Changed On
+      - ARR Unweighted (EUR)
+
+  - name: Forecast Category History
+    purpose: Forecast-category-change history events.
+    expected_min_rows: 1
+    expected_min_columns: 8
+    required_columns:
+      - Account
+      - Opportunity
+      - Owner
+      - Stage (live)
+      - From Category
+      - To Category
+      - Changed On
+      - ARR Unweighted (EUR)
+
+  - name: Q1 Snapshot Trend
+    purpose: Q1 historical trending — wide table, one row per opp, dynamic per-snapshot ARR + Stage columns.
+    layout: trend_snapshot
+    header_row: 2
+    expected_min_rows: 1
+    required_columns:
+      - Account
+      - Opportunity
+      - Close Date (live)
+      - Owner
+    notes: |
+      Row 1 is a free-text snapshot manifest ("Historical Trending, snapshots: ..."),
+      not a header. The header row is row 2. Snapshot column count varies per run
+      based on how many trend points are captured. The deck contract should refer
+      to columns by semantic role declared under `snapshot_roles` and rely on the
+      binding resolver to map roles to physical columns per snapshot date.
+
+  - name: Q2 Snapshot Trend
+    purpose: Q2 historical trending — same shape as Q1 Snapshot Trend.
+    layout: trend_snapshot
+    header_row: 2
+    expected_min_rows: 1
+    required_columns:
+      - Account
+      - Opportunity
+      - Close Date (live)
+      - Owner
+
+# Semantic snapshot roles the deck contract references — mapped to physical
+# columns by the binding resolver at runtime. Pattern-based roles use a regex
+# with a named "date" group + selection (earliest|latest|nth). Runtime-based
+# roles bind directly to a run_metadata key rather than a column.
+snapshot_roles:
+  q1_opening:
+    sheet: Q1 Snapshot Trend
+    column_pattern: '^ARR (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: earliest
+    role_description: Q1 opening ARR snapshot (typically 2026-01-01).
+  q1_latest:
+    sheet: Q1 Snapshot Trend
+    column_pattern: '^ARR (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: latest
+    role_description: Most recent Q1 ARR snapshot in the workbook.
+  q1_change_to_close:
+    sheet: Q1 Snapshot Trend
+    column_pattern: '^ARR Change (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: latest
+    role_description: Most recent Q1 ARR-change column.
+  q1_stage_opening:
+    sheet: Q1 Snapshot Trend
+    column_pattern: '^StageName_ (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: earliest
+    role_description: Q1 opening Stage snapshot.
+  q1_stage_latest:
+    sheet: Q1 Snapshot Trend
+    column_pattern: '^StageName_ (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: latest
+    role_description: Most recent Q1 Stage snapshot.
+  q2_opening:
+    sheet: Q2 Snapshot Trend
+    column_pattern: '^ARR (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: earliest
+    role_description: Q2 opening ARR snapshot (typically 2026-04-01).
+  q2_latest:
+    sheet: Q2 Snapshot Trend
+    column_pattern: '^ARR (?P<date>\d{4}-\d{2}-\d{2})$'
+    selection: latest
+    role_description: Most recent Q2 ARR snapshot.
+  movement_prior:
+    source: runtime
+    value: prior_snapshot_date
+    role_description: prior_snapshot_date from the active profile run_metadata.
+  movement_current:
+    source: runtime
+    value: snapshot_date
+    role_description: snapshot_date from the active profile run_metadata.

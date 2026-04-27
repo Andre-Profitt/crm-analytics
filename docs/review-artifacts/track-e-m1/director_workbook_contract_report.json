@@ -1,0 +1,11 @@
+{
+  "schema_version": "monthly_platform.director_workbook_contract_report.v1",
+  "contract_path": "<sanitized>/crm-analytics/config/director_workbook_contract.yaml",
+  "workbook_contract_schema_version": "monthly_platform.director_workbook_contract.v1",
+  "status": "pass",
+  "blocker_count": 0,
+  "warning_count": 0,
+  "sheet_count": 13,
+  "snapshot_role_count": 9,
+  "findings": []
+}

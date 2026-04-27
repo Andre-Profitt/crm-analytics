@@ -1,0 +1,69 @@
+name: Track E — contract validators
+
+# Minimal PR check that runs the Track E structural validators + tests
+# whenever the deck/workbook contracts, schemas, validator modules, or
+# Track E tests change. Live-anchor checks (E2 real workbook validator,
+# E3 binding resolver, E4 PPTX checker) are NOT run in CI because they
+# require the live director workbook + PPTX which are not committed.
+# Those tests skip themselves when the anchor files are absent.
+#
+# Reusable-workflow refactor is deferred to Track L per the M1 review.
+
+"on":
+  pull_request:
+    paths:
+      - "config/deck_contract.yaml"
+      - "config/director_workbook_contract.yaml"
+      - "schemas/deck_contract.schema.json"
+      - "schemas/director_workbook_contract.schema.json"
+      - "scripts/monthly_platform/deck_contract.py"
+      - "scripts/monthly_platform/director_workbook_contract.py"
+      - "scripts/monthly_platform/deck_binding_resolver.py"
+      - "scripts/validate_deck_contract.py"
+      - "scripts/validate_track_e_workbook_contract.py"
+      - "scripts/validate_track_e_workbook.py"
+      - "scripts/validate_deck_bindings.py"
+      - "scripts/validate_director_monthly_pptx.py"
+      - "tests/test_track_e_*.py"
+      - ".github/workflows/track-e-validators.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Track E structural validators + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # Track E validators only need: pyyaml, jsonschema, openpyxl,
+          # python-pptx, pytest. requirements.txt already covers these,
+          # so no separate install step is needed.
+
+      - name: Validate deck contract structurally
+        run: python3 scripts/validate_deck_contract.py --show-findings
+
+      - name: Validate director workbook contract structurally
+        run: python3 scripts/validate_track_e_workbook_contract.py --show-findings
+
+      - name: Run Track E tests
+        # Live-anchor tests skip automatically when the workbook/PPTX
+        # in ~/Downloads/ are absent (they are not committed).
+        run: python3 -m pytest tests/test_track_e_*.py -v
+
+      - name: Surface Track E test summary on failure
+        if: failure()
+        run: |
+          echo "::warning::Track E validators failed."
+          echo "::warning::Live-anchor tests skip when workbook/PPTX are absent;"
+          echo "::warning::structural tests should always run on every PR."
