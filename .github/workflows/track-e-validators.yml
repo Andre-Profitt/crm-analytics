@@ -9,7 +9,7 @@ name: Track E — contract validators
 #
 # Reusable-workflow refactor is deferred to Track L per the M1 review.
 
-on:
+"on":
   pull_request:
     paths:
       - "config/deck_contract.yaml"
