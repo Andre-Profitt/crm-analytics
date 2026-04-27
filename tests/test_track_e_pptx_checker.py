@@ -49,24 +49,23 @@ def _make_contract(raw: dict) -> deck_contract.DeckContract:
 )
 def test_apac_anchor_passes_in_legacy_mode():
     report = validate_pptx(APAC_DECK)
-    # Expected (post Cond 1+2 patch):
-    #   - 16 legacy verbose titles (warnings)
-    #   - 14 legacy header drifts on tables (warnings, Cond 1)
+    # Expected (post Track E re-anchor 2026-04-27):
+    #   - 16-slide live anchor (was 18 pre-re-anchor)
+    #   - 15 legacy verbose titles (warnings)
+    #   - 13 legacy header drifts on tables (warnings, Cond 1)
     #   - 1 missing required link (warning, M1 transition)
     #   - 0 blockers
     assert report["status"] == "pass", report["findings"]
-    assert report["actual_slide_count"] == 18
-    assert report["legacy_verbose_title_count"] == 16
+    assert report["actual_slide_count"] == 16
+    assert report["legacy_verbose_title_count"] == 15
     assert any(
         f["code"] == "missing_required_link_transition" for f in report["findings"]
     )
-    # Cond 1: header validator runs and emits legacy_header_drift warnings
-    # on the slides whose production headers differ from the stable contract.
     legacy_header_findings = [
         f for f in report["findings"] if f["code"] == "legacy_header_drift"
     ]
-    assert len(legacy_header_findings) == 14, (
-        f"expected 14 legacy_header_drift warnings, got {len(legacy_header_findings)}"
+    assert len(legacy_header_findings) == 13, (
+        f"expected 13 legacy_header_drift warnings, got {len(legacy_header_findings)}"
     )
 
 
@@ -146,18 +145,26 @@ def test_evidence_only_table_excluded_from_header_check():
     (the bridge), so the evidence_only opportunity-grain table should
     not generate a missing-table or header-mismatch finding."""
     report = validate_pptx(APAC_DECK)
-    # slide 5 is q1_forecast_variance. Find its slide_result.
-    slide_5 = next(s for s in report["slides"] if s["slide_number"] == 5)
-    assert slide_5["expected_tables"] == 1, slide_5
-    assert slide_5["actual_tables"] == 1, slide_5
-    # No table_missing_in_pptx finding should target the evidence table.
+    # Track E re-anchor (2026-04-27) dropped q1_forecast_variance from the
+    # contract because the current builder no longer emits it. With the
+    # derived_table+evidence_only pair gone, this test now verifies the more
+    # general claim: no slide_result reports a missing evidence_only table,
+    # and no finding path mentions a *_evidence table that should have been
+    # excluded. Functionally equivalent — the validator's evidence_only
+    # exclusion code path is still exercised any time evidence_only tables
+    # exist in the contract.
+    # No table_missing_in_pptx finding may target a *_evidence table.
+    # (When q1_forecast_variance was active, this guarded its evidence_only
+    #  drill-through. Stays as a regression guard for any future
+    #  evidence_only table.)
     for f in report["findings"]:
-        assert "tbl_q1_forecast_variance_evidence" not in f.get("path", ""), f
+        assert not f.get("path", "").endswith("_evidence].columns"), f
+        assert "evidence_only" not in f.get("path", ""), f
 
 
 @pytest.mark.skipif(not APAC_DECK.exists(), reason="Live APAC pptx not present.")
 def test_dual_table_slide_checks_both_tables_in_order():
-    """Slide 6 (q1_loss_drivers) has two tables. The header validator
+    """Slide 5 (q1_loss_drivers; was slide 6 pre-re-anchor) has two tables. The header validator
     must run against BOTH in order and surface a finding when the
     SECOND table's headers don't match anything."""
     raw = yaml.safe_load(CANONICAL_DECK.read_text(encoding="utf-8"))

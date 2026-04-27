@@ -47,7 +47,7 @@ DECK_CONTRACT_PATH = REPO_ROOT / "config" / "deck_contract.yaml"
 DECK_SCHEMA_PATH = REPO_ROOT / "schemas" / "deck_contract.schema.json"
 
 SCHEMA_VERSION = "monthly_platform.deck_contract.v2"
-DIRECTOR_MONTHLY_EXPECTED_SLIDES = 18
+DIRECTOR_MONTHLY_EXPECTED_SLIDES = 16
 
 REPORT_SCHEMA_VERSION = "monthly_platform.deck_contract_report.v1"
 
